@@ -18,6 +18,10 @@ import Profile from './pages/Profile';
 import Certificate from './pages/Certificate';
 import InstructorProfile from './pages/InstructorProfile';
 import Chatbot from './components/Chatbot';
+import FocusRoom from './pages/FocusRoom';
+import SkillTree from './pages/SkillTree';
+import StudentSchedule from './pages/StudentSchedule';
+import LiveMeeting from './pages/LiveMeeting';
 
 // Admin Pages
 import AdminDashboard from './pages/adminpages/AdminDashboard';
@@ -34,6 +38,7 @@ import ManageAssignments from './pages/instructorpages/ManageAssignments';
 import InstructorCourses from './pages/instructorpages/InstructorCourses';
 import InstructorAnalytics from './pages/instructorpages/InstructorAnalytics';
 import CourseEditor from './pages/instructorpages/CourseEditor';
+import InstructorSchedule from './pages/instructorpages/InstructorSchedule';
 
 export default function App() {
   return (
@@ -49,6 +54,10 @@ export default function App() {
           <Route path="/course/:id" element={<CourseDetails />} />
           <Route path="/checkout/:id" element={<Checkout />} />
           <Route path="/courses" element={<MyCourses />} />
+          <Route path="/skill-tree" element={<SkillTree />} />
+          <Route path="/focus" element={<FocusRoom />} />
+          <Route path="/schedule" element={<StudentSchedule />} />
+          <Route path="/live/:id" element={<LiveMeeting />} />
           <Route path="/assignments" element={<Assignments />} />
           <Route path="/assignments/:id/submit" element={<SubmitAssignment />} />
           <Route path="/grades" element={<Grades />} />
@@ -76,6 +85,7 @@ export default function App() {
           <Route path="/instructor/courses" element={<InstructorCourses />} />
           <Route path="/instructor/courses/edit" element={<CourseEditor />} />
           <Route path="/instructor/analytics" element={<InstructorAnalytics />} />
+          <Route path="/instructor/schedule" element={<InstructorSchedule />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

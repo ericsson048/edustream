@@ -60,9 +60,14 @@ export default function CourseEditor() {
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-lg font-bold">Curriculum</h2>
-                  <button className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                    <Plus className="w-4 h-4" /> Add Module
-                  </button>
+                  <div className="flex gap-2">
+                    <button className="text-sm font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
+                      ✨ Auto-Generate
+                    </button>
+                    <button className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 px-3 py-1.5">
+                      <Plus className="w-4 h-4" /> Add Module
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
