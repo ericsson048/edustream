@@ -2,7 +2,7 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { UploadCloud, FileText, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 export default function SubmitAssignment() {
   const [isDragging, setIsDragging] = useState(false);
