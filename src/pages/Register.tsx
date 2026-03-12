@@ -32,6 +32,27 @@ export default function Register() {
           </div>
           <h2 className="text-4xl font-bold mb-6 leading-tight">Start your learning journey today.</h2>
           <p className="text-lg text-blue-100 mb-8">Join our community of learners and instructors to achieve your goals.</p>
+          
+          <div className="space-y-4">
+            {['Access to 500+ premium courses', 'Interactive quizzes and assignments', 'Recognized industry certifications'].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="bg-blue-500 rounded-full p-1">
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <span className="font-medium">{item}</span>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-12 rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10">
+            <img 
+              src="https://images.unsplash.com/photo-1531482615713-2afd69097998?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80" 
+              alt="Classroom" 
+              className="w-full h-64 object-cover"
+            />
+          </div>
         </div>
       </div>
 
@@ -94,7 +115,7 @@ export default function Register() {
           </form>
 
           <p className="mt-8 text-center text-sm text-slate-600">
-            Already have an account? <Link to="/" className="font-bold text-blue-600 hover:text-blue-500">Sign in</Link>
+            Already have an account? <Link to="/login" className="font-bold text-blue-600 hover:text-blue-500">Sign in</Link>
           </p>
         </div>
       </div>
