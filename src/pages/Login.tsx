@@ -1,21 +1,31 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Info } from 'lucide-react';
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { getDefaultRoute } from '../components/guards/ProtectedRoute';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('student@edustream.com');
   const [password, setPassword] = useState('password123');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
+  const { showToast } = useToast();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.includes('admin')) {
-      navigate('/admin');
-    } else if (email.includes('instructor')) {
-      navigate('/instructor');
-    } else {
-      navigate('/dashboard');
+    setIsSubmitting(true);
+    try {
+      const user = await login(email, password);
+      showToast('Connexion reussie.', 'success');
+      navigate(getDefaultRoute(user.role), { replace: true });
+    } catch {
+      const message = 'Identifiants invalides ou serveur inaccessible.';
+      showToast(message, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -137,9 +147,10 @@ export default function Login() {
 
             <button 
               type="submit"
+              disabled={isSubmitting}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
-              Sign In
+              {isSubmitting ? 'Connexion...' : 'Sign In'}
             </button>
           </form>
 

@@ -1,10 +1,13 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AdminSidebar() {
   const location = useLocation();
   const path = location.pathname;
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   const links = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
@@ -47,9 +50,9 @@ export default function AdminSidebar() {
       </nav>
       
       <div className="p-4 mt-auto border-t border-slate-100">
-        <Link to="/" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+        <button className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors" onClick={() => { logout(); navigate('/'); }}>
           Logout
-        </Link>
+        </button>
       </div>
     </aside>
   );

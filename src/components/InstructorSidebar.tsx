@@ -1,10 +1,13 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, BookOpen, FileText, BarChart2, GraduationCap, MessageSquare, User, Calendar } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function InstructorSidebar() {
   const location = useLocation();
   const path = location.pathname;
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   const links = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/instructor' },
@@ -47,9 +50,9 @@ export default function InstructorSidebar() {
       </nav>
       
       <div className="p-4 mt-auto border-t border-slate-100">
-        <Link to="/" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+        <button className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors" onClick={() => { logout(); navigate('/'); }}>
           Logout
-        </Link>
+        </button>
       </div>
     </aside>
   );

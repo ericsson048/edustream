@@ -1,26 +1,53 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import type { UserRole } from '../types/auth';
+import { getDefaultRoute } from '../components/guards/ProtectedRoute';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<UserRole>('STUDENT');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { register } = useAuth();
+  const { showToast } = useToast();
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setIsSubmitting(true);
+    try {
+      const user = await register({
+        email,
+        full_name: `${firstName} ${lastName}`.trim(),
+        role,
+        password,
+      });
+      showToast('Compte cree avec succes.', 'success');
+      navigate(getDefaultRoute(user.role), { replace: true });
+    } catch {
+      const message = "Inscription impossible. Verifiez les champs puis reessayez.";
+      showToast(message, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex bg-slate-50">
       <div className="hidden lg:flex lg:w-1/2 bg-blue-600 relative overflow-hidden items-center justify-center p-12">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-900 opacity-90 z-10"></div>
-        <img 
-          src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1471&q=80" 
-          alt="Students learning" 
+        <img
+          src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1471&q=80"
+          alt="Students learning"
           className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
         />
-        
+
         <div className="relative z-20 max-w-lg text-white">
           <div className="flex items-center gap-3 mb-8">
             <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
@@ -32,27 +59,6 @@ export default function Register() {
           </div>
           <h2 className="text-4xl font-bold mb-6 leading-tight">Start your learning journey today.</h2>
           <p className="text-lg text-blue-100 mb-8">Join our community of learners and instructors to achieve your goals.</p>
-          
-          <div className="space-y-4">
-            {['Access to 500+ premium courses', 'Interactive quizzes and assignments', 'Recognized industry certifications'].map((item, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="bg-blue-500 rounded-full p-1">
-                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <span className="font-medium">{item}</span>
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-12 rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10">
-            <img 
-              src="https://images.unsplash.com/photo-1531482615713-2afd69097998?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80" 
-              alt="Classroom" 
-              className="w-full h-64 object-cover"
-            />
-          </div>
         </div>
       </div>
 
@@ -67,27 +73,29 @@ export default function Register() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">First Name</label>
-                <input type="text" required className="block w-full px-3 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Alex" />
+                <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="block w-full px-3 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Alex" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Last Name</label>
-                <input type="text" required className="block w-full px-3 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Johnson" />
+                <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="block w-full px-3 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Johnson" />
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
-              <input type="email" required className="block w-full px-3 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="name@example.com" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="block w-full px-3 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="name@example.com" />
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
               <div className="relative">
-                <input 
-                  type={showPassword ? "text" : "password"}
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                   className="block w-full pl-3 pr-10 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="••••••••"
+                  placeholder="********"
                 />
                 <button type="button" className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -99,18 +107,18 @@ export default function Register() {
               <label className="block text-sm font-semibold text-slate-700 mb-2">I want to...</label>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
-                  <input type="radio" name="role" value="student" defaultChecked className="text-blue-600 focus:ring-blue-500" />
+                  <input type="radio" name="role" value="STUDENT" checked={role === 'STUDENT'} onChange={() => setRole('STUDENT')} className="text-blue-600 focus:ring-blue-500" />
                   <span className="text-sm font-medium text-slate-700">Learn</span>
                 </label>
                 <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
-                  <input type="radio" name="role" value="instructor" className="text-blue-600 focus:ring-blue-500" />
+                  <input type="radio" name="role" value="INSTRUCTOR" checked={role === 'INSTRUCTOR'} onChange={() => setRole('INSTRUCTOR')} className="text-blue-600 focus:ring-blue-500" />
                   <span className="text-sm font-medium text-slate-700">Teach</span>
                 </label>
               </div>
             </div>
 
-            <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-              Create Account
+            <button type="submit" disabled={isSubmitting} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-70">
+              {isSubmitting ? 'Creation...' : 'Create Account'}
             </button>
           </form>
 

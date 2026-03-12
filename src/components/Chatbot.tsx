@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import React from 'react';
 import { MessageCircle, X, Send, Loader2, Sparkles } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { clsx } from 'clsx';
+import { aiService } from '../services/aiService';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 interface Message {
   id: string;
@@ -18,26 +20,8 @@ export default function Chatbot() {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  // Initialize Gemini client
-  // We use a ref to persist the chat session across renders without re-initializing it constantly
-  const chatSessionRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (isOpen && !chatSessionRef.current && process.env.GEMINI_API_KEY) {
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        chatSessionRef.current = ai.chats.create({
-          model: "gemini-2.5-flash-latest",
-          config: {
-            systemInstruction: "You are a helpful and encouraging AI teaching assistant for EduStream LMS. You help students with their coursework, explain concepts, and provide study tips. Keep answers concise and friendly.",
-          },
-        });
-      } catch (error) {
-        console.error("Failed to initialize Gemini AI:", error);
-      }
-    }
-  }, [isOpen]);
+  const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -60,20 +44,10 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
-      if (!chatSessionRef.current) {
-         // Fallback if API key is missing or init failed
-         if (!process.env.GEMINI_API_KEY) {
-            throw new Error("Gemini API Key is missing.");
-         }
-         // Re-try init
-         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-         chatSessionRef.current = ai.chats.create({
-            model: "gemini-2.5-flash-latest",
-         });
+      if (!isAuthenticated) {
+        throw new Error('Not authenticated');
       }
-
-      const result = await chatSessionRef.current.sendMessage({ message: userMessage.text });
-      const responseText = result.text;
+      const responseText = await aiService.askTutor(userMessage.text);
 
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -84,10 +58,11 @@ export default function Chatbot() {
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error("Chat error:", error);
+      showToast("Erreur IA: verifiez votre abonnement ou la connexion.", 'error');
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: "I'm sorry, I encountered an error. Please try again later."
+        text: "Je ne peux pas repondre pour le moment. Verifiez votre connexion ou votre abonnement."
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {

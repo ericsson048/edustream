@@ -41,8 +41,12 @@ import InstructorCourses from './pages/instructorpages/InstructorCourses';
 import InstructorAnalytics from './pages/instructorpages/InstructorAnalytics';
 import CourseEditor from './pages/instructorpages/CourseEditor';
 import InstructorSchedule from './pages/instructorpages/InstructorSchedule';
+import ProtectedRoute, { getDefaultRoute } from './components/guards/ProtectedRoute';
+import { useAuth } from './contexts/AuthContext';
 
 export default function App() {
+  const { isAuthenticated, user } = useAuth();
+
   return (
     <Router>
       <div className="relative">
@@ -50,46 +54,46 @@ export default function App() {
           {/* Public / Student Routes */}
           <Route path="/" element={<Welcome />} />
           <Route path="/pricing" element={<Pricing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={isAuthenticated && user ? <Navigate to={getDefaultRoute(user.role)} replace /> : <Login />} />
+          <Route path="/register" element={isAuthenticated && user ? <Navigate to={getDefaultRoute(user.role)} replace /> : <Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/catalog" element={<Catalog />} />
-          <Route path="/course/:id" element={<CourseDetails />} />
-          <Route path="/checkout/:id" element={<Checkout />} />
-          <Route path="/courses" element={<MyCourses />} />
-          <Route path="/skill-tree" element={<SkillTree />} />
-          <Route path="/focus" element={<FocusRoom />} />
-          <Route path="/schedule" element={<StudentSchedule />} />
-          <Route path="/live/:id" element={<LiveMeeting />} />
-          <Route path="/assignments" element={<Assignments />} />
-          <Route path="/assignments/:id/submit" element={<SubmitAssignment />} />
-          <Route path="/grades" element={<Grades />} />
-          <Route path="/community" element={<Community />} />
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/player" element={<CoursePlayer />} />
-          <Route path="/learning" element={<CoursePlayer />} />
-          <Route path="/quiz/:id" element={<Quiz />} />
-          <Route path="/certificate" element={<Certificate />} />
-          <Route path="/instructor/profile/:id" element={<InstructorProfile />} />
+          <Route path="/dashboard" element={<ProtectedRoute roles={['STUDENT']}><Dashboard /></ProtectedRoute>} />
+          <Route path="/catalog" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR', 'ADMIN']}><Catalog /></ProtectedRoute>} />
+          <Route path="/course/:id" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR', 'ADMIN']}><CourseDetails /></ProtectedRoute>} />
+          <Route path="/checkout/:id" element={<ProtectedRoute roles={['STUDENT']}><Checkout /></ProtectedRoute>} />
+          <Route path="/courses" element={<ProtectedRoute roles={['STUDENT']}><MyCourses /></ProtectedRoute>} />
+          <Route path="/skill-tree" element={<ProtectedRoute roles={['STUDENT']}><SkillTree /></ProtectedRoute>} />
+          <Route path="/focus" element={<ProtectedRoute roles={['STUDENT']}><FocusRoom /></ProtectedRoute>} />
+          <Route path="/schedule" element={<ProtectedRoute roles={['STUDENT']}><StudentSchedule /></ProtectedRoute>} />
+          <Route path="/live/:id" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR']}><LiveMeeting /></ProtectedRoute>} />
+          <Route path="/assignments" element={<ProtectedRoute roles={['STUDENT']}><Assignments /></ProtectedRoute>} />
+          <Route path="/assignments/:id/submit" element={<ProtectedRoute roles={['STUDENT']}><SubmitAssignment /></ProtectedRoute>} />
+          <Route path="/grades" element={<ProtectedRoute roles={['STUDENT']}><Grades /></ProtectedRoute>} />
+          <Route path="/community" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR', 'ADMIN']}><Community /></ProtectedRoute>} />
+          <Route path="/messages" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR', 'ADMIN']}><Messages /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR', 'ADMIN']}><Profile /></ProtectedRoute>} />
+          <Route path="/player" element={<ProtectedRoute roles={['STUDENT']}><CoursePlayer /></ProtectedRoute>} />
+          <Route path="/learning" element={<ProtectedRoute roles={['STUDENT']}><CoursePlayer /></ProtectedRoute>} />
+          <Route path="/quiz/:id" element={<ProtectedRoute roles={['STUDENT']}><Quiz /></ProtectedRoute>} />
+          <Route path="/certificate" element={<ProtectedRoute roles={['STUDENT']}><Certificate /></ProtectedRoute>} />
+          <Route path="/instructor/profile/:id" element={<ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}><InstructorProfile /></ProtectedRoute>} />
           
           {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/users" element={<ManageUsers />} />
-          <Route path="/admin/courses" element={<AdminCourses />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-          <Route path="/admin/reports" element={<AdminReports />} />
-          <Route path="/admin/support" element={<AdminSupport />} />
-          <Route path="/admin/transactions" element={<AdminTransactions />} />
+          <Route path="/admin" element={<ProtectedRoute roles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute roles={['ADMIN']}><ManageUsers /></ProtectedRoute>} />
+          <Route path="/admin/courses" element={<ProtectedRoute roles={['ADMIN']}><AdminCourses /></ProtectedRoute>} />
+          <Route path="/admin/settings" element={<ProtectedRoute roles={['ADMIN']}><AdminSettings /></ProtectedRoute>} />
+          <Route path="/admin/reports" element={<ProtectedRoute roles={['ADMIN']}><AdminReports /></ProtectedRoute>} />
+          <Route path="/admin/support" element={<ProtectedRoute roles={['ADMIN']}><AdminSupport /></ProtectedRoute>} />
+          <Route path="/admin/transactions" element={<ProtectedRoute roles={['ADMIN']}><AdminTransactions /></ProtectedRoute>} />
           
           {/* Instructor Routes */}
-          <Route path="/instructor" element={<InstructorDashboard />} />
-          <Route path="/instructor/assignments" element={<ManageAssignments />} />
-          <Route path="/instructor/courses" element={<InstructorCourses />} />
-          <Route path="/instructor/courses/edit" element={<CourseEditor />} />
-          <Route path="/instructor/analytics" element={<InstructorAnalytics />} />
-          <Route path="/instructor/schedule" element={<InstructorSchedule />} />
+          <Route path="/instructor" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorDashboard /></ProtectedRoute>} />
+          <Route path="/instructor/assignments" element={<ProtectedRoute roles={['INSTRUCTOR']}><ManageAssignments /></ProtectedRoute>} />
+          <Route path="/instructor/courses" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorCourses /></ProtectedRoute>} />
+          <Route path="/instructor/courses/edit" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseEditor /></ProtectedRoute>} />
+          <Route path="/instructor/analytics" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorAnalytics /></ProtectedRoute>} />
+          <Route path="/instructor/schedule" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorSchedule /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

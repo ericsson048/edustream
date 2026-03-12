@@ -1,8 +1,36 @@
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { User, Mail, Lock, Bell, Camera, Save } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Profile() {
+  const { user, updateMe } = useAuth();
+  const { showToast } = useToast();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [bio, setBio] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    setFullName(user.full_name || '');
+    setEmail(user.email || '');
+  }, [user]);
+
+  const firstName = fullName.split(' ').slice(0, -1).join(' ') || fullName;
+  const lastName = fullName.split(' ').slice(-1).join(' ');
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateMe({ full_name: `${firstName} ${lastName}`.trim(), email });
+      showToast('Profil mis a jour.', 'success');
+    } catch {
+      showToast('Erreur de mise a jour.', 'error');
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
@@ -38,20 +66,20 @@ export default function Profile() {
                 </div>
               </div>
 
-              <form className="space-y-6">
+              <form className="space-y-6" onSubmit={handleSave}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">First Name</label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                      <input type="text" defaultValue="Alex" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors" />
+                      <input type="text" value={firstName} onChange={(e) => setFullName(`${e.target.value} ${lastName}`.trim())} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">Last Name</label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                      <input type="text" defaultValue="Johnson" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors" />
+                      <input type="text" value={lastName} onChange={(e) => setFullName(`${firstName} ${e.target.value}`.trim())} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors" />
                     </div>
                   </div>
                 </div>
@@ -60,17 +88,17 @@ export default function Profile() {
                   <label className="block text-sm font-bold text-slate-700 mb-2">Email Address</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                    <input type="email" defaultValue="alex@edustream.com" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors" />
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors" />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Bio</label>
-                  <textarea rows={4} defaultValue="Computer Science student passionate about web development and UI design." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors resize-none"></textarea>
+                  <textarea rows={4} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about you..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors resize-none"></textarea>
                 </div>
 
                 <div className="pt-6 border-t border-slate-100 flex justify-end">
-                  <button type="button" className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
+                  <button type="submit" className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
                     <Save className="w-4 h-4" />
                     Save Changes
                   </button>
