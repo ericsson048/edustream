@@ -1,17 +1,21 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, FileText, BarChart2, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileText, BarChart2, Users, Settings, LogOut, Compass, MessageSquare, User } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 export default function Sidebar() {
   const location = useLocation();
   const path = location.pathname;
+  const { t } = useTranslation();
 
   const links = [
-    { name: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-    { name: 'My Courses', icon: BookOpen, href: '/courses' },
-    { name: 'Assignments', icon: FileText, href: '/assignments' },
-    { name: 'Grades', icon: BarChart2, href: '/grades' },
-    { name: 'Community', icon: Users, href: '/community' },
+    { name: t('sidebar.dashboard'), icon: LayoutDashboard, href: '/dashboard' },
+    { name: t('sidebar.catalog'), icon: Compass, href: '/catalog' },
+    { name: t('sidebar.myCourses'), icon: BookOpen, href: '/courses' },
+    { name: t('sidebar.assignments'), icon: FileText, href: '/assignments' },
+    { name: t('sidebar.grades'), icon: BarChart2, href: '/grades' },
+    { name: t('sidebar.community'), icon: Users, href: '/community' },
+    { name: t('sidebar.messages'), icon: MessageSquare, href: '/messages' },
   ];
 
   return (
@@ -46,24 +50,28 @@ export default function Sidebar() {
 
       <div className="p-4 mt-auto border-t border-slate-100">
         <div className="bg-blue-50 rounded-2xl p-4 mb-4">
-          <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Pro Plan</p>
+          <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">{t('sidebar.proPlan')}</p>
           <p className="text-xs text-slate-600 mb-3">Get unlimited access to all premium features.</p>
           <button className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
-            Upgrade
+            {t('sidebar.upgrade')}
           </button>
         </div>
 
         <div className="flex items-center gap-3 px-2">
-          <img
-            src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-            alt="User"
-            className="w-9 h-9 rounded-full object-cover border border-slate-200"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-slate-900 truncate">Alex Johnson</p>
-            <p className="text-xs text-slate-500 truncate">Computer Science</p>
-          </div>
-          <Settings className="w-4 h-4 text-slate-400 cursor-pointer hover:text-slate-600" />
+          <Link to="/profile" className="flex items-center gap-3 flex-1 min-w-0 group">
+            <img
+              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+              alt="User"
+              className="w-9 h-9 rounded-full object-cover border border-slate-200 group-hover:border-blue-400 transition-colors"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors">Alex Johnson</p>
+              <p className="text-xs text-slate-500 truncate">Computer Science</p>
+            </div>
+          </Link>
+          <Link to="/profile">
+            <Settings className="w-4 h-4 text-slate-400 cursor-pointer hover:text-slate-600" />
+          </Link>
         </div>
       </div>
     </aside>

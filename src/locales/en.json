@@ -1,0 +1,17 @@
+{
+  "header": {
+    "search": "Search courses, assignments...",
+    "language": "Language"
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "catalog": "Catalog",
+    "myCourses": "My Courses",
+    "assignments": "Assignments",
+    "grades": "Grades",
+    "community": "Community",
+    "messages": "Messages",
+    "proPlan": "Pro Plan",
+    "upgrade": "Upgrade"
+  }
+}

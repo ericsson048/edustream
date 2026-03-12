@@ -1,9 +1,23 @@
-import { Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Info } from 'lucide-react';
+import React, { useState } from 'react';
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('student@edustream.com');
+  const [password, setPassword] = useState('password123');
+  const navigate = useNavigate();
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email.includes('admin')) {
+      navigate('/admin');
+    } else if (email.includes('instructor')) {
+      navigate('/instructor');
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   return (
     <div className="min-h-screen flex bg-slate-50">
@@ -60,7 +74,7 @@ export default function Login() {
             <p className="text-slate-500">Please enter your credentials to access your dashboard.</p>
           </div>
 
-          <form className="space-y-6">
+          <form className="space-y-6" onSubmit={handleLogin}>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
               <div className="relative">
@@ -71,9 +85,11 @@ export default function Login() {
                 </div>
                 <input 
                   type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="name@company.com"
-                  defaultValue="alex@edustream.com"
+                  required
                 />
               </div>
             </div>
@@ -81,7 +97,7 @@ export default function Login() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-semibold text-slate-700">Password</label>
-                <a href="#" className="text-sm font-semibold text-blue-600 hover:text-blue-500">Forgot password?</a>
+                <Link to="/forgot-password" className="text-sm font-semibold text-blue-600 hover:text-blue-500">Forgot password?</Link>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -91,9 +107,11 @@ export default function Login() {
                 </div>
                 <input 
                   type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-10 pr-10 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="••••••••"
-                  defaultValue="password123"
+                  required
                 />
                 <button 
                   type="button"
@@ -117,13 +135,38 @@ export default function Login() {
               </label>
             </div>
 
-            <Link 
-              to="/dashboard"
+            <button 
+              type="submit"
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
               Sign In
-            </Link>
+            </button>
           </form>
+
+          {/* Test Accounts Info Box */}
+          <div className="mt-8 bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-bold text-blue-900 mb-2">Demo Accounts</h3>
+                <div className="space-y-2 text-sm text-blue-800">
+                  <div className="flex justify-between items-center bg-white/60 px-3 py-2 rounded-lg border border-blue-100/50">
+                    <span className="font-medium">Learner</span>
+                    <code className="text-xs bg-white px-2 py-1 rounded shadow-sm">student@edustream.com</code>
+                  </div>
+                  <div className="flex justify-between items-center bg-white/60 px-3 py-2 rounded-lg border border-blue-100/50">
+                    <span className="font-medium">Instructor</span>
+                    <code className="text-xs bg-white px-2 py-1 rounded shadow-sm">instructor@edustream.com</code>
+                  </div>
+                  <div className="flex justify-between items-center bg-white/60 px-3 py-2 rounded-lg border border-blue-100/50">
+                    <span className="font-medium">Admin</span>
+                    <code className="text-xs bg-white px-2 py-1 rounded shadow-sm">admin@edustream.com</code>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2 italic">Password for all accounts: <strong>password123</strong></p>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div className="mt-8">
             <div className="relative">
@@ -149,7 +192,7 @@ export default function Login() {
           </div>
 
           <p className="mt-8 text-center text-sm text-slate-600">
-            Don't have an account? <a href="#" className="font-bold text-blue-600 hover:text-blue-500">Create an account</a>
+            Don't have an account? <Link to="/register" className="font-bold text-blue-600 hover:text-blue-500">Create an account</Link>
           </p>
         </div>
       </div>

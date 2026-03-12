@@ -1,0 +1,17 @@
+{
+  "header": {
+    "search": "Rechercher des cours, devoirs...",
+    "language": "Langue"
+  },
+  "sidebar": {
+    "dashboard": "Tableau de bord",
+    "catalog": "Catalogue",
+    "myCourses": "Mes Cours",
+    "assignments": "Devoirs",
+    "grades": "Notes",
+    "community": "Communauté",
+    "messages": "Messages",
+    "proPlan": "Forfait Pro",
+    "upgrade": "Améliorer"
+  }
+}
