@@ -49,7 +49,7 @@ export default function MyCourses() {
                 <div key={enrollment.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden group flex flex-col h-full hover:shadow-lg transition-shadow duration-300">
                   <div className="relative h-48 overflow-hidden">
                     <img
-                      src={course?.thumbnail_url || 'https://images.unsplash.com/photo-1587620962725-abab7fe55159?auto=format&fit=crop&w=1631&q=80'}
+                      src={course?.thumbnail || course?.thumbnail_url || 'https://images.unsplash.com/photo-1587620962725-abab7fe55159?auto=format&fit=crop&w=1631&q=80'}
                       alt={course?.title || enrollment.course_title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />

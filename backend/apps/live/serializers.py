@@ -15,6 +15,8 @@ class LiveParticipantSerializer(serializers.ModelSerializer):
 
 class LiveSessionSerializer(serializers.ModelSerializer):
     participants = LiveParticipantSerializer(many=True, read_only=True)
+    course_title = serializers.CharField(source="course.title", read_only=True)
+    enrolled_students = serializers.IntegerField(source="course.enrollments.count", read_only=True)
 
     class Meta:
         model = LiveSession

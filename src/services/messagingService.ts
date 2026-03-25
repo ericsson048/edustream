@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient';
 import type { PaginatedResponse } from './common';
+import { buildWebSocketUrl } from './realtime';
 
 export interface ConversationItem {
   id: string;
@@ -29,5 +30,16 @@ export const messagingService = {
   async listMessages(conversationId: string): Promise<MessageItem[]> {
     const { data } = await apiClient.get<PaginatedResponse<MessageItem>>(`/messages/?conversation=${conversationId}`);
     return data.results ?? [];
+  },
+  async createConversation(name: string): Promise<ConversationItem> {
+    const { data } = await apiClient.post<ConversationItem>('/conversations/', { name, is_group: true });
+    return data;
+  },
+  async sendMessage(conversation: string, content: string): Promise<MessageItem> {
+    const { data } = await apiClient.post<MessageItem>('/messages/', { conversation, content });
+    return data;
+  },
+  createConversationSocket(conversationId: string): WebSocket {
+    return new WebSocket(buildWebSocketUrl(`/ws/messages/${conversationId}/`));
   },
 };

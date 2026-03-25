@@ -1,8 +1,20 @@
-from rest_framework import permissions, viewsets
+from django.db import transaction
+from rest_framework import permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.response import Response
 
-from .models import Certificate, Course, Enrollment, Lesson, Module, Note, Progress, Resource
-from .permissions import IsInstructorOrReadOnly, IsOwnerOrReadOnly
+from .models import Category, Certificate, Course, Enrollment, Lesson, Module, Note, Progress, Resource
+from .permissions import (
+    IsInstructorOrReadOnly,
+    IsInstructorOwnerOrAdmin,
+    IsOwnerOrReadOnly,
+    is_admin,
+    owns_learning_object,
+)
 from .serializers import (
+    CategorySerializer,
     CertificateSerializer,
     CourseSerializer,
     EnrollmentSerializer,
@@ -14,37 +26,169 @@ from .serializers import (
 )
 
 
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Category.objects.filter(is_active=True)
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["slug"]
+    search_fields = ["name", "description"]
+    ordering_fields = ["order", "name", "created_at"]
+
+
 class CourseViewSet(viewsets.ModelViewSet):
-    queryset = Course.objects.select_related("instructor").all()
+    queryset = Course.objects.select_related("instructor", "category").all()
     serializer_class = CourseSerializer
-    permission_classes = [IsInstructorOrReadOnly]
-    filterset_fields = ["category", "level", "instructor", "is_published"]
-    search_fields = ["title", "description", "category"]
+    permission_classes = [IsInstructorOwnerOrAdmin]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filterset_fields = ["category", "category__slug", "level", "instructor", "is_published"]
+    search_fields = ["title", "description", "category__name"]
     ordering_fields = ["created_at", "price"]
 
     def perform_create(self, serializer):
         serializer.save(instructor=self.request.user)
 
+    @action(detail=True, methods=["post"], url_path="import-outline")
+    def import_outline(self, request, pk=None):
+        course = self.get_object()
+        outline = request.data.get("outline")
+        if not isinstance(outline, dict):
+            return Response({"detail": "outline is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        modules_payload = outline.get("modules") or []
+        if not isinstance(modules_payload, list):
+            return Response({"detail": "outline.modules must be a list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            serializer = self.get_serializer(
+                course,
+                data={
+                    "title": outline.get("title", course.title),
+                    "description": outline.get("description", course.description),
+                    "level": outline.get("level", course.level),
+                    "price": outline.get("price", course.price),
+                    "learning_objectives": outline.get("learning_objectives", course.learning_objectives),
+                    "prerequisites": outline.get("prerequisites", course.prerequisites),
+                    "target_audience": request.data.get("target_audience", course.target_audience),
+                    "estimated_hours": request.data.get("estimated_hours", course.estimated_hours),
+                    "language": request.data.get("language", course.language),
+                    "category_id": request.data.get("category_id", course.category_id),
+                    "subtitle": request.data.get("subtitle", course.subtitle),
+                    "is_published": request.data.get("is_published", course.is_published),
+                },
+                partial=True,
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            last_order = course.modules.count()
+            for module_index, module_data in enumerate(modules_payload, start=1):
+                created_module = Module.objects.create(
+                    course=course,
+                    title=module_data.get("title") or f"Module {last_order + module_index}",
+                    description=module_data.get("description", ""),
+                    learning_objectives=module_data.get("learning_objectives", []),
+                    estimated_minutes=module_data.get("estimated_minutes", 0),
+                    is_published=module_data.get("is_published", True),
+                    order=last_order + module_index,
+                )
+                created_lessons = []
+                for lesson_index, lesson_data in enumerate(module_data.get("lessons") or [], start=1):
+                    created_lesson = Lesson.objects.create(
+                        module=created_module,
+                        title=lesson_data.get("title") or f"Lesson {lesson_index}",
+                        content=lesson_data.get("content", ""),
+                        lesson_type=lesson_data.get("lesson_type", "VIDEO"),
+                        status=lesson_data.get("status", "PUBLISHED"),
+                        video_url=lesson_data.get("video_url", ""),
+                        transcript=lesson_data.get("transcript", ""),
+                        instructor_notes=lesson_data.get("instructor_notes", ""),
+                        duration_seconds=lesson_data.get("duration_seconds", 0),
+                        order=lesson_index,
+                        is_preview=lesson_data.get("is_preview", False),
+                    )
+                    created_lessons.append(created_lesson)
+                    for resource_data in lesson_data.get("resources") or []:
+                        Resource.objects.create(
+                            lesson=created_lesson,
+                            title=resource_data.get("title", "Resource"),
+                            kind=resource_data.get("kind", "OTHER"),
+                            description=resource_data.get("description", ""),
+                            file_url=resource_data.get("file_url", ""),
+                        )
+
+                for resource_data in module_data.get("resources") or []:
+                    if created_lessons:
+                        Resource.objects.create(
+                            lesson=created_lessons[0],
+                            title=resource_data.get("title", "Resource"),
+                            kind=resource_data.get("kind", "OTHER"),
+                            description=resource_data.get("description", ""),
+                            file_url=resource_data.get("file_url", ""),
+                        )
+
+                quiz_data = module_data.get("quiz")
+                if quiz_data:
+                    from apps.learning.models import Quiz, QuizQuestion
+
+                    quiz = Quiz.objects.create(
+                        module=created_module,
+                        title=quiz_data.get("title") or f"{created_module.title} Quiz",
+                        passing_score=quiz_data.get("passing_score", 70),
+                        time_limit_minutes=quiz_data.get("time_limit_minutes", 10),
+                        created_by=request.user,
+                    )
+                    for question_index, question_data in enumerate(quiz_data.get("questions") or [], start=1):
+                        QuizQuestion.objects.create(
+                            quiz=quiz,
+                            prompt=question_data.get("prompt", ""),
+                            options=question_data.get("options", []),
+                            correct_index=question_data.get("correct_index", 0),
+                            order=question_index,
+                        )
+
+        course.refresh_from_db()
+        return Response(self.get_serializer(course).data, status=status.HTTP_201_CREATED)
+
 
 class ModuleViewSet(viewsets.ModelViewSet):
     queryset = Module.objects.select_related("course").all()
     serializer_class = ModuleSerializer
-    permission_classes = [IsInstructorOrReadOnly]
+    permission_classes = [IsInstructorOwnerOrAdmin]
     filterset_fields = ["course"]
+
+    def perform_create(self, serializer):
+        course = serializer.validated_data["course"]
+        if not owns_learning_object(self.request.user, course):
+            raise PermissionDenied("You cannot modify this course.")
+        serializer.save()
 
 
 class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.select_related("module", "module__course").all()
     serializer_class = LessonSerializer
-    permission_classes = [IsInstructorOrReadOnly]
+    permission_classes = [IsInstructorOwnerOrAdmin]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ["module", "module__course"]
+
+    def perform_create(self, serializer):
+        module = serializer.validated_data["module"]
+        if not owns_learning_object(self.request.user, module):
+            raise PermissionDenied("You cannot modify this module.")
+        serializer.save()
 
 
 class ResourceViewSet(viewsets.ModelViewSet):
     queryset = Resource.objects.select_related("lesson", "lesson__module").all()
     serializer_class = ResourceSerializer
-    permission_classes = [IsInstructorOrReadOnly]
+    permission_classes = [IsInstructorOwnerOrAdmin]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ["lesson"]
+
+    def perform_create(self, serializer):
+        lesson = serializer.validated_data["lesson"]
+        if not owns_learning_object(self.request.user, lesson):
+            raise PermissionDenied("You cannot modify this lesson.")
+        serializer.save()
 
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
@@ -54,8 +198,10 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Enrollment.objects.select_related("student", "course")
-        if self.request.user.role == "ADMIN":
+        if is_admin(self.request.user):
             return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(course__instructor=self.request.user)
         return qs.filter(student=self.request.user)
 
     def perform_create(self, serializer):
@@ -69,8 +215,10 @@ class ProgressViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Progress.objects.select_related("enrollment", "lesson")
-        if self.request.user.role == "ADMIN":
+        if is_admin(self.request.user):
             return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(enrollment__course__instructor=self.request.user)
         return qs.filter(enrollment__student=self.request.user)
 
 

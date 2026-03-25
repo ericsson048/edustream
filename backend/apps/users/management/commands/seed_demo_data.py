@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.billing.models import SubscriptionPlan, Transaction, UserSubscription
 from apps.community.models import Discussion, DiscussionComment, StudyGroup
-from apps.courses.models import Course, Enrollment, Lesson, Module, Progress
+from apps.courses.models import Category, Course, Enrollment, Lesson, Module, Progress
 from apps.learning.models import Assignment, Quiz, QuizAttempt, QuizQuestion, Submission
 from apps.live.models import LiveParticipant, LiveSession
 from apps.messaging.models import Conversation, ConversationParticipant, Message
@@ -111,12 +111,27 @@ class Command(BaseCommand):
             },
         )
 
+        category_map = {}
+        for index, (name, description) in enumerate(
+            [
+                ("Development", "Software engineering, web, mobile and backend development."),
+                ("Data Science", "Machine learning, analytics, AI and data engineering."),
+                ("Design", "UI, UX, graphics and product design."),
+                ("Business", "Management, operations, communication and entrepreneurship."),
+            ],
+            start=1,
+        ):
+            category_map[name], _ = Category.objects.update_or_create(
+                slug=name.lower().replace(" ", "-"),
+                defaults={"name": name, "description": description, "is_active": True, "order": index},
+            )
+
         course1, _ = Course.objects.update_or_create(
             slug="advanced-react-patterns-best-practices",
             defaults={
                 "title": "Advanced React Patterns & Best Practices",
                 "description": "Master modern React architecture with advanced hooks and scalable patterns.",
-                "category": "Development",
+                "category": category_map["Development"],
                 "level": "ADVANCED",
                 "thumbnail_url": "https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=1200&q=80",
                 "price": Decimal("89.99"),
@@ -130,7 +145,7 @@ class Command(BaseCommand):
             defaults={
                 "title": "Machine Learning A-Z Practice",
                 "description": "Hands-on ML fundamentals and real project implementation.",
-                "category": "Data Science",
+                "category": category_map["Data Science"],
                 "level": "INTERMEDIATE",
                 "thumbnail_url": "https://images.unsplash.com/photo-1555949963-aa79dcee981c?auto=format&fit=crop&w=1200&q=80",
                 "price": Decimal("94.99"),

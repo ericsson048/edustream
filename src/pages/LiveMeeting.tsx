@@ -1,77 +1,101 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Mic, MicOff, Video as VideoIcon, VideoOff, MonitorUp, PhoneOff, MessageSquare, Users, Settings, Hand, MoreVertical } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { liveService } from '../services/liveService';
+import { useToast } from '../contexts/ToastContext';
+
+type LiveChatMessage = {
+  id: string;
+  sender_id: string;
+  sender_name?: string;
+  content: string;
+};
+
+type Participant = {
+  user_id: string;
+  user_name: string;
+};
 
 export default function LiveMeeting() {
+  const { id = '' } = useParams();
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'participants'>('chat');
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<LiveChatMessage[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const socketRef = useRef<WebSocket | null>(null);
   const navigate = useNavigate();
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    if (!id) return;
+    const socket = liveService.createSessionSocket(id);
+    socketRef.current = socket;
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data) as { payload?: { kind?: string; content?: string; user_id?: string; user_name?: string }; sender_id?: string };
+      const payload = data.payload;
+      if (!payload) return;
+      if (payload.kind === 'participant_joined' && payload.user_id && payload.user_name) {
+        setParticipants((prev) => (prev.some((item) => item.user_id === payload.user_id) ? prev : [...prev, { user_id: payload.user_id, user_name: payload.user_name }]));
+      }
+      if (payload.kind === 'participant_left' && payload.user_id) {
+        setParticipants((prev) => prev.filter((item) => item.user_id !== payload.user_id));
+      }
+      if (payload.kind === 'chat_message' && payload.content) {
+        setChatMessages((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, sender_id: data.sender_id || payload.user_id || '', sender_name: payload.user_name, content: payload.content }]);
+      }
+    };
+    socket.onerror = () => showToast('Connexion live temps reel indisponible.', 'error');
+    return () => socket.close();
+  }, [id, showToast]);
+
+  const participantCount = useMemo(() => participants.length, [participants]);
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
-      {/* Main Video Area */}
       <div className="flex-1 flex flex-col relative">
-        {/* Header */}
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 bg-gradient-to-b from-slate-900/80 to-transparent">
           <div>
-            <h1 className="text-lg font-bold text-white">Advanced React Patterns - Q&A Session</h1>
-            <p className="text-xs text-slate-300">Instructor: Sarah Chen • 00:45:12</p>
+            <h1 className="text-lg font-bold text-white">Live session room</h1>
+            <p className="text-xs text-slate-300">Session realtime • room {id}</p>
           </div>
           <div className="flex items-center gap-2 bg-red-500/20 text-red-500 px-3 py-1 rounded-full text-xs font-bold border border-red-500/30">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-            REC
+            LIVE
           </div>
         </div>
 
-        {/* Video Grid */}
         <div className="flex-1 p-4 pt-20 pb-24 flex items-center justify-center">
           <div className="w-full h-full max-w-6xl grid grid-cols-3 grid-rows-2 gap-4">
-            {/* Instructor (Large) */}
-            <div className="col-span-2 row-span-2 bg-slate-800 rounded-2xl overflow-hidden relative border border-slate-700 shadow-2xl">
-              <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80" alt="Instructor" className="w-full h-full object-cover" />
-              <div className="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2">
-                Sarah Chen (Host)
+            <div className="col-span-2 row-span-2 bg-slate-800 rounded-2xl overflow-hidden relative border border-slate-700 shadow-2xl flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-2xl font-bold">Realtime Meet</p>
+                <p className="text-sm text-slate-400 mt-2">Signalisation WebSocket active</p>
               </div>
             </div>
-            
-            {/* Students (Small) */}
-            {[
-              { name: 'Alex Johnson', img: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=400&h=400&q=80' },
-              { name: 'Maria Garcia', img: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=400&h=400&q=80' },
-            ].map((student, i) => (
-              <div key={i} className="bg-slate-800 rounded-2xl overflow-hidden relative border border-slate-700">
-                <img src={student.img} alt={student.name} className="w-full h-full object-cover" />
+
+            {participants.slice(0, 2).map((participant) => (
+              <div key={participant.user_id} className="bg-slate-800 rounded-2xl overflow-hidden relative border border-slate-700 flex items-center justify-center">
                 <div className="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded-md text-xs font-bold">
-                  {student.name}
+                  {participant.user_name}
                 </div>
-                {i === 0 && (
-                  <div className="absolute top-3 right-3 bg-slate-900/80 p-1.5 rounded-md text-red-500">
-                    <MicOff className="w-3 h-3" />
-                  </div>
-                )}
+                <div className="text-4xl font-black text-slate-500">{participant.user_name.slice(0, 2).toUpperCase()}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Bottom Controls */}
         <div className="absolute bottom-0 left-0 right-0 h-20 bg-slate-900 border-t border-slate-800 flex items-center justify-between px-8">
           <div className="flex items-center gap-4 text-sm font-medium text-slate-400">
-            <span>24 Participants</span>
+            <span>{participantCount} Participants</span>
           </div>
-          
+
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsMuted(!isMuted)}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-            >
+            <button onClick={() => setIsMuted(!isMuted)} className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
               {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
-            <button 
-              onClick={() => setIsVideoOff(!isVideoOff)}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isVideoOff ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-            >
+            <button onClick={() => setIsVideoOff(!isVideoOff)} className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isVideoOff ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
               {isVideoOff ? <VideoOff className="w-5 h-5" /> : <VideoIcon className="w-5 h-5" />}
             </button>
             <button className="w-12 h-12 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center hover:bg-slate-700 transition-colors">
@@ -83,10 +107,7 @@ export default function LiveMeeting() {
             <button className="w-12 h-12 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center hover:bg-slate-700 transition-colors">
               <MoreVertical className="w-5 h-5" />
             </button>
-            <button 
-              onClick={() => navigate(-1)}
-              className="w-16 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-colors ml-4"
-            >
+            <button onClick={() => navigate(-1)} className="w-16 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-colors ml-4">
               <PhoneOff className="w-5 h-5" />
             </button>
           </div>
@@ -99,19 +120,12 @@ export default function LiveMeeting() {
         </div>
       </div>
 
-      {/* Right Sidebar (Chat & Participants) */}
       <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col">
         <div className="flex p-2 gap-2 border-b border-slate-800">
-          <button 
-            onClick={() => setActiveTab('chat')}
-            className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'chat' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
-          >
+          <button onClick={() => setActiveTab('chat')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'chat' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}>
             <MessageSquare className="w-4 h-4" /> Chat
           </button>
-          <button 
-            onClick={() => setActiveTab('participants')}
-            className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'participants' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
-          >
+          <button onClick={() => setActiveTab('participants')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'participants' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}>
             <Users className="w-4 h-4" /> People
           </button>
         </div>
@@ -119,35 +133,37 @@ export default function LiveMeeting() {
         {activeTab === 'chat' ? (
           <>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold shrink-0">SC</div>
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-bold text-slate-200">Sarah Chen</span>
-                    <span className="text-xs text-slate-500">10:02 AM</span>
+              {chatMessages.map((message) => (
+                <div key={message.id} className="flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
+                    {(message.sender_name || 'U').slice(0, 2).toUpperCase()}
                   </div>
-                  <p className="text-sm text-slate-300 mt-1">Welcome everyone! We'll start in 2 minutes. Feel free to drop your questions here.</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-xs font-bold shrink-0">AJ</div>
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-bold text-slate-200">Alex Johnson</span>
-                    <span className="text-xs text-slate-500">10:05 AM</span>
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-bold text-slate-200">{message.sender_name || 'User'}</span>
+                    </div>
+                    <p className="text-sm text-slate-300 mt-1">{message.content}</p>
                   </div>
-                  <p className="text-sm text-slate-300 mt-1">Can we go over the cleanup function again?</p>
                 </div>
-              </div>
+              ))}
             </div>
             <div className="p-4 border-t border-slate-800">
               <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Type a message..." 
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Type a message..."
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-10 py-3 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
-                <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  onClick={() => {
+                    if (!chatInput.trim() || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
+                    socketRef.current.send(JSON.stringify({ kind: 'chat_message', content: chatInput.trim() }));
+                    setChatInput('');
+                  }}
+                >
                   <MessageSquare className="w-4 h-4" />
                 </button>
               </div>
@@ -155,23 +171,18 @@ export default function LiveMeeting() {
           </>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {[
-              { name: 'Sarah Chen', role: 'Host', isMuted: false },
-              { name: 'Alex Johnson', role: 'Student', isMuted: true },
-              { name: 'Maria Garcia', role: 'Student', isMuted: false },
-              { name: 'James Smith', role: 'Student', isMuted: true },
-            ].map((user, i) => (
-              <div key={i} className="flex items-center justify-between">
+            {participants.map((participant) => (
+              <div key={participant.user_id} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${user.role === 'Host' ? 'bg-blue-600' : 'bg-slate-700'}`}>
-                    {user.name.split(' ').map(n => n[0]).join('')}
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-slate-700">
+                    {participant.user_name.split(' ').map((name) => name[0]).join('')}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-slate-200">{user.name}</p>
-                    <p className="text-xs text-slate-500">{user.role}</p>
+                    <p className="text-sm font-bold text-slate-200">{participant.user_name}</p>
+                    <p className="text-xs text-slate-500">Participant</p>
                   </div>
                 </div>
-                {user.isMuted ? <MicOff className="w-4 h-4 text-red-500" /> : <Mic className="w-4 h-4 text-slate-400" />}
+                {isMuted ? <MicOff className="w-4 h-4 text-red-500" /> : <Mic className="w-4 h-4 text-slate-400" />}
               </div>
             ))}
           </div>

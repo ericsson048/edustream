@@ -5,6 +5,8 @@ from .models import Assignment, Notification, Quiz, QuizAttempt, QuizQuestion, S
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
+    course_title = serializers.CharField(source="course.title", read_only=True)
+
     class Meta:
         model = Assignment
         fields = "__all__"
@@ -12,6 +14,11 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
 
 class SubmissionSerializer(serializers.ModelSerializer):
+    assignment_title = serializers.CharField(source="assignment.title", read_only=True)
+    course_id = serializers.UUIDField(source="assignment.course_id", read_only=True)
+    course_title = serializers.CharField(source="assignment.course.title", read_only=True)
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
+
     class Meta:
         model = Submission
         fields = "__all__"
@@ -26,11 +33,19 @@ class QuizQuestionSerializer(serializers.ModelSerializer):
 
 class QuizSerializer(serializers.ModelSerializer):
     questions = QuizQuestionSerializer(many=True, read_only=True)
+    course_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Quiz
         fields = "__all__"
         read_only_fields = ["created_by"]
+
+    def get_course_id(self, obj):
+        if obj.module_id:
+            return str(obj.module.course_id)
+        if obj.lesson_id:
+            return str(obj.lesson.module.course_id)
+        return None
 
 
 class QuizAttemptSerializer(serializers.ModelSerializer):

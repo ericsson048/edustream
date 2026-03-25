@@ -40,6 +40,7 @@ import ManageAssignments from './pages/instructorpages/ManageAssignments';
 import InstructorCourses from './pages/instructorpages/InstructorCourses';
 import InstructorAnalytics from './pages/instructorpages/InstructorAnalytics';
 import CourseEditor from './pages/instructorpages/CourseEditor';
+import CourseCreationWizard from './pages/instructorpages/CourseCreationWizard';
 import InstructorSchedule from './pages/instructorpages/InstructorSchedule';
 import ProtectedRoute, { getDefaultRoute } from './components/guards/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
@@ -91,7 +92,8 @@ export default function App() {
           <Route path="/instructor" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorDashboard /></ProtectedRoute>} />
           <Route path="/instructor/assignments" element={<ProtectedRoute roles={['INSTRUCTOR']}><ManageAssignments /></ProtectedRoute>} />
           <Route path="/instructor/courses" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorCourses /></ProtectedRoute>} />
-          <Route path="/instructor/courses/edit" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseEditor /></ProtectedRoute>} />
+          <Route path="/instructor/courses/new" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseCreationWizard /></ProtectedRoute>} />
+          <Route path="/instructor/courses/edit/:id" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseEditor /></ProtectedRoute>} />
           <Route path="/instructor/analytics" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorAnalytics /></ProtectedRoute>} />
           <Route path="/instructor/schedule" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorSchedule /></ProtectedRoute>} />
 

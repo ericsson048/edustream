@@ -25,8 +25,34 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "room.event",
+                "payload": {
+                    "kind": "participant_joined",
+                    "user_id": str(user.id),
+                    "user_name": user.full_name,
+                },
+                "sender_id": str(user.id),
+            },
+        )
 
     async def disconnect(self, close_code):
+        user = self.scope.get("user")
+        if user and user.is_authenticated:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "room.event",
+                    "payload": {
+                        "kind": "participant_left",
+                        "user_id": str(user.id),
+                        "user_name": user.full_name,
+                    },
+                    "sender_id": str(user.id),
+                },
+            )
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):

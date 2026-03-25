@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Info } from 'lucide-react';
 import React, { useState } from 'react';
+import { AxiosError } from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { getDefaultRoute } from '../components/guards/ProtectedRoute';
 import { useToast } from '../contexts/ToastContext';
@@ -21,8 +22,19 @@ export default function Login() {
       const user = await login(email, password);
       showToast('Connexion reussie.', 'success');
       navigate(getDefaultRoute(user.role), { replace: true });
-    } catch {
-      const message = 'Identifiants invalides ou serveur inaccessible.';
+    } catch (error) {
+      let message = 'Connexion impossible pour le moment.';
+      if (error instanceof AxiosError) {
+        if (error.response?.status === 401) {
+          message = email.endsWith('@edustream.com')
+            ? 'Compte demo introuvable ou mot de passe incorrect. Verifie que les donnees demo ont ete chargees avec `python manage.py seed_demo_data`.'
+            : 'Email ou mot de passe incorrect.';
+        } else if (!error.response) {
+          message = 'Serveur backend inaccessible. Verifie que `python manage.py runserver` tourne bien sur le backend.';
+        } else if (error.response.status >= 500) {
+          message = 'Erreur serveur lors de la connexion. Consulte le terminal backend pour le detail.';
+        }
+      }
       showToast(message, 'error');
     } finally {
       setIsSubmitting(false);

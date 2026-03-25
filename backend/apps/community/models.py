@@ -40,3 +40,14 @@ class StudyGroup(models.Model):
     members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="study_groups", blank=True)
     next_session_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class StudyGroupMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name="messages")
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="study_group_messages")
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]

@@ -3,7 +3,7 @@ import uuid
 from django.conf import settings
 from django.db import models
 
-from apps.courses.models import Course, Lesson
+from apps.courses.models import Course, Lesson, Module
 
 
 class Assignment(models.Model):
@@ -49,6 +49,7 @@ class Submission(models.Model):
 class Quiz(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     lesson = models.OneToOneField(Lesson, on_delete=models.CASCADE, related_name="quiz", null=True, blank=True)
+    module = models.OneToOneField(Module, on_delete=models.CASCADE, related_name="module_quiz", null=True, blank=True)
     title = models.CharField(max_length=255)
     passing_score = models.PositiveIntegerField(default=70)
     time_limit_minutes = models.PositiveIntegerField(default=15)

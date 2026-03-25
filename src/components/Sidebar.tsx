@@ -34,7 +34,7 @@ export default function Sidebar() {
         <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">EduStream</h1>
       </div>
 
-      <nav className="flex-1 px-4 space-y-1 mt-4">
+      <nav className="flex-1 px-4 space-y-1 mt-4 h-(calc(100vh-200px)) overflow-y-auto">
         {links.map((link) => {
           const isActive = path === link.href;
           return (

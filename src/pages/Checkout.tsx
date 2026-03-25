@@ -92,7 +92,7 @@ export default function Checkout() {
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 sticky top-8">
               <h3 className="text-lg font-bold mb-4">Order Summary</h3>
               <div className="flex gap-4 mb-6 pb-6 border-b border-slate-100">
-                <img src={course?.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=200&q=80'} alt="Course" className="w-16 h-16 rounded-lg object-cover" />
+                <img src={course?.thumbnail || course?.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=200&q=80'} alt="Course" className="w-16 h-16 rounded-lg object-cover" />
                 <div>
                   <h4 className="font-bold text-sm line-clamp-2">{course?.title || 'Loading course...'}</h4>
                   <p className="text-xs text-slate-500 mt-1">By {course?.instructor_name || 'Instructor'}</p>

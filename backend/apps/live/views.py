@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.billing.services import can_stream_live
@@ -26,9 +27,9 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         if self.request.user.role not in {"INSTRUCTOR", "ADMIN"}:
-            raise permissions.PermissionDenied("Instructor role required.")
+            raise PermissionDenied("Instructor role required.")
         if not can_stream_live(self.request.user):
-            raise permissions.PermissionDenied("Unlimited streaming plan required.")
+            raise PermissionDenied("Unlimited streaming plan required.")
         serializer.save(instructor=self.request.user)
 
     @action(detail=True, methods=["post"], url_path="join")

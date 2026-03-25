@@ -1,4 +1,8 @@
-from rest_framework import permissions, viewsets
+from django.db.models import Q
+from rest_framework import permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
 
 from .models import Assignment, Notification, Quiz, QuizAttempt, QuizQuestion, Submission
 from .serializers import (
@@ -9,6 +13,8 @@ from .serializers import (
     QuizSerializer,
     SubmissionSerializer,
 )
+from apps.courses.models import Enrollment
+from apps.courses.permissions import is_admin, is_instructor_or_admin, owns_learning_object
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):
@@ -17,7 +23,18 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ["course", "type"]
 
+    def get_queryset(self):
+        qs = self.queryset
+        if is_admin(self.request.user):
+            return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(course__instructor=self.request.user)
+        return qs.filter(course__enrollments__student=self.request.user, course__enrollments__is_active=True).distinct()
+
     def perform_create(self, serializer):
+        course = serializer.validated_data["course"]
+        if not owns_learning_object(self.request.user, course):
+            raise PermissionDenied("You cannot modify this course.")
         serializer.save(created_by=self.request.user)
 
 
@@ -28,21 +45,63 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Submission.objects.select_related("assignment", "student")
-        if self.request.user.role in {"INSTRUCTOR", "ADMIN"}:
+        if is_admin(self.request.user):
             return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(assignment__course__instructor=self.request.user)
         return qs.filter(student=self.request.user)
 
     def perform_create(self, serializer):
+        assignment = serializer.validated_data["assignment"]
+        if not Enrollment.objects.filter(student=self.request.user, course=assignment.course, is_active=True).exists():
+            raise PermissionDenied("Enrollment required.")
         serializer.save(student=self.request.user)
+
+    @action(detail=True, methods=["post"], url_path="grade")
+    def grade(self, request, pk=None):
+        submission = self.get_object()
+        if not is_instructor_or_admin(request.user) or not owns_learning_object(request.user, submission.assignment):
+            raise PermissionDenied("Instructor access required.")
+
+        grade = request.data.get("grade")
+        if grade in (None, ""):
+            return Response({"detail": "grade is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        submission.grade = grade
+        submission.feedback = request.data.get("feedback", "")
+        submission.status = request.data.get("status", Submission.Status.GRADED)
+        submission.save(update_fields=["grade", "feedback", "status", "updated_at"])
+        return Response(self.get_serializer(submission).data)
 
 
 class QuizViewSet(viewsets.ModelViewSet):
-    queryset = Quiz.objects.select_related("lesson", "created_by")
+    queryset = Quiz.objects.select_related("lesson", "module", "created_by")
     serializer_class = QuizSerializer
     permission_classes = [permissions.IsAuthenticated]
-    filterset_fields = ["lesson"]
+    filterset_fields = ["lesson", "module"]
+
+    def get_queryset(self):
+        qs = self.queryset
+        if is_admin(self.request.user):
+            return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(
+                Q(module__course__instructor=self.request.user) |
+                Q(lesson__module__course__instructor=self.request.user)
+            ).distinct()
+        return qs.filter(
+            Q(module__course__enrollments__student=self.request.user, module__course__enrollments__is_active=True) |
+            Q(lesson__module__course__enrollments__student=self.request.user, lesson__module__course__enrollments__is_active=True)
+        ).distinct()
 
     def perform_create(self, serializer):
+        module = serializer.validated_data.get("module")
+        lesson = serializer.validated_data.get("lesson")
+        target = module or lesson
+        if target is None:
+            raise PermissionDenied("A module or lesson is required.")
+        if not owns_learning_object(self.request.user, target):
+            raise PermissionDenied("You cannot modify this content.")
         serializer.save(created_by=self.request.user)
 
 
@@ -52,6 +111,26 @@ class QuizQuestionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ["quiz"]
 
+    def get_queryset(self):
+        qs = self.queryset
+        if is_admin(self.request.user):
+            return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(
+                Q(quiz__module__course__instructor=self.request.user) |
+                Q(quiz__lesson__module__course__instructor=self.request.user)
+            ).distinct()
+        return qs.filter(
+            Q(quiz__module__course__enrollments__student=self.request.user, quiz__module__course__enrollments__is_active=True) |
+            Q(quiz__lesson__module__course__enrollments__student=self.request.user, quiz__lesson__module__course__enrollments__is_active=True)
+        ).distinct()
+
+    def perform_create(self, serializer):
+        quiz = serializer.validated_data["quiz"]
+        if not owns_learning_object(self.request.user, quiz):
+            raise PermissionDenied("You cannot modify this quiz.")
+        serializer.save()
+
 
 class QuizAttemptViewSet(viewsets.ModelViewSet):
     serializer_class = QuizAttemptSerializer
@@ -60,8 +139,13 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = QuizAttempt.objects.select_related("quiz", "student")
-        if self.request.user.role in {"INSTRUCTOR", "ADMIN"}:
+        if is_admin(self.request.user):
             return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(
+                Q(quiz__module__course__instructor=self.request.user) |
+                Q(quiz__lesson__module__course__instructor=self.request.user)
+            ).distinct()
         return qs.filter(student=self.request.user)
 
     def perform_create(self, serializer):

@@ -35,7 +35,7 @@ export default function CourseDetails() {
 
         <div className="bg-slate-900 text-white py-16 px-8 relative overflow-hidden">
           <div className="absolute inset-0 opacity-20">
-            <img src={course.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=2000&q=80'} alt="Background" className="w-full h-full object-cover" />
+            <img src={course.thumbnail || course.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=2000&q=80'} alt="Background" className="w-full h-full object-cover" />
           </div>
           <div className="max-w-5xl mx-auto relative z-10 flex flex-col md:flex-row gap-8 items-center">
             <div className="flex-1">
