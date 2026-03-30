@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import transaction
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -43,6 +45,17 @@ class CourseViewSet(viewsets.ModelViewSet):
     filterset_fields = ["category", "category__slug", "level", "instructor", "is_published"]
     search_fields = ["title", "description", "category__name"]
     ordering_fields = ["created_at", "price"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not user.is_authenticated:
+            return qs.none()
+        if is_admin(user):
+            return qs
+        if user.role == "INSTRUCTOR":
+            return (qs.filter(instructor=user) | qs.filter(is_published=True)).distinct()
+        return (qs.filter(is_published=True) | qs.filter(enrollments__student=user, enrollments__is_active=True)).distinct()
 
     def perform_create(self, serializer):
         serializer.save(instructor=self.request.user)
@@ -156,6 +169,20 @@ class ModuleViewSet(viewsets.ModelViewSet):
     permission_classes = [IsInstructorOwnerOrAdmin]
     filterset_fields = ["course"]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if is_admin(user):
+            return qs
+        if user.role == "INSTRUCTOR":
+            return (qs.filter(course__instructor=user) | qs.filter(course__is_published=True)).distinct()
+        return qs.filter(
+            course__is_published=True,
+            is_published=True,
+            course__enrollments__student=user,
+            course__enrollments__is_active=True,
+        ).distinct()
+
     def perform_create(self, serializer):
         course = serializer.validated_data["course"]
         if not owns_learning_object(self.request.user, course):
@@ -170,6 +197,21 @@ class LessonViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ["module", "module__course"]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if is_admin(user):
+            return qs
+        if user.role == "INSTRUCTOR":
+            return (qs.filter(module__course__instructor=user) | qs.filter(module__course__is_published=True)).distinct()
+        return qs.filter(
+            module__course__is_published=True,
+            module__is_published=True,
+            status=Lesson.Status.PUBLISHED,
+            module__course__enrollments__student=user,
+            module__course__enrollments__is_active=True,
+        ).distinct()
+
     def perform_create(self, serializer):
         module = serializer.validated_data["module"]
         if not owns_learning_object(self.request.user, module):
@@ -183,6 +225,21 @@ class ResourceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsInstructorOwnerOrAdmin]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ["lesson"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if is_admin(user):
+            return qs
+        if user.role == "INSTRUCTOR":
+            return (qs.filter(lesson__module__course__instructor=user) | qs.filter(lesson__module__course__is_published=True)).distinct()
+        return qs.filter(
+            lesson__module__course__is_published=True,
+            lesson__module__is_published=True,
+            lesson__status=Lesson.Status.PUBLISHED,
+            lesson__module__course__enrollments__student=user,
+            lesson__module__course__enrollments__is_active=True,
+        ).distinct()
 
     def perform_create(self, serializer):
         lesson = serializer.validated_data["lesson"]
@@ -221,6 +278,21 @@ class ProgressViewSet(viewsets.ModelViewSet):
             return qs.filter(enrollment__course__instructor=self.request.user)
         return qs.filter(enrollment__student=self.request.user)
 
+    def perform_create(self, serializer):
+        enrollment = serializer.validated_data["enrollment"]
+        lesson = serializer.validated_data["lesson"]
+        if enrollment.student_id != self.request.user.id:
+            raise PermissionDenied("You cannot create progress for another student.")
+        if lesson.module.course_id != enrollment.course_id:
+            raise PermissionDenied("Lesson does not belong to this enrollment.")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        progress = self.get_object()
+        if progress.enrollment.student_id != self.request.user.id and not is_admin(self.request.user):
+            raise PermissionDenied("You cannot modify this progress.")
+        serializer.save()
+
 
 class NoteViewSet(viewsets.ModelViewSet):
     serializer_class = NoteSerializer
@@ -231,6 +303,9 @@ class NoteViewSet(viewsets.ModelViewSet):
         return Note.objects.filter(user=self.request.user).select_related("lesson")
 
     def perform_create(self, serializer):
+        lesson = serializer.validated_data["lesson"]
+        if not Enrollment.objects.filter(student=self.request.user, course=lesson.module.course, is_active=True).exists():
+            raise PermissionDenied("Enrollment required.")
         serializer.save(user=self.request.user)
 
 
@@ -244,3 +319,37 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         if self.request.user.role == "ADMIN":
             return qs
         return qs.filter(user=self.request.user)
+
+    @action(detail=False, methods=["post"], url_path="claim")
+    def claim(self, request):
+        course_id = request.data.get("course")
+        if not course_id:
+            return Response({"detail": "course is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        enrollment = Enrollment.objects.filter(student=request.user, course_id=course_id, is_active=True).select_related("course").first()
+        if enrollment is None:
+            raise PermissionDenied("Enrollment required.")
+
+        published_lessons = Lesson.objects.filter(module__course_id=course_id, status=Lesson.Status.PUBLISHED)
+        total_lessons = published_lessons.count()
+        if total_lessons == 0:
+            return Response({"detail": "No published lessons are available for this course yet."}, status=status.HTTP_400_BAD_REQUEST)
+
+        completed_lessons = Progress.objects.filter(
+            enrollment=enrollment,
+            lesson__in=published_lessons,
+            is_completed=True,
+        ).values("lesson_id").distinct().count()
+
+        if completed_lessons < total_lessons:
+            return Response(
+                {"detail": "Complete all published lessons before requesting your certificate."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        certificate, _ = Certificate.objects.get_or_create(
+            user=request.user,
+            course=enrollment.course,
+            defaults={"certificate_code": f"EDU-{uuid.uuid4().hex[:12].upper()}"},
+        )
+        return Response(self.get_serializer(certificate).data)

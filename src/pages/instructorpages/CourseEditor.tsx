@@ -18,7 +18,7 @@ import {
   Video,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { aiService, type GeneratedCourseOutline } from '../../services/aiService';
 import { courseService } from '../../services/courseService';
 import { learningService, type AssignmentItem, type QuizItem, type QuizQuestionItem } from '../../services/learningService';
@@ -238,7 +238,8 @@ function RichEditorField({
 }
 
 export default function CourseEditor() {
-  const { id = '' } = useParams();
+  const { id = '', moduleId, lessonId } = useParams();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [categories, setCategories] = useState<CourseCategory[]>([]);
   const [course, setCourse] = useState<Course | null>(null);
@@ -297,6 +298,12 @@ export default function CourseEditor() {
     mediaChunksRef.current = [];
     setRecordingTarget(null);
   };
+
+  const openCourseView = () => navigate(`/instructor/courses/edit/${id}`);
+  const openModulesView = () => navigate(`/instructor/courses/edit/${id}/module`);
+  const openModuleView = (targetModuleId: string) => navigate(`/instructor/courses/edit/${id}/module/${targetModuleId}`);
+  const openLessonView = (targetModuleId: string, targetLessonId: string) =>
+    navigate(`/instructor/courses/edit/${id}/module/${targetModuleId}/lesson/${targetLessonId}`);
 
   const refreshCourse = async () => {
     if (!id) return;
@@ -537,6 +544,18 @@ export default function CourseEditor() {
   );
 
   useEffect(() => {
+    if (lessonId && moduleId) {
+      setActiveFocus({ type: 'lesson', moduleId, lessonId });
+      return;
+    }
+    if (moduleId) {
+      setActiveFocus({ type: 'module', moduleId });
+      return;
+    }
+    setActiveFocus({ type: 'course' });
+  }, [lessonId, moduleId]);
+
+  useEffect(() => {
     if (!modules.length) {
       setActiveFocus({ type: 'course' });
       return;
@@ -548,17 +567,21 @@ export default function CourseEditor() {
 
     const module = modules.find((item) => item.id === activeFocus.moduleId);
     if (!module) {
-      setActiveFocus({ type: 'course' });
+      if (moduleId) {
+        openModulesView();
+      } else {
+        setActiveFocus({ type: 'course' });
+      }
       return;
     }
 
     if (activeFocus.type === 'lesson') {
       const lessonExists = (module.lessons || []).some((lesson) => lesson.id === activeFocus.lessonId);
       if (!lessonExists) {
-        setActiveFocus({ type: 'module', moduleId: module.id });
+        openModuleView(module.id);
       }
     }
-  }, [activeFocus, modules]);
+  }, [activeFocus, moduleId, modules]);
 
   useEffect(() => {
     if (selectedModule) {
@@ -1203,14 +1226,24 @@ export default function CourseEditor() {
                           ? 'bg-teal-600 text-white'
                           : 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10'
                       }`}
-                      onClick={() => setActiveFocus({ type: 'course' })}
+                      onClick={openCourseView}
                     >
                       Vue cours
+                    </button>
+                    <button
+                      className={`rounded-2xl px-4 py-3 text-sm font-bold transition ${
+                        !moduleId && activeFocus.type !== 'course'
+                          ? 'bg-teal-600 text-white'
+                          : 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10'
+                      }`}
+                      onClick={openModulesView}
+                    >
+                      Modules
                     </button>
                     {selectedModule && (
                       <button
                         className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                        onClick={() => setActiveFocus({ type: 'module', moduleId: selectedModule.id })}
+                        onClick={() => openModuleView(selectedModule.id)}
                       >
                         Vue module
                       </button>
@@ -1218,7 +1251,7 @@ export default function CourseEditor() {
                     {selectedModule && selectedLesson && (
                       <button
                         className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                        onClick={() => setActiveFocus({ type: 'lesson', moduleId: selectedModule.id, lessonId: selectedLesson.id })}
+                        onClick={() => openLessonView(selectedModule.id, selectedLesson.id)}
                       >
                         Vue lesson
                       </button>
@@ -1249,10 +1282,7 @@ export default function CourseEditor() {
                                 : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-teal-400/50'
                             }`}
                             onClick={() =>
-                              setActiveFocus({
-                                type: 'module',
-                                moduleId: module.id,
-                              })
+                              openModuleView(module.id)
                             }
                           >
                             <p className={`text-xs font-bold uppercase tracking-[0.22em] ${isActive ? 'text-teal-50/80' : 'text-slate-500 dark:text-slate-400'}`}>
@@ -1295,11 +1325,7 @@ export default function CourseEditor() {
                                   : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-orange-400/50'
                               }`}
                               onClick={() =>
-                                setActiveFocus({
-                                  type: 'lesson',
-                                  moduleId: selectedModule.id,
-                                  lessonId: lesson.id,
-                                })
+                                openLessonView(selectedModule.id, lesson.id)
                               }
                             >
                               <p className={`text-xs font-bold uppercase tracking-[0.22em] ${isLessonActive ? 'text-slate-950/70' : 'text-slate-500 dark:text-slate-400'}`}>

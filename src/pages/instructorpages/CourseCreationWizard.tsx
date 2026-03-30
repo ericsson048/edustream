@@ -303,8 +303,8 @@ export default function CourseCreationWizard() {
       }
       localStorage.removeItem(autosaveKey);
 
-      showToast('Cours cree. Ouverture du builder detaille.', 'success');
-      navigate(`/instructor/courses/edit/${created.id}`);
+      showToast('Cours cree. Ouverture de la page modules.', 'success');
+      navigate(`/instructor/courses/edit/${created.id}/module`);
     } catch {
       showToast('Creation du cours impossible.', 'error');
     } finally {

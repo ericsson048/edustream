@@ -42,6 +42,40 @@ export interface GeneratedCourseOutline {
   }>;
 }
 
+export interface GeneratedQuizPackage {
+  title: string;
+  passing_score: number;
+  time_limit_minutes: number;
+  questions: Array<{
+    prompt: string;
+    options: string[];
+    correct_index: number;
+  }>;
+}
+
+export interface GeneratedLessonPackage {
+  title: string;
+  content: string;
+  lesson_type: 'VIDEO' | 'TEXT' | 'QUIZ' | 'ASSIGNMENT' | 'LIVE' | 'DOWNLOAD';
+  status: 'DRAFT' | 'PUBLISHED';
+  video_url: string;
+  transcript: string;
+  instructor_notes: string;
+  duration_seconds: number;
+  is_preview: boolean;
+  quiz: GeneratedQuizPackage;
+}
+
+export interface GeneratedModulePackage {
+  title: string;
+  description: string;
+  learning_objectives: string[];
+  estimated_minutes: number;
+  is_published: boolean;
+  lessons: GeneratedLessonPackage[];
+  quiz: GeneratedQuizPackage;
+}
+
 export const aiService = {
   async askTutor(prompt: string): Promise<string> {
     const { data } = await apiClient.post<{ response: string }>('/ai/tutor/chat/', { prompt });
@@ -49,6 +83,27 @@ export const aiService = {
   },
   async generateCourse(payload: { prompt: string; title?: string; category?: string; level?: string }): Promise<GeneratedCourseOutline> {
     const { data } = await apiClient.post<GeneratedCourseOutline>('/ai/instructor/generate-course/', payload);
+    return data;
+  },
+  async generateModule(payload: {
+    prompt: string;
+    course_title: string;
+    category?: string;
+    level?: string;
+    module_title?: string;
+  }): Promise<GeneratedModulePackage> {
+    const { data } = await apiClient.post<GeneratedModulePackage>('/ai/instructor/generate-module/', payload);
+    return data;
+  },
+  async generateLesson(payload: {
+    prompt: string;
+    course_title: string;
+    category?: string;
+    level?: string;
+    module_title: string;
+    lesson_title?: string;
+  }): Promise<GeneratedLessonPackage> {
+    const { data } = await apiClient.post<GeneratedLessonPackage>('/ai/instructor/generate-lesson/', payload);
     return data;
   },
   createTutorSocket(): WebSocket {

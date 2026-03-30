@@ -4,18 +4,21 @@ import { Star, Clock, Users, PlayCircle, CheckCircle, FileText, Award } from 'lu
 import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { courseService } from '../services/courseService';
-import type { Course } from '../types/lms';
+import type { Course, Enrollment } from '../types/lms';
 
 export default function CourseDetails() {
   const { id = '' } = useParams();
   const [course, setCourse] = useState<Course | null>(null);
+  const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    courseService
-      .getCourse(id)
-      .then(setCourse)
+    Promise.all([courseService.getCourse(id), courseService.listEnrollments({ course: id, is_active: true })])
+      .then(([courseItem, enrollments]) => {
+        setCourse(courseItem);
+        setEnrollment(enrollments[0] || null);
+      })
       .catch(() => setError('Cours introuvable ou inaccessible.'));
   }, [id]);
 
@@ -26,6 +29,19 @@ export default function CourseDetails() {
   if (!course) {
     return <div className="min-h-screen grid place-items-center text-slate-500">Loading...</div>;
   }
+
+  const firstModule = (course.modules || []).find((module) => (module.lessons || []).length > 0);
+  const firstLesson = firstModule?.lessons?.[0];
+  const ctaHref = enrollment && firstLesson ? `/player/${course.id}/${firstLesson.id}` : `/checkout/${course.id}`;
+  const ctaLabel = enrollment ? 'Start Learning' : 'Enroll Now';
+  const learningItems = (course.learning_objectives || []).length
+    ? course.learning_objectives || []
+    : [
+        'Build practical skills with guided lessons',
+        'Understand concepts through real-world examples',
+        'Follow a structured and scalable learning path',
+        'Apply best practices used in production teams',
+      ];
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -66,8 +82,8 @@ export default function CourseDetails() {
 
             <div className="w-full md:w-80 bg-white rounded-2xl p-6 text-slate-900 shadow-2xl">
               <div className="text-3xl font-bold mb-4">${course.price}</div>
-              <Link to={`/checkout/${course.id}`} className="block w-full py-3 px-4 bg-blue-600 text-white text-center font-bold rounded-xl hover:bg-blue-700 transition-colors mb-4 shadow-sm">
-                Enroll Now
+              <Link to={ctaHref} className="block w-full py-3 px-4 bg-blue-600 text-white text-center font-bold rounded-xl hover:bg-blue-700 transition-colors mb-4 shadow-sm">
+                {ctaLabel}
               </Link>
               <p className="text-xs text-center text-slate-500 mb-6">30-Day Money-Back Guarantee</p>
 
@@ -85,15 +101,29 @@ export default function CourseDetails() {
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
               <h2 className="text-2xl font-bold mb-6">What you'll learn</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  'Build practical skills with guided lessons',
-                  'Understand concepts through real-world examples',
-                  'Follow a structured and scalable learning path',
-                  'Apply best practices used in production teams',
-                ].map((item, i) => (
+                {learningItems.map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
                     <span className="text-slate-700 text-sm leading-relaxed">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-2xl font-bold mb-6">Course Content</h2>
+              <div className="space-y-4">
+                {(course.modules || []).map((module) => (
+                  <div key={module.id} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="font-bold text-slate-900">{module.title}</h3>
+                        <p className="text-sm text-slate-500 mt-1">{module.description || 'Module in progress.'}</p>
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        {(module.lessons || []).length} lesson(s)
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

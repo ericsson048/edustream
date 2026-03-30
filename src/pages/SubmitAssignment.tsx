@@ -1,14 +1,30 @@
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { UploadCloud, FileText, ArrowLeft, CheckCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import React, { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { learningService, type AssignmentItem } from '../services/learningService';
+import { useToast } from '../contexts/ToastContext';
 
 export default function SubmitAssignment() {
+  const { id = '' } = useParams();
+  const [assignment, setAssignment] = useState<AssignmentItem | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [submissionUrl, setSubmissionUrl] = useState('');
+  const [comments, setComments] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    if (!id) return;
+    learningService
+      .getAssignment(id)
+      .then(setAssignment)
+      .catch(() => showToast('Assignment introuvable.', 'error'));
+  }, [id, showToast]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -33,12 +49,25 @@ export default function SubmitAssignment() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitted(true);
-    setTimeout(() => {
-      navigate('/assignments');
-    }, 2000);
+    if (!id) return;
+    setIsSaving(true);
+    try {
+      await learningService.createSubmission({
+        assignment: id,
+        content_text: [`Submission notes:`, comments.trim(), file ? `Attached locally: ${file.name}` : ''].filter(Boolean).join('\n\n'),
+        file_url: submissionUrl.trim(),
+      });
+      setIsSubmitted(true);
+      setTimeout(() => {
+        navigate('/assignments');
+      }, 1500);
+    } catch {
+      showToast('Soumission impossible.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -53,7 +82,7 @@ export default function SubmitAssignment() {
 
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Submit Assignment</h1>
-            <p className="text-slate-500 mt-1">React Hooks Refactoring Project</p>
+            <p className="text-slate-500 mt-1">{assignment?.title || 'Loading assignment...'}</p>
           </div>
 
           {isSubmitted ? (
@@ -69,11 +98,11 @@ export default function SubmitAssignment() {
               <div className="mb-8 p-6 bg-slate-50 rounded-xl border border-slate-100">
                 <h3 className="font-bold text-slate-900 mb-2">Instructions</h3>
                 <p className="text-sm text-slate-600 leading-relaxed mb-4">
-                  Please refactor the provided class components into functional components using React Hooks (`useState`, `useEffect`, `useContext`). Ensure all existing tests pass before submitting.
+                  {assignment?.description || 'Consultez les consignes du devoir puis ajoutez vos notes de rendu ou un lien vers votre travail.'}
                 </p>
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
                   <FileText className="w-4 h-4 text-blue-600" />
-                  <a href="#" className="text-blue-600 hover:underline">Download Starter Code (ZIP)</a>
+                  <span className="text-slate-500">Due: {assignment ? new Date(assignment.due_date).toLocaleString() : '...'}</span>
                 </div>
               </div>
 
@@ -110,10 +139,23 @@ export default function SubmitAssignment() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Comments (Optional)</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Submission URL (Optional)</label>
+                  <input
+                    type="url"
+                    value={submissionUrl}
+                    onChange={(e) => setSubmissionUrl(e.target.value)}
+                    placeholder="https://github.com/... or https://drive.google.com/..."
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Comments</label>
                   <textarea 
                     rows={4} 
                     placeholder="Add any notes for your instructor..." 
+                    value={comments}
+                    onChange={(e) => setComments(e.target.value)}
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   ></textarea>
                 </div>
@@ -121,10 +163,10 @@ export default function SubmitAssignment() {
                 <div className="pt-6 border-t border-slate-100 flex justify-end">
                   <button 
                     type="submit" 
-                    disabled={!file}
+                    disabled={isSaving || (!file && !submissionUrl.trim() && !comments.trim())}
                     className="px-8 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
-                    Submit Assignment
+                    {isSaving ? 'Submitting...' : 'Submit Assignment'}
                   </button>
                 </div>
               </form>

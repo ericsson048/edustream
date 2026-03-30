@@ -2,6 +2,8 @@ import { apiClient } from './apiClient';
 
 export interface CheckoutResponse {
   checkout_url?: string;
+  session_id?: string;
+  publishable_key?: string;
   transaction?: {
     id: string;
     amount_paid: string;
@@ -9,6 +11,14 @@ export interface CheckoutResponse {
     instructor_earning: string;
     status: string;
   };
+}
+
+export interface CheckoutStatusResponse {
+  paid: boolean;
+  status?: string;
+  payment_status?: string;
+  enrollment_id?: string;
+  transaction?: CheckoutResponse['transaction'] | null;
 }
 
 export interface InstructorEarningsSummary {
@@ -33,6 +43,12 @@ export interface InstructorEarningsResponse {
 export const billingService = {
   async checkoutCourse(courseId: string): Promise<CheckoutResponse> {
     const { data } = await apiClient.post<CheckoutResponse>(`/billing/checkout/${courseId}/`);
+    return data;
+  },
+  async getCheckoutSessionStatus(sessionId: string): Promise<CheckoutStatusResponse> {
+    const { data } = await apiClient.get<CheckoutStatusResponse>('/billing/checkout/session/', {
+      params: { session_id: sessionId },
+    });
     return data;
   },
   async getInstructorEarnings(): Promise<InstructorEarningsResponse> {

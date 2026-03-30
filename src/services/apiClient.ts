@@ -53,3 +53,20 @@ apiClient.interceptors.response.use(
     }
   },
 );
+
+export function getApiErrorMessage(error: unknown, fallback = 'Une erreur est survenue.') {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+    if (detail && typeof detail === 'object') {
+      const record = detail as Record<string, unknown>;
+      if (typeof record.detail === 'string' && record.detail.trim()) return record.detail;
+      if (typeof record.message === 'string' && record.message.trim()) return record.message;
+      const firstValue = Object.values(record)[0];
+      if (typeof firstValue === 'string' && firstValue.trim()) return firstValue;
+      if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') return firstValue[0];
+    }
+  }
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return fallback;
+}

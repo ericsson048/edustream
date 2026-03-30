@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 
 from apps.billing.services import can_use_ai
 
+from .gemini import GeminiGenerationError, generate_lesson_package, generate_module_package
 from .models import AITutorMessage
 
 
@@ -165,3 +166,76 @@ class InstructorCourseGenerationView(APIView):
                 "modules": modules,
             }
         )
+
+
+class InstructorModuleGenerationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role not in {"INSTRUCTOR", "ADMIN"}:
+            return Response({"detail": "Instructor access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        allowed, reason = can_use_ai(request.user)
+        if not allowed:
+            status_code = status.HTTP_402_PAYMENT_REQUIRED if reason == "Upgrade to Unlimited." else status.HTTP_403_FORBIDDEN
+            return Response({"detail": reason}, status=status_code)
+
+        prompt = request.data.get("prompt", "").strip()
+        if not prompt:
+            return Response({"detail": "prompt is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payload = generate_module_package(
+                prompt=prompt,
+                course_title=request.data.get("course_title", "").strip() or "Untitled course",
+                category=request.data.get("category", "").strip() or "General",
+                level=request.data.get("level", "").strip() or "INTERMEDIATE",
+                module_title=request.data.get("module_title", "").strip(),
+            )
+        except GeminiGenerationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        AITutorMessage.objects.create(user=request.user, prompt=prompt, response=f"Generated module package for {payload['title']}.")
+        subscription = getattr(request.user, "subscription", None)
+        if subscription and not subscription.plan.has_unlimited_ai:
+            subscription.ai_prompts_used_this_month += 1
+            subscription.save(update_fields=["ai_prompts_used_this_month", "updated_at"])
+
+        return Response(payload)
+
+
+class InstructorLessonGenerationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role not in {"INSTRUCTOR", "ADMIN"}:
+            return Response({"detail": "Instructor access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        allowed, reason = can_use_ai(request.user)
+        if not allowed:
+            status_code = status.HTTP_402_PAYMENT_REQUIRED if reason == "Upgrade to Unlimited." else status.HTTP_403_FORBIDDEN
+            return Response({"detail": reason}, status=status_code)
+
+        prompt = request.data.get("prompt", "").strip()
+        if not prompt:
+            return Response({"detail": "prompt is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payload = generate_lesson_package(
+                prompt=prompt,
+                course_title=request.data.get("course_title", "").strip() or "Untitled course",
+                category=request.data.get("category", "").strip() or "General",
+                level=request.data.get("level", "").strip() or "INTERMEDIATE",
+                module_title=request.data.get("module_title", "").strip() or "Untitled module",
+                lesson_title=request.data.get("lesson_title", "").strip(),
+            )
+        except GeminiGenerationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        AITutorMessage.objects.create(user=request.user, prompt=prompt, response=f"Generated lesson package for {payload['title']}.")
+        subscription = getattr(request.user, "subscription", None)
+        if subscription and not subscription.plan.has_unlimited_ai:
+            subscription.ai_prompts_used_this_month += 1
+            subscription.save(update_fields=["ai_prompts_used_this_month", "updated_at"])
+
+        return Response(payload)

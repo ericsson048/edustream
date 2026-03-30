@@ -6,6 +6,8 @@ export interface LiveSessionItem {
   id: string;
   course: string;
   course_title?: string;
+  instructor_id?: string;
+  instructor_name?: string;
   title: string;
   scheduled_at: string;
   duration_minutes: number;
@@ -35,6 +37,16 @@ export const liveService = {
   ): Promise<LiveSessionItem> {
     const { data } = await apiClient.patch<LiveSessionItem>(`/live-sessions/${id}/`, payload);
     return data;
+  },
+  async joinSession(id: string): Promise<{ id: string; session: string; user: string; role: 'HOST' | 'STUDENT'; user_name?: string }> {
+    const { data } = await apiClient.post(`/live-sessions/${id}/join/`);
+    return data;
+  },
+  async listParticipants(sessionId: string): Promise<Array<{ id: string; session: string; user: string; user_name?: string; role: 'HOST' | 'STUDENT' }>> {
+    const { data } = await apiClient.get<PaginatedResponse<{ id: string; session: string; user: string; user_name?: string; role: 'HOST' | 'STUDENT' }>>(
+      `/live-participants/?session=${sessionId}`,
+    );
+    return data.results ?? [];
   },
   createSessionSocket(sessionId: string): WebSocket {
     return new WebSocket(buildWebSocketUrl(`/ws/live/${sessionId}/`));

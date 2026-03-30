@@ -89,6 +89,7 @@ class Module(models.Model):
     learning_objectives = models.JSONField(default=list, blank=True)
     estimated_minutes = models.PositiveIntegerField(default=0)
     is_published = models.BooleanField(default=True)
+    require_quiz_pass_to_continue = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=1)
 
     class Meta:

@@ -43,7 +43,10 @@ export default function Grades() {
               <tbody>
                 {submissions.map((s) => (
                   <tr key={s.id} className="border-t border-slate-100">
-                    <td className="px-6 py-4">{s.assignment}</td>
+                    <td className="px-6 py-4">
+                      <div>{s.assignment_title || s.assignment}</div>
+                      <div className="mt-1 text-xs text-slate-500">{s.course_title || 'Course'}</div>
+                    </td>
                     <td className="px-6 py-4">{s.status}</td>
                     <td className="px-6 py-4">{s.grade ?? '-'}</td>
                     <td className="px-6 py-4">{new Date(s.submitted_at).toLocaleString()}</td>

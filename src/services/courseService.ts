@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { Course, CourseCategory, CourseLesson, CourseModule, Enrollment, LessonResource } from '../types/lms';
+import type { Course, CourseCategory, CourseLesson, CourseModule, Enrollment, LessonResource, NoteItem, ProgressItem } from '../types/lms';
 import type { GeneratedCourseOutline } from './aiService';
 
 interface PaginatedResponse<T> {
@@ -7,6 +7,16 @@ interface PaginatedResponse<T> {
   next: string | null;
   previous: string | null;
   results: T[];
+}
+
+export interface CertificateItem {
+  id: string;
+  user: string;
+  course: string;
+  course_title?: string;
+  instructor_name?: string;
+  certificate_code: string;
+  issued_at: string;
 }
 
 export const courseService = {
@@ -28,6 +38,54 @@ export const courseService = {
   async listEnrollments(params?: { course?: string; is_active?: boolean }): Promise<Enrollment[]> {
     const { data } = await apiClient.get<PaginatedResponse<Enrollment>>('/enrollments/', { params });
     return data.results ?? [];
+  },
+
+  async listProgress(params?: { enrollment?: string; lesson?: string; is_completed?: boolean }): Promise<ProgressItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<ProgressItem>>('/progress/', { params });
+    return data.results ?? [];
+  },
+
+  async upsertProgress(
+    existingId: string | null,
+    payload: {
+      enrollment: string;
+      lesson: string;
+      completion: number;
+      is_completed: boolean;
+      last_position_seconds: number;
+    },
+  ): Promise<ProgressItem> {
+    if (existingId) {
+      const { data } = await apiClient.patch<ProgressItem>(`/progress/${existingId}/`, payload);
+      return data;
+    }
+    const { data } = await apiClient.post<ProgressItem>('/progress/', payload);
+    return data;
+  },
+
+  async listNotes(params?: { lesson?: string }): Promise<NoteItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<NoteItem>>('/notes/', { params });
+    return data.results ?? [];
+  },
+
+  async createNote(payload: { lesson: string; content: string }): Promise<NoteItem> {
+    const { data } = await apiClient.post<NoteItem>('/notes/', payload);
+    return data;
+  },
+
+  async updateNote(id: string, payload: Partial<Pick<NoteItem, 'content'>>): Promise<NoteItem> {
+    const { data } = await apiClient.patch<NoteItem>(`/notes/${id}/`, payload);
+    return data;
+  },
+
+  async listCertificates(params?: { course?: string }): Promise<CertificateItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<CertificateItem>>('/certificates/', { params });
+    return data.results ?? [];
+  },
+
+  async claimCertificate(courseId: string): Promise<CertificateItem> {
+    const { data } = await apiClient.post<CertificateItem>('/certificates/claim/', { course: courseId });
+    return data;
   },
 
   async createCourse(payload: {
@@ -58,7 +116,7 @@ export const courseService = {
     form.append('target_audience', JSON.stringify(payload.target_audience || []));
     form.append('estimated_hours', String(payload.estimated_hours ?? 0));
     form.append('price', payload.price);
-    form.append('is_published', String(payload.is_published ?? true));
+    form.append('is_published', String(payload.is_published ?? false));
     if (payload.thumbnail_url) form.append('thumbnail_url', payload.thumbnail_url);
     if (payload.thumbnail_file) form.append('thumbnail_file', payload.thumbnail_file);
 
@@ -138,6 +196,7 @@ export const courseService = {
     learning_objectives?: string[];
     estimated_minutes?: number;
     is_published?: boolean;
+    require_quiz_pass_to_continue?: boolean;
     order: number;
   }): Promise<CourseModule> {
     const { data } = await apiClient.post<CourseModule>('/modules/', payload);
@@ -146,7 +205,9 @@ export const courseService = {
 
   async updateModule(
     id: string,
-    payload: Partial<Pick<CourseModule, 'title' | 'description' | 'learning_objectives' | 'estimated_minutes' | 'is_published' | 'order'>>,
+    payload: Partial<
+      Pick<CourseModule, 'title' | 'description' | 'learning_objectives' | 'estimated_minutes' | 'is_published' | 'require_quiz_pass_to_continue' | 'order'>
+    >,
   ): Promise<CourseModule> {
     const { data } = await apiClient.patch<CourseModule>(`/modules/${id}/`, payload);
     return data;

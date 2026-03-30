@@ -149,6 +149,10 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         return qs.filter(student=self.request.user)
 
     def perform_create(self, serializer):
+        quiz = serializer.validated_data["quiz"]
+        course = quiz.module.course if quiz.module_id else quiz.lesson.module.course
+        if not Enrollment.objects.filter(student=self.request.user, course=course, is_active=True).exists():
+            raise PermissionDenied("Enrollment required.")
         serializer.save(student=self.request.user)
 
 

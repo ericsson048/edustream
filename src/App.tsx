@@ -39,9 +39,12 @@ import InstructorDashboard from './pages/instructorpages/InstructorDashboard';
 import ManageAssignments from './pages/instructorpages/ManageAssignments';
 import InstructorCourses from './pages/instructorpages/InstructorCourses';
 import InstructorAnalytics from './pages/instructorpages/InstructorAnalytics';
-import CourseEditor from './pages/instructorpages/CourseEditor';
 import CourseCreationWizard from './pages/instructorpages/CourseCreationWizard';
 import InstructorSchedule from './pages/instructorpages/InstructorSchedule';
+import CourseOverviewPage from './pages/instructorpages/CourseOverviewPage';
+import CourseModulesPage from './pages/instructorpages/CourseModulesPage';
+import CourseModulePage from './pages/instructorpages/CourseModulePage';
+import CourseLessonPage from './pages/instructorpages/CourseLessonPage';
 import ProtectedRoute, { getDefaultRoute } from './components/guards/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
 
@@ -73,8 +76,8 @@ export default function App() {
           <Route path="/community" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR', 'ADMIN']}><Community /></ProtectedRoute>} />
           <Route path="/messages" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR', 'ADMIN']}><Messages /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute roles={['STUDENT', 'INSTRUCTOR', 'ADMIN']}><Profile /></ProtectedRoute>} />
-          <Route path="/player" element={<ProtectedRoute roles={['STUDENT']}><CoursePlayer /></ProtectedRoute>} />
-          <Route path="/learning" element={<ProtectedRoute roles={['STUDENT']}><CoursePlayer /></ProtectedRoute>} />
+          <Route path="/player/:courseId/:lessonId?" element={<ProtectedRoute roles={['STUDENT']}><CoursePlayer /></ProtectedRoute>} />
+          <Route path="/learning/:courseId/:lessonId?" element={<ProtectedRoute roles={['STUDENT']}><CoursePlayer /></ProtectedRoute>} />
           <Route path="/quiz/:id" element={<ProtectedRoute roles={['STUDENT']}><Quiz /></ProtectedRoute>} />
           <Route path="/certificate" element={<ProtectedRoute roles={['STUDENT']}><Certificate /></ProtectedRoute>} />
           <Route path="/instructor/profile/:id" element={<ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}><InstructorProfile /></ProtectedRoute>} />
@@ -93,7 +96,10 @@ export default function App() {
           <Route path="/instructor/assignments" element={<ProtectedRoute roles={['INSTRUCTOR']}><ManageAssignments /></ProtectedRoute>} />
           <Route path="/instructor/courses" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorCourses /></ProtectedRoute>} />
           <Route path="/instructor/courses/new" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseCreationWizard /></ProtectedRoute>} />
-          <Route path="/instructor/courses/edit/:id" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseEditor /></ProtectedRoute>} />
+          <Route path="/instructor/courses/edit/:id" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseOverviewPage /></ProtectedRoute>} />
+          <Route path="/instructor/courses/edit/:id/module" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseModulesPage /></ProtectedRoute>} />
+          <Route path="/instructor/courses/edit/:id/module/:moduleId" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseModulePage /></ProtectedRoute>} />
+          <Route path="/instructor/courses/edit/:id/module/:moduleId/lesson/:lessonId" element={<ProtectedRoute roles={['INSTRUCTOR']}><CourseLessonPage /></ProtectedRoute>} />
           <Route path="/instructor/analytics" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorAnalytics /></ProtectedRoute>} />
           <Route path="/instructor/schedule" element={<ProtectedRoute roles={['INSTRUCTOR']}><InstructorSchedule /></ProtectedRoute>} />
 

@@ -1,47 +1,148 @@
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import { PlayCircle, CheckCircle, Star, MoreHorizontal, ArrowRight } from 'lucide-react';
+import { PlayCircle, CheckCircle, Star, ArrowRight, CalendarClock } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { courseService } from '../services/courseService';
+import { learningService, type AssignmentItem, type SubmissionItem } from '../services/learningService';
+import { liveService, type LiveSessionItem } from '../services/liveService';
+import type { Course, Enrollment, ProgressItem } from '../types/lms';
+import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 
-const data = [
-  { name: 'Mon', hours: 2.5 },
-  { name: 'Tue', hours: 3.8 },
-  { name: 'Wed', hours: 5.2 },
-  { name: 'Thu', hours: 3.0 },
-  { name: 'Fri', hours: 4.5 },
-  { name: 'Sat', hours: 1.8 },
-  { name: 'Sun', hours: 1.2 },
-];
+type CourseWithMetrics = {
+  enrollment: Enrollment;
+  course?: Course;
+  progressPercent: number;
+  completedLessons: number;
+  totalLessons: number;
+  nextLessonId?: string;
+};
+
+function getWeeklyActivity(progressItems: ProgressItem[]) {
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const now = new Date();
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now);
+    date.setDate(now.getDate() - (6 - index));
+    const count = progressItems.filter((item) => {
+      const updated = new Date(item.updated_at);
+      return (
+        updated.getFullYear() === date.getFullYear() &&
+        updated.getMonth() === date.getMonth() &&
+        updated.getDate() === date.getDate()
+      );
+    }).length;
+    return {
+      name: dayNames[date.getDay()],
+      hours: Math.max(0, Number((count * 0.75).toFixed(1))),
+    };
+  });
+}
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [coursesMap, setCoursesMap] = useState<Record<string, Course>>({});
+  const [progressItems, setProgressItems] = useState<ProgressItem[]>([]);
+  const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+  const [liveSessions, setLiveSessions] = useState<LiveSessionItem[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [enrollmentList, courseList, submissionList, assignmentList, sessionList] = await Promise.all([
+          courseService.listEnrollments({ is_active: true }),
+          courseService.listCourses({ is_published: true }),
+          learningService.listSubmissions(),
+          learningService.listAssignments(),
+          liveService.listLiveSessions(),
+        ]);
+
+        setEnrollments(enrollmentList);
+        setCoursesMap(Object.fromEntries(courseList.map((course) => [course.id, course])));
+        setSubmissions(submissionList);
+        setAssignments(assignmentList);
+        setLiveSessions(sessionList);
+
+        const progressList = (
+          await Promise.all(enrollmentList.map((enrollment) => courseService.listProgress({ enrollment: enrollment.id })))
+        ).flat();
+        setProgressItems(progressList);
+      } catch {
+        showToast('Impossible de charger le dashboard.', 'error');
+      }
+    }
+    load();
+  }, [showToast]);
+
+  const enrolledCourses = useMemo<CourseWithMetrics[]>(() => {
+    return enrollments.map((enrollment) => {
+      const course = coursesMap[enrollment.course];
+      const lessons = (course?.modules || []).flatMap((module) => module.lessons || []);
+      const progressForCourse = progressItems.filter((item) => item.enrollment === enrollment.id);
+      const completedLessons = progressForCourse.filter((item) => item.is_completed).length;
+      const totalLessons = lessons.length;
+      const progressPercent = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0;
+      const firstUnfinished = lessons.find((lesson) => !progressForCourse.some((item) => item.lesson === lesson.id && item.is_completed));
+      return {
+        enrollment,
+        course,
+        progressPercent,
+        completedLessons,
+        totalLessons,
+        nextLessonId: firstUnfinished?.id || lessons[0]?.id,
+      };
+    });
+  }, [coursesMap, enrollments, progressItems]);
+
+  const coursesInProgress = enrolledCourses.filter((item) => item.progressPercent > 0 && item.progressPercent < 100).length;
+  const completedCourses = enrolledCourses.filter((item) => item.totalLessons > 0 && item.progressPercent >= 100).length;
+  const gradedSubmissions = submissions.filter((item) => item.grade !== null && item.grade !== undefined);
+  const averageScore = gradedSubmissions.length
+    ? Math.round(gradedSubmissions.reduce((sum, item) => sum + Number(item.grade), 0) / gradedSubmissions.length)
+    : 0;
+  const upcomingAssignments = [...assignments]
+    .filter((item) => new Date(item.due_date).getTime() >= Date.now())
+    .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+    .slice(0, 3);
+  const upcomingLiveSessions = [...liveSessions]
+    .filter((item) => item.status !== 'ENDED')
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+    .slice(0, 3);
+  const totalCompletedLessons = progressItems.filter((item) => item.is_completed).length;
+  const totalTrackedLessons = enrolledCourses.reduce((sum, item) => sum + item.totalLessons, 0);
+  const goalPercent = totalTrackedLessons ? Math.round((totalCompletedLessons / totalTrackedLessons) * 100) : 0;
+  const activityData = getWeeklyActivity(progressItems);
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 transition-colors">
       <Sidebar />
-      
+
       <main className="flex-1 ml-64">
         <Header />
-        
+
         <div className="p-8 max-w-7xl mx-auto">
-          {/* Welcome Section */}
           <div className="mb-8">
-            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-1">Welcome back, Alex! 👋</h2>
-            <p className="text-slate-500 dark:text-slate-400">You've completed 85% of your weekly goal. Keep it up!</p>
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-1">Welcome back, {user?.full_name?.split(' ')[0] || 'Student'}!</h2>
+            <p className="text-slate-500 dark:text-slate-400">Your dashboard is now using your real enrollments, progress, grades and upcoming learning events.</p>
           </div>
 
-          {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {[
-              { label: 'Courses in Progress', value: '4', icon: PlayCircle, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', badge: '+1 this week' },
-              { label: 'Completed Courses', value: '12', icon: CheckCircle, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30', badge: '+2 this month' },
-              { label: 'Average Score', value: '92%', icon: Star, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30', badge: '+5% avg' },
-            ].map((stat, i) => (
-              <div key={i} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+              { label: 'Courses in Progress', value: String(coursesInProgress), icon: PlayCircle, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', badge: `${enrolledCourses.length} enrolled` },
+              { label: 'Completed Courses', value: String(completedCourses), icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', badge: `${totalCompletedLessons} lessons done` },
+              { label: 'Average Score', value: gradedSubmissions.length ? `${averageScore}%` : 'N/A', icon: Star, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30', badge: `${gradedSubmissions.length} graded` },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-4">
                   <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center`}>
                     <stat.icon className="w-6 h-6" />
                   </div>
-                  <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-lg">{stat.badge}</span>
+                  <span className="text-slate-600 dark:text-slate-300 text-xs font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">{stat.badge}</span>
                 </div>
                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{stat.label}</p>
                 <p className="text-3xl font-bold mt-1 dark:text-white">{stat.value}</p>
@@ -50,100 +151,70 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column: Recent Courses & Chart */}
             <div className="lg:col-span-2 space-y-8">
-              {/* Recent Courses */}
               <div>
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold dark:text-white">Recent Courses</h3>
+                  <h3 className="text-xl font-bold dark:text-white">Continue Learning</h3>
                   <Link to="/courses" className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">View All</Link>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Course Card 1 */}
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800 group">
-                    <div className="h-40 bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
-                      <img 
-                        src="https://images.unsplash.com/photo-1555099962-4199c345e5dd?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80" 
-                        alt="Code" 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                      <span className="absolute bottom-3 left-4 px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded uppercase tracking-wider">Development</span>
-                    </div>
-                    <div className="p-5">
-                      <h4 className="font-bold text-lg mb-1 dark:text-white">Advanced React Patterns</h4>
-                      <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Section 4: Custom Hooks & Performance</p>
-                      
-                      <div className="flex items-center gap-4 mb-4">
-                        <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-600 w-[75%] rounded-full"></div>
-                        </div>
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">75%</span>
-                      </div>
-                      
-                      <Link to="/player" className="block w-full py-2.5 bg-slate-900 dark:bg-slate-800 text-white text-center rounded-xl text-sm font-bold hover:bg-blue-600 dark:hover:bg-blue-600 transition-colors">
-                        Continue Lesson
-                      </Link>
-                    </div>
-                  </div>
 
-                  {/* Course Card 2 */}
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800 group">
-                    <div className="h-40 bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
-                      <img 
-                        src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80" 
-                        alt="Data" 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                      <span className="absolute bottom-3 left-4 px-2 py-1 bg-emerald-500 text-white text-[10px] font-bold rounded uppercase tracking-wider">Data Science</span>
-                    </div>
-                    <div className="p-5">
-                      <h4 className="font-bold text-lg mb-1 dark:text-white">Machine Learning Basics</h4>
-                      <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Section 2: Linear Regression</p>
-                      
-                      <div className="flex items-center gap-4 mb-4">
-                        <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 w-[30%] rounded-full"></div>
-                        </div>
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">30%</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {enrolledCourses.slice(0, 4).map((item) => (
+                    <div key={item.enrollment.id} className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800 group">
+                      <div className="h-40 bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
+                        <img
+                          src={item.course?.thumbnail || item.course?.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=1740&q=80'}
+                          alt={item.course?.title || item.enrollment.course_title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                        <span className="absolute bottom-3 left-4 px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded uppercase tracking-wider">
+                          {item.course?.category || 'Course'}
+                        </span>
                       </div>
-                      
-                      <button className="w-full py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-blue-600 dark:hover:bg-blue-600 transition-colors">
-                        Continue Lesson
-                      </button>
+                      <div className="p-5">
+                        <h4 className="font-bold text-lg mb-1 dark:text-white">{item.course?.title || item.enrollment.course_title}</h4>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+                          {item.completedLessons} / {item.totalLessons || 0} lesson(s) completed
+                        </p>
+
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-600 rounded-full" style={{ width: `${item.progressPercent}%` }}></div>
+                          </div>
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{item.progressPercent}%</span>
+                        </div>
+
+                        <Link
+                          to={item.course && item.nextLessonId ? `/player/${item.course.id}/${item.nextLessonId}` : '/courses'}
+                          className="block w-full py-2.5 bg-slate-900 dark:bg-slate-800 text-white text-center rounded-xl text-sm font-bold hover:bg-blue-600 dark:hover:bg-blue-600 transition-colors"
+                        >
+                          Continue Lesson
+                        </Link>
+                      </div>
                     </div>
-                  </div>
+                  ))}
+                  {enrolledCourses.length === 0 && (
+                    <div className="md:col-span-2 rounded-2xl border border-dashed border-slate-300 bg-white dark:bg-slate-900 p-8 text-sm text-slate-500">
+                      You are not enrolled in any published course yet.
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Study Activity Chart */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold dark:text-white">Study Activity</h3>
-                  <select className="bg-slate-50 dark:bg-slate-800 border-none text-xs font-bold text-slate-500 dark:text-slate-400 rounded-lg py-1 px-2 outline-none">
-                    <option>This Week</option>
-                    <option>Last Week</option>
-                  </select>
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 rounded-lg py-1 px-2 bg-slate-50 dark:bg-slate-800">Last 7 days</span>
                 </div>
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data} barSize={40}>
-                      <XAxis 
-                        dataKey="name" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 500 }} 
-                        dy={10}
-                      />
-                      <Tooltip 
-                        cursor={{ fill: 'transparent' }}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#1e293b', color: '#fff' }}
-                      />
+                    <BarChart data={activityData} barSize={40}>
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 500 }} dy={10} />
+                      <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#1e293b', color: '#fff' }} />
                       <Bar dataKey="hours" radius={[6, 6, 6, 6]}>
-                        {data.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.name === 'Wed' ? '#2563eb' : '#334155'} />
+                        {activityData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.hours === Math.max(...activityData.map((item) => item.hours), 0) ? '#2563eb' : '#334155'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -152,80 +223,97 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Right Column */}
             <div className="space-y-8">
-              {/* Learning Goal */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 text-center">
                 <h3 className="text-lg font-bold mb-6 text-left dark:text-white">Learning Goal</h3>
                 <div className="relative w-40 h-40 mx-auto mb-6">
                   <svg className="w-full h-full transform -rotate-90">
                     <circle cx="80" cy="80" r="70" fill="transparent" stroke="currentColor" className="text-slate-100 dark:text-slate-800" strokeWidth="12" />
-                    <circle 
-                      cx="80" 
-                      cy="80" 
-                      r="70" 
-                      fill="transparent" 
-                      stroke="#2563eb" 
-                      strokeWidth="12" 
-                      strokeDasharray={440} 
-                      strokeDashoffset={440 - (440 * 0.85)} 
+                    <circle
+                      cx="80"
+                      cy="80"
+                      r="70"
+                      fill="transparent"
+                      stroke="#2563eb"
+                      strokeWidth="12"
+                      strokeDasharray={440}
+                      strokeDashoffset={440 - (440 * goalPercent) / 100}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-4xl font-extrabold text-slate-900 dark:text-white">85%</span>
+                    <span className="text-4xl font-extrabold text-slate-900 dark:text-white">{goalPercent}%</span>
                     <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-1">Complete</span>
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between text-sm p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
                       <span className="text-slate-600 dark:text-slate-400 font-medium">Completed</span>
                     </div>
-                    <span className="font-bold text-slate-900 dark:text-white">24</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{totalCompletedLessons}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full"></span>
                       <span className="text-slate-600 dark:text-slate-400 font-medium">Remaining</span>
                     </div>
-                    <span className="font-bold text-slate-900 dark:text-white">4</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{Math.max(0, totalTrackedLessons - totalCompletedLessons)}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Upcoming Deadlines */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold dark:text-white">Upcoming Deadlines</h3>
-                  <MoreHorizontal className="text-slate-400 w-5 h-5 cursor-pointer" />
+                  <CalendarClock className="text-slate-400 w-5 h-5" />
                 </div>
-                
+
                 <div className="space-y-5">
-                  {[
-                    { day: '12', month: 'Oct', title: 'Final UX Research Report', course: 'Design Systems 101', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/20' },
-                    { day: '15', month: 'Oct', title: 'Python Quiz: Arrays', course: 'CS Foundations', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                    { day: '18', month: 'Oct', title: 'History Essay Draft', course: 'World History II', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-                  ].map((task, i) => (
-                    <div key={i} className="flex gap-4 items-center group cursor-pointer">
-                      <div className={`flex flex-col items-center justify-center w-12 h-12 ${task.bg} ${task.color} rounded-xl group-hover:scale-110 transition-transform`}>
-                        <span className="text-[10px] font-bold uppercase">{task.month}</span>
-                        <span className="text-lg font-black leading-none">{task.day}</span>
+                  {upcomingAssignments.map((task) => {
+                    const date = new Date(task.due_date);
+                    return (
+                      <div key={task.id} className="flex gap-4 items-center">
+                        <div className="flex flex-col items-center justify-center w-12 h-12 bg-blue-50 text-blue-600 rounded-xl">
+                          <span className="text-[10px] font-bold uppercase">{date.toLocaleString(undefined, { month: 'short' })}</span>
+                          <span className="text-lg font-black leading-none">{date.getDate()}</span>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white">{task.title}</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{task.course_title || 'Course'}</p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{task.title}</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{task.course}</p>
-                      </div>
+                    );
+                  })}
+                  {upcomingAssignments.length === 0 && <p className="text-sm text-slate-500">No upcoming assignment deadlines.</p>}
+                </div>
+
+                <Link to="/assignments" className="w-full mt-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                  View Assignments
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-bold dark:text-white">Upcoming Live Sessions</h3>
+                  <CalendarClock className="text-slate-400 w-5 h-5" />
+                </div>
+                <div className="space-y-4">
+                  {upcomingLiveSessions.map((session) => (
+                    <div key={session.id} className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
+                      <p className="font-bold text-slate-900 dark:text-white">{session.title}</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{session.course_title || 'Course'} • {new Date(session.scheduled_at).toLocaleString()}</p>
                     </div>
                   ))}
+                  {upcomingLiveSessions.length === 0 && <p className="text-sm text-slate-500">No live sessions scheduled yet.</p>}
                 </div>
-                
-                <button className="w-full mt-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                <Link to="/schedule" className="w-full mt-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
                   View Full Schedule
                   <ArrowRight className="w-4 h-4" />
-                </button>
+                </Link>
               </div>
             </div>
           </div>

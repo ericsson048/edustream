@@ -3,7 +3,6 @@ import json
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-from apps.billing.services import can_stream_live
 from apps.courses.models import Enrollment
 
 from .models import LiveSession
@@ -77,6 +76,6 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
             return False
 
         user = self.scope["user"]
-        if user.id == session.instructor.id:
-            return can_stream_live(user)
+        if user.id == session.instructor.id or getattr(user, "role", None) == "ADMIN":
+            return True
         return Enrollment.objects.filter(student_id=user_id, course=session.course, is_active=True).exists()

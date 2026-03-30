@@ -1,16 +1,19 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Lock, ShieldCheck } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { courseService } from '../services/courseService';
 import { billingService } from '../services/billingService';
+import { getApiErrorMessage } from '../services/apiClient';
 import type { Course } from '../types/lms';
 import { useToast } from '../contexts/ToastContext';
 
 export default function Checkout() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [course, setCourse] = useState<Course | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -24,16 +27,43 @@ export default function Checkout() {
       });
   }, [id, showToast]);
 
+  useEffect(() => {
+    const sessionId = searchParams.get('session_id');
+    const canceled = searchParams.get('canceled');
+    if (!sessionId) {
+      if (canceled) showToast('Paiement annule.', 'info');
+      return;
+    }
+
+    setIsVerifying(true);
+    billingService
+        .getCheckoutSessionStatus(sessionId)
+        .then((result) => {
+          if (result.paid) {
+            showToast('Paiement confirme. Vous etes inscrit au cours.', 'success');
+            navigate(`/player/${id}`, { replace: true });
+            return;
+          }
+          showToast('Le paiement n est pas encore confirme.', 'info');
+      })
+      .catch(() => showToast('Verification du paiement impossible.', 'error'))
+      .finally(() => setIsVerifying(false));
+  }, [navigate, searchParams, showToast]);
+
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
     setIsProcessing(true);
     try {
-      await billingService.checkoutCourse(id);
+      const response = await billingService.checkoutCourse(id);
+      if (response.checkout_url) {
+        window.location.href = response.checkout_url;
+        return;
+      }
       showToast('Paiement confirme. Vous etes inscrit au cours.', 'success');
-      navigate('/courses', { replace: true });
-    } catch {
-      const message = "Paiement impossible. Vous etes peut-etre deja inscrit.";
+      navigate(`/player/${id}`, { replace: true });
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Paiement impossible.');
       showToast(message, 'error');
     } finally {
       setIsProcessing(false);
@@ -79,10 +109,10 @@ export default function Checkout() {
 
                 <button
                   type="submit"
-                  disabled={isProcessing || !course}
+                  disabled={isProcessing || isVerifying || !course}
                   className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70"
                 >
-                  {isProcessing ? 'Processing...' : (<><Lock className="w-4 h-4" /> Pay ${course?.price || '0.00'}</>)}
+                  {isProcessing || isVerifying ? 'Processing...' : (<><Lock className="w-4 h-4" /> Pay ${course?.price || '0.00'}</>)}
                 </button>
               </form>
             </div>

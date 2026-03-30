@@ -16,16 +16,21 @@ def owns_learning_object(user, obj):
         return False
     if hasattr(obj, "instructor"):
         return obj.instructor_id == user.id
-    if hasattr(obj, "course"):
-        return owns_learning_object(user, obj.course)
-    if hasattr(obj, "module"):
-        return owns_learning_object(user, obj.module)
-    if hasattr(obj, "lesson"):
-        return owns_learning_object(user, obj.lesson)
-    if hasattr(obj, "quiz"):
-        return owns_learning_object(user, obj.quiz)
-    if hasattr(obj, "assignment"):
-        return owns_learning_object(user, obj.assignment)
+    course = getattr(obj, "course", None)
+    if course is not None:
+        return owns_learning_object(user, course)
+    module = getattr(obj, "module", None)
+    if module is not None:
+        return owns_learning_object(user, module)
+    lesson = getattr(obj, "lesson", None)
+    if lesson is not None:
+        return owns_learning_object(user, lesson)
+    quiz = getattr(obj, "quiz", None)
+    if quiz is not None:
+        return owns_learning_object(user, quiz)
+    assignment = getattr(obj, "assignment", None)
+    if assignment is not None:
+        return owns_learning_object(user, assignment)
     if hasattr(obj, "created_by"):
         return obj.created_by_id == user.id
     return False

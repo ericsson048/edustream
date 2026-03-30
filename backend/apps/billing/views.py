@@ -1,6 +1,8 @@
 import uuid
 from datetime import timedelta
 
+import stripe
+from django.conf import settings
 from django.db.models import Sum
 from django.utils import timezone
 from rest_framework import permissions, status
@@ -60,8 +62,49 @@ class CourseCheckoutView(APIView):
         except Course.DoesNotExist:
             return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        if not course.is_published:
+            return Response({"detail": "This course is not available for checkout."}, status=status.HTTP_403_FORBIDDEN)
+
         if Enrollment.objects.filter(student=request.user, course=course).exists():
             return Response({"detail": "Already enrolled."}, status=status.HTTP_409_CONFLICT)
+
+        if settings.STRIPE_SECRET_KEY:
+            stripe.api_key = settings.STRIPE_SECRET_KEY
+            success_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/checkout/{course.id}?session_id={{CHECKOUT_SESSION_ID}}"
+            cancel_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/checkout/{course.id}?canceled=1"
+            session = stripe.checkout.Session.create(
+                mode="payment",
+                payment_method_types=["card"],
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": "usd",
+                            "unit_amount": int(course.price * 100),
+                            "product_data": {
+                                "name": course.title,
+                                "description": course.subtitle or course.description[:200],
+                            },
+                        },
+                        "quantity": 1,
+                    }
+                ],
+                metadata={
+                    "type": "course_checkout",
+                    "course_id": str(course.id),
+                    "user_id": str(request.user.id),
+                },
+                client_reference_id=str(request.user.id),
+                success_url=success_url,
+                cancel_url=cancel_url,
+            )
+            return Response(
+                {
+                    "checkout_url": session.url,
+                    "session_id": session.id,
+                    "publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
+                },
+                status=status.HTTP_201_CREATED,
+            )
 
         fee, instructor_earning = compute_split(course.price, course.platform_fee_percentage)
         tx = Transaction.objects.create(
@@ -81,6 +124,63 @@ class CourseCheckoutView(APIView):
                 "checkout_url": f"https://checkout.stripe.com/pay/mock-{uuid.uuid4()}",
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class CourseCheckoutStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        session_id = request.query_params.get("session_id")
+        if not session_id:
+            return Response({"detail": "session_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not settings.STRIPE_SECRET_KEY:
+            return Response({"detail": "Stripe is not configured."}, status=status.HTTP_400_BAD_REQUEST)
+
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        session = stripe.checkout.Session.retrieve(session_id)
+
+        if session.metadata.get("type") != "course_checkout":
+            return Response({"detail": "Unsupported checkout session."}, status=status.HTTP_400_BAD_REQUEST)
+        if session.metadata.get("user_id") != str(request.user.id):
+            return Response({"detail": "Session does not belong to this user."}, status=status.HTTP_403_FORBIDDEN)
+
+        course_id = session.metadata.get("course_id")
+        if not course_id:
+            return Response({"detail": "Missing course metadata."}, status=status.HTTP_400_BAD_REQUEST)
+
+        course = Course.objects.filter(id=course_id, is_published=True).first()
+        if not course:
+            return Response({"detail": "Course not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if session.payment_status != "paid":
+            return Response(
+                {"paid": False, "status": session.status, "payment_status": session.payment_status},
+                status=status.HTTP_200_OK,
+            )
+
+        enrollment = Enrollment.objects.filter(student=request.user, course=course).first()
+        transaction = Transaction.objects.filter(student=request.user, course=course, stripe_payment_intent_id=session.payment_intent or "").first()
+
+        if not enrollment:
+            fee, instructor_earning = compute_split(course.price, course.platform_fee_percentage)
+            transaction = Transaction.objects.create(
+                student=request.user,
+                course=course,
+                amount_paid=course.price,
+                platform_fee=fee,
+                instructor_earning=instructor_earning,
+                stripe_payment_intent_id=session.payment_intent or "",
+                status=Transaction.Status.COMPLETED,
+            )
+            enrollment = Enrollment.objects.create(student=request.user, course=course)
+
+        return Response(
+            {
+                "paid": True,
+                "transaction": TransactionSerializer(transaction).data if transaction else None,
+                "enrollment_id": str(enrollment.id),
+            }
         )
 
 

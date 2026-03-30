@@ -24,6 +24,8 @@ export interface SubmissionItem {
   status: string;
   submitted_at: string;
   feedback?: string;
+  content_text?: string;
+  file_url?: string;
 }
 
 export interface QuizItem {
@@ -46,6 +48,17 @@ export interface QuizQuestionItem {
   order: number;
 }
 
+export interface QuizAttemptItem {
+  id: string;
+  quiz: string;
+  student: string;
+  answers: Record<string, number>;
+  score: string;
+  passed: boolean;
+  started_at: string;
+  submitted_at?: string | null;
+}
+
 export const learningService = {
   async listAssignments(): Promise<AssignmentItem[]> {
     const { data } = await apiClient.get<PaginatedResponse<AssignmentItem>>('/assignments/');
@@ -55,9 +68,21 @@ export const learningService = {
     const { data } = await apiClient.get<PaginatedResponse<AssignmentItem>>(`/assignments/?course=${courseId}`);
     return data.results ?? [];
   },
+  async getAssignment(id: string): Promise<AssignmentItem> {
+    const { data } = await apiClient.get<AssignmentItem>(`/assignments/${id}/`);
+    return data;
+  },
   async listSubmissions(): Promise<SubmissionItem[]> {
     const { data } = await apiClient.get<PaginatedResponse<SubmissionItem>>('/submissions/');
     return data.results ?? [];
+  },
+  async createSubmission(payload: {
+    assignment: string;
+    content_text?: string;
+    file_url?: string;
+  }): Promise<SubmissionItem> {
+    const { data } = await apiClient.post<SubmissionItem>('/submissions/', payload);
+    return data;
   },
   async gradeSubmission(
     id: string,
@@ -98,6 +123,21 @@ export const learningService = {
   async listQuizzesByLesson(lessonId: string): Promise<QuizItem[]> {
     const { data } = await apiClient.get<PaginatedResponse<QuizItem>>(`/quizzes/?lesson=${lessonId}`);
     return data.results ?? [];
+  },
+  async getQuiz(id: string): Promise<QuizItem> {
+    const { data } = await apiClient.get<QuizItem>(`/quizzes/${id}/`);
+    return data;
+  },
+  async listQuizAttempts(params?: { quiz?: string; passed?: boolean }): Promise<QuizAttemptItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<QuizAttemptItem>>('/quiz-attempts/', { params });
+    return data.results ?? [];
+  },
+  async submitQuizAttempt(payload: {
+    quiz: string;
+    answers: Record<string, number>;
+  }): Promise<QuizAttemptItem> {
+    const { data } = await apiClient.post<QuizAttemptItem>('/quiz-attempts/', payload);
+    return data;
   },
   async createQuiz(payload: {
     title: string;

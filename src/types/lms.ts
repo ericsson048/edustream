@@ -40,6 +40,7 @@ export interface CourseModule {
   learning_objectives?: string[];
   estimated_minutes?: number;
   is_published?: boolean;
+  require_quiz_pass_to_continue?: boolean;
   order: number;
   lessons?: CourseLesson[];
 }
@@ -81,4 +82,29 @@ export interface Enrollment {
   course_title: string;
   is_active: boolean;
   purchased_at: string;
+}
+
+export interface ProgressItem {
+  id: string;
+  enrollment: string;
+  lesson: string;
+  lesson_title?: string;
+  lesson_order?: number;
+  module_id?: string;
+  module_title?: string;
+  course_id?: string;
+  completion: string;
+  is_completed: boolean;
+  last_position_seconds: number;
+  updated_at: string;
+}
+
+export interface NoteItem {
+  id: string;
+  user: string;
+  lesson: string;
+  lesson_title?: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
 }

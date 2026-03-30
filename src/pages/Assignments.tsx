@@ -1,6 +1,7 @@
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { learningService, type AssignmentItem, type SubmissionItem } from '../services/learningService';
 import { useToast } from '../contexts/ToastContext';
 
@@ -44,11 +45,21 @@ export default function Assignments() {
                   const sub = submissionByAssignment[a.id];
                   return (
                     <tr key={a.id} className="border-t border-slate-100">
-                      <td className="px-6 py-4 font-semibold">{a.title}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold">{a.title}</div>
+                        <div className="text-xs text-slate-500 mt-1">{a.course_title || 'Course'}</div>
+                      </td>
                       <td className="px-6 py-4">{a.type}</td>
                       <td className="px-6 py-4">{new Date(a.due_date).toLocaleString()}</td>
                       <td className="px-6 py-4">{a.points}</td>
-                      <td className="px-6 py-4">{sub?.status || 'PENDING'}</td>
+                      <td className="px-6 py-4">
+                        <div>{sub?.status || 'PENDING'}</div>
+                        {!sub && (
+                          <Link to={`/assignments/${a.id}/submit`} className="mt-2 inline-flex text-xs font-bold text-blue-600 hover:text-blue-700">
+                            Submit now
+                          </Link>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

@@ -7,6 +7,14 @@ import { courseService } from '../services/courseService';
 import type { Course, Enrollment } from '../types/lms';
 import { useToast } from '../contexts/ToastContext';
 
+function getFirstLessonPath(course?: Course) {
+  const firstModule = (course?.modules || []).find((module) => (module.lessons || []).length > 0);
+  const firstLesson = firstModule?.lessons?.[0];
+  if (!course) return '/courses';
+  if (!firstLesson) return `/player/${course.id}`;
+  return `/player/${course.id}/${firstLesson.id}`;
+}
+
 export default function MyCourses() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [coursesMap, setCoursesMap] = useState<Record<string, Course>>({});
@@ -17,7 +25,7 @@ export default function MyCourses() {
       try {
         const [myEnrollments, allCourses] = await Promise.all([
           courseService.listEnrollments(),
-          courseService.listCourses(),
+           courseService.listCourses({ is_published: true }),
         ]);
         setEnrollments(myEnrollments);
         setCoursesMap(Object.fromEntries(allCourses.map((course) => [course.id, course])));
@@ -60,7 +68,7 @@ export default function MyCourses() {
                     </h3>
                     <p className="text-xs text-slate-500 mt-2">{course?.instructor_name || 'Instructor'}</p>
                     <div className="mt-auto pt-4">
-                      <Link to="/player" className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                      <Link to={getFirstLessonPath(course)} className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
                         Continue Learning
                         <PlayCircle className="w-4 h-4" />
                       </Link>
