@@ -42,7 +42,11 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
             if not is_enrolled:
                 return Response({"detail": "Enrollment required."}, status=status.HTTP_403_FORBIDDEN)
             role = LiveParticipant.Role.STUDENT
-        participant, _ = LiveParticipant.objects.get_or_create(session=session, user=request.user, defaults={"role": role})
+        participant, created = LiveParticipant.objects.get_or_create(session=session, user=request.user, defaults={"role": role})
+        if not created:
+            participant.role = role
+            participant.left_at = None
+            participant.save(update_fields=["role", "left_at"])
         return Response(LiveParticipantSerializer(participant).data)
 
 
@@ -57,4 +61,4 @@ class LiveParticipantViewSet(viewsets.ReadOnlyModelViewSet):
         if self.request.user != session.instructor and self.request.user.role != "ADMIN":
             if not Enrollment.objects.filter(student=self.request.user, course=session.course, is_active=True).exists():
                 return LiveParticipant.objects.none()
-        return LiveParticipant.objects.filter(session=session).select_related("user")
+        return LiveParticipant.objects.filter(session=session, left_at__isnull=True).select_related("user")

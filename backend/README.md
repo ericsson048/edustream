@@ -1,10 +1,11 @@
 # EduStream Backend (Django + DRF + Channels)
 
-Backend complet pour le frontend EduStream, implémente selon `BACKEND_GUIDE.md`.
+Backend complet pour le frontend EduStream, implemente selon `BACKEND_GUIDE.md`.
 
 ## Domaines couverts
-- Auth + rôles: `STUDENT`, `INSTRUCTOR`, `ADMIN`
-- LMS: cours, modules, leçons, ressources, inscriptions, progression, notes, certificats
+
+- Auth + roles: `STUDENT`, `INSTRUCTOR`, `ADMIN`
+- LMS: cours, modules, lecons, ressources, inscriptions, progression, notes, certificats
 - Learning: assignments, submissions, quiz, attempts, notifications
 - Billing: plans, subscriptions, checkout cours, transactions, webhook Stripe, earnings instructeur
 - AI Tutor: endpoint quota-aware `/api/v1/ai/tutor/chat/`
@@ -12,13 +13,15 @@ Backend complet pour le frontend EduStream, implémente selon `BACKEND_GUIDE.md`
 - Community: discussions, commentaires, study groups
 - Messaging: conversations, messages
 
-## Démarrage
+## Demarrage
+
 ```bash
 cd backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
+redis-server
 python manage.py makemigrations
 python manage.py migrate
 python manage.py seed_demo_data
@@ -26,7 +29,27 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-## Préfixes API
+## Redis
+
+Redis est maintenant utilise pour:
+
+- `Django Channels` via `channels_redis`
+- le cache Django
+
+Variables principales:
+
+- `REDIS_URL=redis://127.0.0.1:6379/0`
+- `DJANGO_CACHE_URL=redis://127.0.0.1:6379/1`
+- `USE_REDIS_CHANNELS=true`
+- `USE_REDIS_CACHE=true`
+
+Fallbacks utiles en local si Redis n'est pas disponible:
+
+- `USE_REDIS_CHANNELS=false`
+- `USE_REDIS_CACHE=false`
+
+## Prefixes API
+
 - HTTP: `/api/v1/`
 - Auth: `/api/v1/auth/`
 - Billing: `/api/v1/billing/`
@@ -35,7 +58,8 @@ python manage.py runserver
 - Swagger UI: `/api/docs/`
 - OpenAPI JSON: `/api/schema/`
 
-## Endpoints clés
+## Endpoints cles
+
 - `GET /api/v1/billing/plans/`
 - `POST /api/v1/billing/subscribe/`
 - `POST /api/v1/billing/checkout/<course_id>/`
@@ -46,6 +70,7 @@ python manage.py runserver
 - `POST /api/v1/live-sessions/<id>/join/`
 
 ## Alignement frontend -> backend
+
 - `Catalog`, `CourseDetails`, `MyCourses`: `/courses`, `/modules`, `/lessons`, `/enrollments`
 - `Assignments`, `Grades`, `Quiz`: `/assignments`, `/submissions`, `/quizzes`, `/quiz-attempts`
 - `Community`: `/discussions`, `/discussion-comments`, `/study-groups`

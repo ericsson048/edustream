@@ -16,6 +16,22 @@ export interface LiveSessionItem {
   room_name?: string;
 }
 
+export interface LiveParticipantItem {
+  id: string;
+  session: string;
+  user: string;
+  user_name?: string;
+  role: 'HOST' | 'STUDENT';
+  is_mic_on?: boolean;
+  is_camera_on?: boolean;
+  is_screen_sharing?: boolean;
+  hand_raised?: boolean;
+  is_recording?: boolean;
+  last_reaction?: string;
+  joined_at?: string;
+  left_at?: string | null;
+}
+
 export const liveService = {
   async listLiveSessions(): Promise<LiveSessionItem[]> {
     const { data } = await apiClient.get<PaginatedResponse<LiveSessionItem>>('/live-sessions/');
@@ -38,12 +54,12 @@ export const liveService = {
     const { data } = await apiClient.patch<LiveSessionItem>(`/live-sessions/${id}/`, payload);
     return data;
   },
-  async joinSession(id: string): Promise<{ id: string; session: string; user: string; role: 'HOST' | 'STUDENT'; user_name?: string }> {
-    const { data } = await apiClient.post(`/live-sessions/${id}/join/`);
+  async joinSession(id: string): Promise<LiveParticipantItem> {
+    const { data } = await apiClient.post<LiveParticipantItem>(`/live-sessions/${id}/join/`);
     return data;
   },
-  async listParticipants(sessionId: string): Promise<Array<{ id: string; session: string; user: string; user_name?: string; role: 'HOST' | 'STUDENT' }>> {
-    const { data } = await apiClient.get<PaginatedResponse<{ id: string; session: string; user: string; user_name?: string; role: 'HOST' | 'STUDENT' }>>(
+  async listParticipants(sessionId: string): Promise<LiveParticipantItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<LiveParticipantItem>>(
       `/live-participants/?session=${sessionId}`,
     );
     return data.results ?? [];

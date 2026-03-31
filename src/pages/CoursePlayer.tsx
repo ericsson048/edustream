@@ -288,23 +288,23 @@ export default function CoursePlayer() {
   }
 
   if (!course) {
-    return <div className="min-h-screen grid place-items-center text-slate-500">Course unavailable.</div>;
+    return <div className="min-h-screen grid place-items-center bg-slate-50 text-slate-500 dark:bg-slate-950 dark:text-slate-400">Course unavailable.</div>;
   }
 
   if (!lessons.length) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="mx-auto max-w-3xl px-6 py-20">
-          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <h1 className="text-3xl font-bold">{course.title}</h1>
-            <p className="mt-4 text-slate-500">
+            <p className="mt-4 text-slate-500 dark:text-slate-400">
               Ce cours ne contient pas encore de lecons publiees pour les etudiants.
             </p>
             <div className="mt-8 flex items-center justify-center gap-3">
               <Link to={`/course/${course.id}`} className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
                 Retour au cours
               </Link>
-              <Link to="/courses" className="rounded-xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-900 hover:bg-slate-200">
+              <Link to="/courses" className="rounded-xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
                 Mes cours
               </Link>
             </div>
@@ -315,11 +315,11 @@ export default function CoursePlayer() {
   }
 
   if (!activeLesson) {
-    return <div className="min-h-screen grid place-items-center text-slate-500">Loading lesson...</div>;
+    return <div className="min-h-screen grid place-items-center bg-slate-50 text-slate-500 dark:bg-slate-950 dark:text-slate-400">Loading lesson...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-slate-900">
+    <div className="min-h-screen bg-[#f6f7fb] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <header className="border-b border-slate-800 bg-[#17181f] px-4 py-4 text-white lg:px-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
@@ -342,8 +342,8 @@ export default function CoursePlayer() {
 
       <div className="flex flex-col xl:flex-row">
         <main className="min-w-0 flex-1">
-          <div className="border-b border-slate-200 bg-white px-5 py-5 lg:px-8">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div className="border-b border-slate-200 bg-white px-5 py-5 lg:px-8 dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
               <span>{course.title}</span>
               <ChevronRight className="h-4 w-4" />
               <span>{activeLesson.moduleTitle}</span>
@@ -351,7 +351,7 @@ export default function CoursePlayer() {
             <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h2 className="text-3xl font-black tracking-tight">{activeLesson.title}</h2>
-                <p className="mt-2 inline-flex items-center gap-2 text-sm text-slate-500">
+                <p className="mt-2 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                   <Clock3 className="h-4 w-4" />
                   {Math.max(1, Math.round((activeLesson.duration_seconds || 0) / 60))} minutes
                 </p>
@@ -381,7 +381,7 @@ export default function CoursePlayer() {
                   )
                 ) : null}
                 {quiz && (
-                  <Link to={`/quiz/${quiz.id}`} className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800">
+                  <Link to={`/quiz/${quiz.id}`} className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white">
                     Take Quiz
                   </Link>
                 )}
@@ -397,7 +397,7 @@ export default function CoursePlayer() {
           </div>
 
           <div className="px-5 py-6 lg:px-8">
-          <div className="mb-6 flex gap-3 border-b border-slate-200">
+          <div className="mb-6 flex gap-3 border-b border-slate-200 dark:border-slate-800">
             {[
               ['content', 'Lesson'],
               ['notes', 'Notes'],
@@ -407,7 +407,7 @@ export default function CoursePlayer() {
               <button
                 key={key}
                 onClick={() => setActiveTab(key as typeof activeTab)}
-                className={`border-b-2 px-4 py-3 text-sm font-bold ${activeTab === key ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}
+                className={`border-b-2 px-4 py-3 text-sm font-bold ${activeTab === key ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 dark:text-slate-400'}`}
               >
                 {label}
               </button>
@@ -415,8 +415,8 @@ export default function CoursePlayer() {
           </div>
 
           {activeTab === 'content' && (
-            <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_35%),linear-gradient(135deg,#0f172a_0%,#111827_45%,#1e293b_100%)] px-5 py-5 text-white lg:px-8 lg:py-6">
+            <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_35%),linear-gradient(135deg,#0f172a_0%,#111827_45%,#1e293b_100%)] px-5 py-5 text-white dark:border-slate-800 lg:px-8 lg:py-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-200">Now Learning</p>
@@ -436,7 +436,7 @@ export default function CoursePlayer() {
 
               <div className="p-5 lg:p-8">
               {activeLesson.video ? (
-                <div className="mb-8 rounded-[28px] border border-slate-200 bg-slate-950 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.22)] lg:p-3">
+                <div className="mb-8 rounded-[28px] border border-slate-200 bg-slate-950 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 lg:p-3">
                   <div className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#020617_0%,#111827_55%,#1e293b_100%)]">
                     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 py-3">
                       <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
@@ -457,33 +457,33 @@ export default function CoursePlayer() {
                   href={activeLesson.video_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="mb-8 block rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_45%,#eef2ff_100%)] p-6 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg"
+                  className="mb-8 block rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_45%,#eef2ff_100%)] p-6 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-slate-800 dark:bg-[linear-gradient(135deg,#0f172a_0%,#111827_45%,#0b1220_100%)] dark:hover:border-blue-500/40"
                 >
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                     <div className="max-w-2xl">
-                      <p className="text-xs font-bold uppercase tracking-[0.28em] text-blue-600">External video</p>
-                      <h4 className="mt-3 text-2xl font-black tracking-tight text-slate-900">Open the hosted lesson player</h4>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                      <p className="text-xs font-bold uppercase tracking-[0.28em] text-blue-600 dark:text-blue-400">External video</p>
+                      <h4 className="mt-3 text-2xl font-black tracking-tight text-slate-900 dark:text-white">Open the hosted lesson player</h4>
+                      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                         Cette lesson utilise une video externe. Ouvre la ressource dans un nouvel onglet pour garder une experience propre.
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-2 self-start rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white lg:self-auto">
+                    <span className="inline-flex items-center gap-2 self-start rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white dark:bg-blue-600 lg:self-auto">
                       Open video
                       <ExternalLink className="h-4 w-4" />
                     </span>
                   </div>
                 </a>
               ) : (
-                <div className="mb-8 rounded-[28px] border border-dashed border-slate-300 bg-[linear-gradient(135deg,#f8fafc_0%,#eef2ff_100%)] p-8">
+                <div className="mb-8 rounded-[28px] border border-dashed border-slate-300 bg-[linear-gradient(135deg,#f8fafc_0%,#eef2ff_100%)] p-8 dark:border-slate-700 dark:bg-[linear-gradient(135deg,#0f172a_0%,#111827_100%)]">
                   <div className="flex flex-col items-start gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-500">Lesson format</p>
-                      <h4 className="mt-3 text-2xl font-black tracking-tight text-slate-900">Text-first learning block</h4>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                      <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">Lesson format</p>
+                      <h4 className="mt-3 text-2xl font-black tracking-tight text-slate-900 dark:text-white">Text-first learning block</h4>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
                         Cette lesson ne contient pas de video jointe. Le contenu principal est disponible juste en dessous avec les ressources associees.
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
                       <FileText className="h-4 w-4" />
                       Reading lesson
                     </span>
@@ -492,28 +492,28 @@ export default function CoursePlayer() {
               )}
 
               <div className="mb-6 grid gap-3 lg:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Type</p>
-                  <p className="mt-2 text-lg font-bold text-slate-900">{activeLesson.lesson_type || 'VIDEO'}</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Type</p>
+                  <p className="mt-2 text-lg font-bold text-slate-900 dark:text-slate-100">{activeLesson.lesson_type || 'VIDEO'}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Duration</p>
-                  <p className="mt-2 text-lg font-bold text-slate-900">{Math.max(1, Math.round((activeLesson.duration_seconds || 0) / 60))} minutes</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Duration</p>
+                  <p className="mt-2 text-lg font-bold text-slate-900 dark:text-slate-100">{Math.max(1, Math.round((activeLesson.duration_seconds || 0) / 60))} minutes</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Resources</p>
-                  <p className="mt-2 text-lg font-bold text-slate-900">{(activeLesson.resources || []).length}</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Resources</p>
+                  <p className="mt-2 text-lg font-bold text-slate-900 dark:text-slate-100">{(activeLesson.resources || []).length}</p>
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-slate-200 bg-white p-6 lg:p-8">
+              <div className="rounded-[28px] border border-slate-200 bg-white p-6 lg:p-8 dark:border-slate-800 dark:bg-slate-950">
                 <div className="mb-5 flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-600">Overview</p>
-                    <h4 className="mt-2 text-2xl font-black tracking-tight text-slate-900">Lesson content</h4>
+                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-400">Overview</p>
+                    <h4 className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">Lesson content</h4>
                   </div>
                 </div>
-                <div className="prose max-w-none text-slate-700 prose-headings:font-black prose-headings:text-slate-900 prose-p:leading-7">
+                <div className="prose max-w-none text-slate-700 prose-headings:font-black prose-headings:text-slate-900 prose-p:leading-7 dark:prose-invert dark:text-slate-300 dark:prose-headings:text-white">
                   <div dangerouslySetInnerHTML={{ __html: activeLesson.content || '<p>Lesson content is coming soon.</p>' }} />
                 </div>
               </div>
@@ -522,11 +522,11 @@ export default function CoursePlayer() {
           )}
 
           {activeTab === 'notes' && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-xl font-bold">Lesson Notes</h3>
-                  <p className="mt-1 text-sm text-slate-500">Your private notes are saved per lesson.</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Your private notes are saved per lesson.</p>
                 </div>
                 <button
                   onClick={handleSaveNote}
@@ -541,28 +541,28 @@ export default function CoursePlayer() {
                 value={noteDraft}
                 onChange={(event) => setNoteDraft(event.target.value)}
                 placeholder="Write what matters for you in this lesson..."
-                className="mt-6 min-h-[320px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-6 min-h-[320px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </section>
           )}
 
           {activeTab === 'resources' && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <h3 className="text-xl font-bold">Resources</h3>
               <div className="mt-6 space-y-4">
-                {(activeLesson.resources || []).length === 0 && <p className="text-sm text-slate-500">No resources attached to this lesson yet.</p>}
+                {(activeLesson.resources || []).length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No resources attached to this lesson yet.</p>}
                 {(activeLesson.resources || []).map((resource) => (
                   <a
                     key={resource.id}
                     href={resource.file_download_url || resource.file_url || '#'}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-start gap-3 rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:bg-blue-50"
+                    className="flex items-start gap-3 rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-950"
                   >
                     <FileText className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
                     <div>
-                      <p className="font-semibold text-slate-900">{resource.title}</p>
-                      <p className="mt-1 text-sm text-slate-500">{resource.description || resource.kind}</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{resource.title}</p>
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{resource.description || resource.kind}</p>
                     </div>
                   </a>
                 ))}
@@ -571,22 +571,22 @@ export default function CoursePlayer() {
           )}
 
           {activeTab === 'tutor' && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-3">
                 <MessageSquare className="h-5 w-5 text-blue-600" />
                 <div>
                   <h3 className="text-xl font-bold">AI Tutor</h3>
-                  <p className="text-sm text-slate-500">Ask questions about the active lesson and get contextual help.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Ask questions about the active lesson and get contextual help.</p>
                 </div>
               </div>
               <div className="mt-6 space-y-4">
                 {tutorMessages.map((message, index) => (
-                  <div key={`${message.role}-${index}`} className={`rounded-2xl p-4 text-sm ${message.role === 'ai' ? 'bg-blue-50 text-slate-800' : 'bg-slate-100 text-slate-900'}`}>
-                    <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400">{message.role === 'ai' ? 'AI Tutor' : 'You'}</p>
+                  <div key={`${message.role}-${index}`} className={`rounded-2xl p-4 text-sm ${message.role === 'ai' ? 'bg-blue-50 text-slate-800 dark:bg-blue-500/10 dark:text-slate-100' : 'bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100'}`}>
+                    <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{message.role === 'ai' ? 'AI Tutor' : 'You'}</p>
                     <p>{message.text}</p>
                   </div>
                 ))}
-                {isTutorLoading && <div className="rounded-2xl bg-blue-50 p-4 text-sm text-slate-700">Thinking...</div>}
+                {isTutorLoading && <div className="rounded-2xl bg-blue-50 p-4 text-sm text-slate-700 dark:bg-blue-500/10 dark:text-slate-200">Thinking...</div>}
               </div>
               <div className="mt-6 flex gap-3">
                 <input
@@ -599,7 +599,7 @@ export default function CoursePlayer() {
                     }
                   }}
                   placeholder="Ask a question about this lesson..."
-                  className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <button onClick={handleAskTutor} disabled={isTutorLoading || !tutorInput.trim()} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
                   Ask
@@ -610,11 +610,11 @@ export default function CoursePlayer() {
           </div>
         </main>
 
-        <aside className="w-full border-t border-slate-200 bg-white xl:sticky xl:top-0 xl:h-[calc(100vh-73px)] xl:w-[390px] xl:overflow-y-auto xl:border-l xl:border-t-0">
-          <div className="border-b border-slate-200 px-5 py-5">
+        <aside className="w-full border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 xl:sticky xl:top-0 xl:h-[calc(100vh-73px)] xl:w-[390px] xl:overflow-y-auto xl:border-l xl:border-t-0">
+          <div className="border-b border-slate-200 px-5 py-5 dark:border-slate-800">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-2xl font-black tracking-tight">Course content</h3>
-              <BookOpen className="h-5 w-5 text-slate-400" />
+              <BookOpen className="h-5 w-5 text-slate-400 dark:text-slate-500" />
             </div>
           </div>
 
@@ -626,24 +626,24 @@ export default function CoursePlayer() {
               const isOpen = openModules[module.id] ?? false;
 
               return (
-                <div key={module.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50">
+                <div key={module.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
                   <button
                     type="button"
                     onClick={() => setOpenModules((prev) => ({ ...prev, [module.id]: !isOpen }))}
                     className="flex w-full items-start justify-between gap-3 px-5 py-5 text-left"
                   >
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Section {moduleIndex + 1}</p>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Section {moduleIndex + 1}</p>
                       <p className="mt-2 text-2xl font-black leading-tight">{module.title}</p>
-                      <p className="mt-3 text-sm text-slate-500">
+                      <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
                         {completedInModule} / {moduleLessons.length} | {moduleMinutes}min
                       </p>
                     </div>
-                    <ChevronDown className={`mt-1 h-5 w-5 shrink-0 text-slate-400 transition ${isOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`mt-1 h-5 w-5 shrink-0 text-slate-400 transition dark:text-slate-500 ${isOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {isOpen ? (
-                    <div className="border-t border-slate-200 bg-white">
+                    <div className="border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                       {moduleLessons.map((lesson, lessonIndex) => {
                         const lessonProgress = progressItems.find((item) => item.lesson === lesson.id);
                         const isActive = activeLesson.id === lesson.id;
@@ -662,7 +662,7 @@ export default function CoursePlayer() {
                               navigate(`/player/${course.id}/${lesson.id}`, { replace: true });
                             }}
                             className={`w-full border-b border-slate-100 px-5 py-5 text-left last:border-b-0 ${
-                              locked ? 'cursor-not-allowed bg-slate-50/80 opacity-70' : isActive ? 'bg-indigo-50' : 'hover:bg-slate-50'
+                              locked ? 'cursor-not-allowed bg-slate-50/80 opacity-70 dark:bg-slate-950/80' : isActive ? 'bg-indigo-50 dark:bg-blue-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-950'
                             }`}
                           >
                             <div className="flex items-start gap-3">
@@ -671,11 +671,11 @@ export default function CoursePlayer() {
                               ) : lessonProgress?.is_completed ? (
                                 <CheckCircle className="mt-1 h-6 w-6 shrink-0 text-green-500" />
                               ) : (
-                                <div className="mt-1 h-6 w-6 rounded-md border-2 border-slate-400" />
+                                <div className="mt-1 h-6 w-6 rounded-md border-2 border-slate-400 dark:border-slate-600" />
                               )}
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm text-slate-500">{lessonIndex + 1}. {lesson.title}</p>
-                                <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                                <p className="text-sm text-slate-500 dark:text-slate-300">{lessonIndex + 1}. {lesson.title}</p>
+                                <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
                                   <span className="inline-flex items-center gap-2">
                                     <PlayCircle className="h-4 w-4" />
                                     {Math.max(1, Math.round((lesson.duration_seconds || 0) / 60))}min

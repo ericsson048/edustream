@@ -20,6 +20,13 @@ def load_local_env():
 
 load_local_env()
 
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "change-me-in-production")
 DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() == "true"
 ALLOWED_HOSTS = [h for h in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if h]
@@ -165,14 +172,48 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://127.0.0.1:3000")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0").strip()
+DJANGO_CACHE_URL = os.getenv("DJANGO_CACHE_URL", "redis://127.0.0.1:6379/1").strip()
+USE_REDIS_CHANNELS = env_bool("USE_REDIS_CHANNELS", True)
+USE_REDIS_CACHE = env_bool("USE_REDIS_CACHE", True)
+
 CHANNEL_LAYERS = {}
 if find_spec("channels"):
-    CHANNEL_LAYERS = {
+    default_channel_backend = (
+        "channels_redis.core.RedisChannelLayer"
+        if USE_REDIS_CHANNELS and REDIS_URL and find_spec("channels_redis")
+        else "channels.layers.InMemoryChannelLayer"
+    )
+    channel_backend = os.getenv("CHANNEL_BACKEND", default_channel_backend)
+    channel_layer = {"BACKEND": channel_backend}
+    if channel_backend == "channels_redis.core.RedisChannelLayer":
+        channel_layer["CONFIG"] = {
+            "hosts": [REDIS_URL],
+        }
+    CHANNEL_LAYERS = {"default": channel_layer}
+
+default_cache_backend = (
+    "django.core.cache.backends.redis.RedisCache"
+    if USE_REDIS_CACHE and DJANGO_CACHE_URL and find_spec("redis")
+    else "django.core.cache.backends.locmem.LocMemCache"
+)
+cache_backend = os.getenv("CACHE_BACKEND", default_cache_backend)
+
+if cache_backend == "django.core.cache.backends.redis.RedisCache":
+    CACHES = {
         "default": {
-            "BACKEND": os.getenv("CHANNEL_BACKEND", "channels.layers.InMemoryChannelLayer"),
-            "CONFIG": {
-                "hosts": [os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")],
-            },
+            "BACKEND": cache_backend,
+            "LOCATION": DJANGO_CACHE_URL,
+            "KEY_PREFIX": os.getenv("DJANGO_CACHE_KEY_PREFIX", "edustream"),
+            "TIMEOUT": int(os.getenv("DJANGO_CACHE_TIMEOUT", "300")),
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": cache_backend,
+            "LOCATION": os.getenv("DJANGO_CACHE_LOCATION", "edustream-local-cache"),
+            "TIMEOUT": int(os.getenv("DJANGO_CACHE_TIMEOUT", "300")),
         }
     }
 

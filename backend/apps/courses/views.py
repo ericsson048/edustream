@@ -1,6 +1,8 @@
 import uuid
 
 from django.db import transaction
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -35,6 +37,10 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["slug"]
     search_fields = ["name", "description"]
     ordering_fields = ["order", "name", "created_at"]
+
+    @method_decorator(cache_page(60 * 5))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
 
 class CourseViewSet(viewsets.ModelViewSet):

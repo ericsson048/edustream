@@ -76,6 +76,30 @@ Sur le plan technique, le projet mobilise un ensemble d'outils complémentaires.
 
 **Captures à insérer :** *Capture 2 - Page de tarification* et *Capture 13 - Tableau de bord administrateur*.
 
+#### Sous-point de présentation : Diagrammes UML du système
+
+Dans le cadre de la présentation du projet, il est utile d'intégrer des diagrammes UML afin de mieux illustrer la structure logique et le fonctionnement général de la plateforme EduStream. Ces diagrammes permettent de compléter la description textuelle en apportant une représentation visuelle des entités, des rôles utilisateurs et des principaux scénarios d'utilisation.
+
+**Diagramme 1. Diagramme de classes**  
+[Insérer ici le diagramme de classes du projet]
+
+Ce diagramme doit représenter les principales classes du système, notamment l'utilisateur, le cours, le module, la leçon, l'inscription, la progression, le quiz, la tentative de quiz, le devoir, la soumission, la transaction, l'abonnement, la session live, la discussion, le groupe d'étude, la conversation et le message. Il permet de visualiser les relations structurelles entre les composants métier de la plateforme.
+
+**Diagramme 2. Diagramme de cas d'utilisation**  
+[Insérer ici le diagramme de cas d'utilisation]
+
+Ce diagramme doit mettre en évidence les interactions des acteurs principaux du système, à savoir l'apprenant, le tuteur et l'administrateur, avec les grandes fonctionnalités offertes par EduStream. Il permet de comprendre rapidement le périmètre fonctionnel de la plateforme et la répartition des usages selon les profils utilisateurs.
+
+**Diagramme 3. Diagramme de séquence**  
+[Insérer ici le diagramme de séquence]
+
+Ce diagramme doit présenter un scénario clé du système, par exemple la connexion d'un apprenant, l'ouverture d'un cours, l'accès à une leçon, l'utilisation du tuteur IA et l'enregistrement de la progression. Il met en évidence l'enchaînement temporel des échanges entre l'utilisateur, l'interface web, les services backend et la base de données.
+
+**Diagramme 4. Diagramme d'activité**  
+[Insérer ici le diagramme d'activité]
+
+Ce diagramme doit représenter le flux général d'apprentissage sur la plateforme, depuis l'accès de l'utilisateur jusqu'à la consultation des contenus, l'exécution des activités pédagogiques et la mise à jour de la progression. Il permet de visualiser les décisions importantes et les différentes étapes du parcours utilisateur.
+
 ### b. Déroulement du projet
 
 Le déroulement du projet s'est structuré autour de plusieurs étapes cohérentes. Une première étape a consisté à définir le besoin fonctionnel et l'orientation générale du produit. Cette phase de cadrage a permis d'identifier les modules essentiels du système, notamment l'authentification, les rôles utilisateurs, les cours, les évaluations, les paiements, la communauté et l'assistant IA. Un document d'orientation backend présent dans le dépôt formalise d'ailleurs l'architecture cible, les modèles de données et les routes API à développer, ce qui montre que le projet a été pensé avant l'implémentation.
@@ -158,9 +182,14 @@ Les références de ce rapport sont constituées uniquement de sources web offic
 
 ### A. Captures d'écran supplémentaires
 
-Cette annexe doit contenir les captures d'écran supplémentaires du projet. Les écrans à ajouter sont les suivants : **Page d'accueil EduStream**, **Page de tarification**, **Tableau de bord apprenant**, **Catalogue des cours**, **Détails d'un cours**, **Lecteur de cours**, **Interface du tuteur IA**, **Espace communauté**, **Messagerie**, **Tableau de bord instructeur**, **Assistant de création de cours**, **Gestion des sessions live**, **Tableau de bord administrateur** et **Gestion des transactions ou des utilisateurs**.
+Les principales figures du projet sont déjà intégrées et mentionnées dans le corps du rapport. La présente annexe est donc réservée aux **captures d'écran supplémentaires**, c'est-à-dire aux images complémentaires qui n'ont pas été insérées dans les sections principales mais qui peuvent appuyer davantage la présentation du travail.
 
-Pour faciliter l'organisation, vous pouvez nommer les fichiers images ainsi : `capture-1-accueil.png`, `capture-2-pricing.png`, `capture-3-dashboard-apprenant.png`, `capture-4-catalogue-cours.png`, `capture-5-details-cours.png`, `capture-6-lecteur-cours.png`, `capture-7-tuteur-ia.png`, `capture-8-communaute.png`, `capture-9-messagerie.png`, `capture-10-dashboard-instructeur.png`, `capture-11-wizard-cours.png`, `capture-12-sessions-live.png`, `capture-13-dashboard-admin.png` et `capture-14-transactions-utilisateurs.png`.
+Parmi les captures supplémentaires qui peuvent être ajoutées dans cette annexe, on peut citer les écrans secondaires ou détaillés tels que la page de connexion, la page d'inscription, la page de soumission de devoir, la page de quiz, la page de certificat, l'écran de profil utilisateur, la salle de concentration, l'emploi du temps apprenant, ainsi que tout autre écran jugé utile pour enrichir la compréhension de la plateforme.
+
+**Emplacement pour captures supplémentaires :**  
+[Insérer ici toute capture additionnelle non déjà utilisée dans le document]
+
+Pour faciliter l'organisation des fichiers images, vous pouvez conserver une nomenclature simple et progressive selon les captures réellement retenues dans l'annexe.
 
 ### B. Code source
 

@@ -32,6 +32,12 @@ class LiveParticipant(models.Model):
     session = models.ForeignKey(LiveSession, on_delete=models.CASCADE, related_name="participants")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="live_participations")
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
+    is_mic_on = models.BooleanField(default=True)
+    is_camera_on = models.BooleanField(default=True)
+    is_screen_sharing = models.BooleanField(default=False)
+    hand_raised = models.BooleanField(default=False)
+    is_recording = models.BooleanField(default=False)
+    last_reaction = models.CharField(max_length=16, blank=True, default="")
     joined_at = models.DateTimeField(auto_now_add=True)
     left_at = models.DateTimeField(blank=True, null=True)
 

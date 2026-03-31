@@ -10,7 +10,21 @@ class LiveParticipantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LiveParticipant
-        fields = "__all__"
+        fields = [
+            "id",
+            "session",
+            "user",
+            "user_name",
+            "role",
+            "is_mic_on",
+            "is_camera_on",
+            "is_screen_sharing",
+            "hand_raised",
+            "is_recording",
+            "last_reaction",
+            "joined_at",
+            "left_at",
+        ]
 
 
 class LiveSessionSerializer(serializers.ModelSerializer):
