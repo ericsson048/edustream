@@ -1,13 +1,36 @@
+import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import { Play, Pause, RotateCcw, Coffee, CloudRain, Flame, Headphones } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Play, Pause, RotateCcw, Coffee, CloudRain, Flame, Headphones, BarChart3 } from 'lucide-react';
+import { focusService } from '../services/focusService';
 
 export default function FocusRoom() {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [mode, setMode] = useState<'work' | 'break'>('work');
   const [activeSound, setActiveSound] = useState<string | null>(null);
+  const [stats, setStats] = useState({ total_focus_minutes: 0, total_sessions: 0 });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    focusService.getStats().then(setStats).catch(() => {});
+  }, []);
+
+  const saveSession = useCallback(async () => {
+    setSaving(true);
+    try {
+      await focusService.createSession(
+        mode === 'work' ? 25 * 60 - timeLeft : 5 * 60 - timeLeft,
+        mode === 'work' ? 'WORK' : 'BREAK',
+      );
+      const fresh = await focusService.getStats();
+      setStats(fresh);
+    } catch {
+      // silent
+    } finally {
+      setSaving(false);
+    }
+  }, [mode, timeLeft]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -17,7 +40,7 @@ export default function FocusRoom() {
       }, 1000);
     } else if (timeLeft === 0) {
       setIsRunning(false);
-      // Auto-switch mode
+      saveSession();
       if (mode === 'work') {
         setMode('break');
         setTimeLeft(5 * 60);
@@ -27,10 +50,10 @@ export default function FocusRoom() {
       }
     }
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft, mode]);
+  }, [isRunning, timeLeft, mode, saveSession]);
 
   const toggleTimer = () => setIsRunning(!isRunning);
-  
+
   const resetTimer = () => {
     setIsRunning(false);
     setTimeLeft(mode === 'work' ? 25 * 60 : 5 * 60);
@@ -60,7 +83,6 @@ export default function FocusRoom() {
       <Sidebar />
       <main className="flex-1 ml-64 flex flex-col">
         <div className="p-8 flex-1 flex flex-col items-center justify-center relative overflow-hidden">
-          {/* Ambient Background Glow */}
           <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
             <div className={`w-[500px] h-[500px] rounded-full blur-[100px] transition-colors duration-1000 ${mode === 'work' ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
           </div>
@@ -71,15 +93,14 @@ export default function FocusRoom() {
               <p className="text-slate-400">Deep work environment to maximize your learning.</p>
             </div>
 
-            {/* Mode Selector */}
             <div className="flex bg-slate-800 p-1 rounded-xl mb-12">
-              <button 
+              <button
                 onClick={() => switchMode('work')}
                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${mode === 'work' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
               >
                 Deep Work
               </button>
-              <button 
+              <button
                 onClick={() => switchMode('break')}
                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${mode === 'break' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
               >
@@ -87,20 +108,19 @@ export default function FocusRoom() {
               </button>
             </div>
 
-            {/* Timer */}
             <div className="text-center mb-12">
               <div className="text-8xl font-bold font-mono tracking-tighter mb-8 text-white drop-shadow-lg">
                 {formatTime(timeLeft)}
               </div>
-              
+
               <div className="flex items-center justify-center gap-4">
-                <button 
+                <button
                   onClick={toggleTimer}
                   className={`w-16 h-16 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-lg ${isRunning ? 'bg-slate-700 text-white' : mode === 'work' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white'}`}
                 >
                   {isRunning ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current ml-1" />}
                 </button>
-                <button 
+                <button
                   onClick={resetTimer}
                   className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center hover:bg-slate-700 hover:text-white transition-colors"
                 >
@@ -109,7 +129,21 @@ export default function FocusRoom() {
               </div>
             </div>
 
-            {/* Ambient Sounds */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-slate-800/50 backdrop-blur-md border border-slate-700 rounded-2xl p-4 text-center">
+                <BarChart3 className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+                <p className="text-xl font-bold">{Math.floor(stats.total_focus_minutes / 60)}h {stats.total_focus_minutes % 60}m</p>
+                <p className="text-xs text-slate-400">Total focus time</p>
+              </div>
+              <div className="bg-slate-800/50 backdrop-blur-md border border-slate-700 rounded-2xl p-4 text-center">
+                <BarChart3 className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
+                <p className="text-xl font-bold">{stats.total_sessions}</p>
+                <p className="text-xs text-slate-400">Sessions completed</p>
+              </div>
+            </div>
+
+            {saving && <p className="text-xs text-center text-slate-500 mb-2">Saving session...</p>}
+
             <div className="bg-slate-800/50 backdrop-blur-md border border-slate-700 rounded-2xl p-6">
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 text-center">Ambient Sounds</h3>
               <div className="grid grid-cols-4 gap-4">

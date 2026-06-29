@@ -4,14 +4,17 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from .models import Assignment, Notification, Quiz, QuizAttempt, QuizQuestion, Submission
+from .models import Assignment, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, Submission, UserSkill
 from .serializers import (
     AssignmentSerializer,
+    FocusSessionSerializer,
     NotificationSerializer,
     QuizAttemptSerializer,
     QuizQuestionSerializer,
     QuizSerializer,
+    SkillSerializer,
     SubmissionSerializer,
+    UserSkillSerializer,
 )
 from apps.courses.models import Enrollment
 from apps.courses.permissions import is_admin, is_instructor_or_admin, owns_learning_object
@@ -154,6 +157,46 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         if not Enrollment.objects.filter(student=self.request.user, course=course, is_active=True).exists():
             raise PermissionDenied("Enrollment required.")
         serializer.save(student=self.request.user)
+
+
+class SkillViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Skill.objects.filter(is_active=True)
+    serializer_class = SkillSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class UserSkillViewSet(viewsets.ModelViewSet):
+    serializer_class = UserSkillSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ["get", "patch", "post", "head", "options"]
+
+    def get_queryset(self):
+        return UserSkill.objects.filter(user=self.request.user).select_related("skill")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class FocusSessionViewSet(viewsets.ModelViewSet):
+    serializer_class = FocusSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        return FocusSession.objects.filter(user=self.request.user).order_by("-completed_at")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=["get"])
+    def stats(self, request):
+        qs = FocusSession.objects.filter(user=request.user, mode="WORK")
+        total_seconds = sum(s.duration_seconds for s in qs)
+        session_count = qs.count()
+        return Response({
+            "total_focus_minutes": round(total_seconds / 60),
+            "total_sessions": session_count,
+        })
 
 
 class NotificationViewSet(viewsets.ModelViewSet):

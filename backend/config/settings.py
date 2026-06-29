@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.live",
     "apps.community",
     "apps.messaging",
+    "apps.admin_dashboard",
 ]
 
 if find_spec("channels"):

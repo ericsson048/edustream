@@ -14,6 +14,11 @@ class UserSerializer(serializers.ModelSerializer):
             "role",
             "stripe_account_id",
             "stripe_customer_id",
+            "avatar_url",
+            "bio",
+            "location",
+            "website",
+            "title",
             "date_joined",
         ]
         read_only_fields = ["id", "stripe_account_id", "stripe_customer_id", "date_joined"]

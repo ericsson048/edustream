@@ -23,7 +23,7 @@ export default function CourseModulesPage() {
     );
   }
 
-  const modules = sortByOrder(course.modules || []);
+  const modules: import('../../types/lms').CourseModule[] = sortByOrder(course.modules || []);
 
   return (
     <InstructorEditorShell

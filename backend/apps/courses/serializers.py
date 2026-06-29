@@ -2,12 +2,43 @@ import json
 
 from rest_framework import serializers
 
-from .models import Category, Certificate, Course, Enrollment, Lesson, Module, Note, Progress, Resource
+from .models import (
+    Category,
+    Certificate,
+    ContentBlock,
+    Course,
+    CourseReview,
+    CourseVersion,
+    Enrollment,
+    LearningPath,
+    Lesson,
+    LessonComment,
+    Module,
+    Note,
+    PathCourse,
+    Progress,
+    Resource,
+    Section,
+    Tag,
+)
+
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = "__all__"
+        read_only_fields = ["slug"]
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
+        fields = "__all__"
+
+
+class ContentBlockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContentBlock
         fields = "__all__"
 
 
@@ -27,8 +58,24 @@ class ResourceSerializer(serializers.ModelSerializer):
         return obj.file_url
 
 
+class LessonCommentSerializer(serializers.ModelSerializer):
+    user_full_name = serializers.CharField(source="user.full_name", read_only=True)
+    user_avatar = serializers.CharField(source="user.avatar_url", read_only=True)
+    replies = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LessonComment
+        fields = "__all__"
+        read_only_fields = ["user"]
+
+    def get_replies(self, obj):
+        return LessonCommentSerializer(obj.replies.all(), many=True).data
+
+
 class LessonSerializer(serializers.ModelSerializer):
     resources = ResourceSerializer(many=True, read_only=True)
+    content_blocks = ContentBlockSerializer(many=True, read_only=True)
+    comments = serializers.SerializerMethodField()
     video = serializers.SerializerMethodField()
 
     class Meta:
@@ -42,6 +89,24 @@ class LessonSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.video_file.url)
             return obj.video_file.url
         return obj.video_url
+
+    def get_comments(self, obj):
+        return LessonCommentSerializer(obj.comments.filter(parent__isnull=True), many=True).data
+
+
+class SectionSerializer(serializers.ModelSerializer):
+    modules = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Section
+        fields = "__all__"
+
+    def get_modules(self, obj):
+        request = self.context.get("request")
+        modules = obj.modules.all()
+        if request and request.user.is_authenticated and request.user.role not in {"ADMIN", "INSTRUCTOR"}:
+            modules = modules.filter(is_published=True)
+        return ModuleSerializer(modules, many=True, context=self.context).data
 
 
 class ModuleSerializer(serializers.ModelSerializer):
@@ -59,9 +124,25 @@ class ModuleSerializer(serializers.ModelSerializer):
         return LessonSerializer(lessons, many=True, context=self.context).data
 
 
+class CourseReviewSerializer(serializers.ModelSerializer):
+    user_full_name = serializers.CharField(source="user.full_name", read_only=True)
+    user_avatar = serializers.CharField(source="user.avatar_url", read_only=True)
+
+    class Meta:
+        model = CourseReview
+        fields = "__all__"
+        read_only_fields = ["user"]
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
+        return value
+
+
 class CourseSerializer(serializers.ModelSerializer):
     instructor_name = serializers.CharField(source="instructor.full_name", read_only=True)
     modules = serializers.SerializerMethodField()
+    sections = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
     learning_objectives = serializers.ListField(child=serializers.CharField(), required=False)
@@ -70,11 +151,17 @@ class CourseSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(source="category", queryset=Category.objects.filter(is_active=True), allow_null=True, required=False)
     category_slug = serializers.SerializerMethodField()
     enrollments_count = serializers.IntegerField(source="enrollments.count", read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.PrimaryKeyRelatedField(
+        source="tags", queryset=Tag.objects.all(), many=True, required=False, write_only=True
+    )
+    reviews = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
         fields = "__all__"
-        read_only_fields = ["slug", "instructor", "platform_fee_percentage", "created_at", "updated_at", "modules", "thumbnail", "category", "category_slug"]
+        read_only_fields = ["slug", "instructor", "platform_fee_percentage", "created_at", "updated_at", "modules", "thumbnail", "category", "category_slug", "sections"]
 
     def _normalize_string_list_field(self, data, field):
         if hasattr(data, "getlist"):
@@ -152,10 +239,52 @@ class CourseSerializer(serializers.ModelSerializer):
 
     def get_modules(self, obj):
         request = self.context.get("request")
-        modules = obj.modules.all()
+        modules = obj.modules.filter(section__isnull=True)
         if request and request.user.is_authenticated and request.user.role not in {"ADMIN", "INSTRUCTOR"}:
             modules = modules.filter(is_published=True)
         return ModuleSerializer(modules, many=True, context=self.context).data
+
+    def get_sections(self, obj):
+        request = self.context.get("request")
+        sections = obj.sections.all()
+        return SectionSerializer(sections, many=True, context=self.context).data
+
+    def get_reviews(self, obj):
+        return CourseReviewSerializer(obj.reviews.select_related("user").all()[:10], many=True).data
+
+    def get_average_rating(self, obj):
+        reviews = obj.reviews.all()
+        if not reviews:
+            return None
+        total = sum(r.rating for r in reviews)
+        return round(total / reviews.count(), 1)
+
+
+class LearningPathSerializer(serializers.ModelSerializer):
+    courses = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LearningPath
+        fields = "__all__"
+
+    def get_courses(self, obj):
+        return PathCourseSerializer(obj.path_courses.select_related("course").all(), many=True).data
+
+
+class PathCourseSerializer(serializers.ModelSerializer):
+    course_title = serializers.CharField(source="course.title", read_only=True)
+    course_thumbnail = serializers.CharField(source="course.thumbnail_url", read_only=True)
+    course_level = serializers.CharField(source="course.level", read_only=True)
+
+    class Meta:
+        model = PathCourse
+        fields = "__all__"
+
+
+class CourseVersionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseVersion
+        fields = "__all__"
 
 
 class EnrollmentSerializer(serializers.ModelSerializer):

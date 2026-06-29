@@ -9,7 +9,27 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from .models import Category, Certificate, Course, Enrollment, Lesson, Module, Note, Progress, Resource
+from django.db.models import Avg
+
+from .models import (
+    Category,
+    Certificate,
+    ContentBlock,
+    Course,
+    CourseReview,
+    CourseVersion,
+    Enrollment,
+    LearningPath,
+    Lesson,
+    LessonComment,
+    Module,
+    Note,
+    PathCourse,
+    Progress,
+    Resource,
+    Section,
+    Tag,
+)
 from .permissions import (
     IsInstructorOrReadOnly,
     IsInstructorOwnerOrAdmin,
@@ -20,13 +40,21 @@ from .permissions import (
 from .serializers import (
     CategorySerializer,
     CertificateSerializer,
+    ContentBlockSerializer,
+    CourseReviewSerializer,
     CourseSerializer,
+    CourseVersionSerializer,
     EnrollmentSerializer,
+    LearningPathSerializer,
+    LessonCommentSerializer,
     LessonSerializer,
     ModuleSerializer,
     NoteSerializer,
+    PathCourseSerializer,
     ProgressSerializer,
     ResourceSerializer,
+    SectionSerializer,
+    TagSerializer,
 )
 
 
@@ -359,3 +387,84 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             defaults={"certificate_code": f"EDU-{uuid.uuid4().hex[:12].upper()}"},
         )
         return Response(self.get_serializer(certificate).data)
+
+
+class TagViewSet(viewsets.ModelViewSet):
+    queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
+
+
+class SectionViewSet(viewsets.ModelViewSet):
+    queryset = Section.objects.select_related("course").all()
+    serializer_class = SectionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["course"]
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+
+class ContentBlockViewSet(viewsets.ModelViewSet):
+    queryset = ContentBlock.objects.all()
+    serializer_class = ContentBlockSerializer
+    permission_classes = [IsInstructorOwnerOrAdmin]
+    filterset_fields = ["lesson", "kind"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if is_admin(user) or user.role == "INSTRUCTOR":
+            return qs
+        return qs.filter(lesson__status=Lesson.Status.PUBLISHED, lesson__module__is_published=True)
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+
+class CourseReviewViewSet(viewsets.ModelViewSet):
+    serializer_class = CourseReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["course"]
+
+    def get_queryset(self):
+        return CourseReview.objects.select_related("user", "course").all()
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class LessonCommentViewSet(viewsets.ModelViewSet):
+    serializer_class = LessonCommentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["lesson"]
+
+    def get_queryset(self):
+        return LessonComment.objects.select_related("user", "lesson").filter(parent__isnull=True)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class CourseVersionViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = CourseVersionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["course", "is_published"]
+
+    def get_queryset(self):
+        qs = CourseVersion.objects.select_related("course").all()
+        user = self.request.user
+        if is_admin(user):
+            return qs
+        if user.role == "INSTRUCTOR":
+            return qs.filter(course__instructor=user)
+        return qs.filter(course__is_published=True, is_published=True)
+
+
+class LearningPathViewSet(viewsets.ModelViewSet):
+    queryset = LearningPath.objects.prefetch_related("path_courses__course").all()
+    serializer_class = LearningPathSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    filterset_fields = ["is_active"]
+    search_fields = ["title", "description"]

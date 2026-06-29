@@ -27,6 +27,19 @@ export interface InstructorEarningsSummary {
   total_platform_fee?: string | null;
 }
 
+export interface Plan {
+  id: string;
+  name: string;
+  price_monthly: string;
+  features: string[];
+  badge: string;
+  audience: 'STUDENT' | 'INSTRUCTOR';
+  has_unlimited_ai: boolean;
+  has_unlimited_streams: boolean;
+  ai_monthly_limit: number;
+  is_active: boolean;
+}
+
 export interface InstructorEarningsResponse {
   summary: InstructorEarningsSummary;
   transactions: Array<{
@@ -41,6 +54,10 @@ export interface InstructorEarningsResponse {
 }
 
 export const billingService = {
+  async listPlans(): Promise<Plan[]> {
+    const { data } = await apiClient.get<Plan[]>('/billing/plans/');
+    return data;
+  },
   async checkoutCourse(courseId: string): Promise<CheckoutResponse> {
     const { data } = await apiClient.post<CheckoutResponse>(`/billing/checkout/${courseId}/`);
     return data;

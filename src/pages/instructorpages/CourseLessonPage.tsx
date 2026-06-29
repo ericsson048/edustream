@@ -1,11 +1,12 @@
-import { BookOpen, Save, Trash2 } from 'lucide-react';
+import { BookOpen, Eye, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import MarkdownRenderer from '../../components/MarkdownRenderer';
 import { aiService } from '../../services/aiService';
 import { getApiErrorMessage } from '../../services/apiClient';
 import { courseService } from '../../services/courseService';
 import { learningService } from '../../services/learningService';
-import type { CourseLesson } from '../../types/lms';
+import type { ContentBlock, CourseLesson } from '../../types/lms';
 import { useToast } from '../../contexts/ToastContext';
 import QuizEditorCard from './editor/QuizEditorCard';
 import ResourceManagerCard from './editor/ResourceManagerCard';
@@ -45,8 +46,20 @@ export default function CourseLessonPage() {
     video_file: null,
   });
 
-  const module = sortByOrder(course?.modules || []).find((item) => item.id === moduleId) || null;
-  const lesson = sortByOrder(module?.lessons || []).find((item) => item.id === lessonId) || null;
+  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
+
+  useEffect(() => {
+    if (!lessonId) return;
+    courseService.listContentBlocks({ lesson: lessonId }).then(setContentBlocks).catch(() => {});
+  }, [lessonId]);
+
+  const blockKindLabels: Record<ContentBlock['kind'], string> = {
+    MARKDOWN: 'Markdown', TEXT: 'Texte', VIDEO: 'Video', CODE: 'Code',
+    EMBED: 'Embed', IMAGE: 'Image', FILE: 'Fichier', QUIZ: 'Quiz',
+  };
+
+  const module = sortByOrder<import('../../types/lms').CourseModule>(course?.modules || []).find((item) => item.id === moduleId) || null;
+  const lesson = module ? (sortByOrder<import('../../types/lms').CourseLesson>(module.lessons || []).find((item) => item.id === lessonId) || null) : null;
 
   useEffect(() => {
     if (!lesson) return;
@@ -317,6 +330,237 @@ export default function CourseLessonPage() {
             <Trash2 className="h-4 w-4" />
             Supprimer
           </button>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">
+            <Eye className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black">Blocs de contenu (ContentBlocks)</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Ajoute des blocs MARKDOWN avec support complet du formatage. Remplace le champ "contenu" classique.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {contentBlocks
+            .sort((a, b) => a.order - b.order)
+            .map((block) => (
+              <div key={block.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="rounded-lg bg-slate-200 px-2.5 py-1 text-xs font-bold dark:bg-slate-800">
+                    {blockKindLabels[block.kind]} #{block.order}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      await courseService.deleteContentBlock(block.id);
+                      setContentBlocks((prev) => prev.filter((b) => b.id !== block.id));
+                      showToast('Bloc supprime.', 'success');
+                    }}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-700"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+                {block.kind === 'MARKDOWN' ? (
+                  <div className="mt-3">
+                    <textarea
+                      value={block.data.markdown || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { markdown: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="min-h-32 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-mono dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="Ecrivez en Markdown..."
+                    />
+                    {block.data.markdown && (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700">
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Apercu</p>
+                        <MarkdownRenderer content={block.data.markdown} />
+                      </div>
+                    )}
+                  </div>
+                ) : block.kind === 'VIDEO' ? (
+                  <div className="mt-3 space-y-2">
+                    <input
+                      value={block.data.url || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, url: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="URL de la video"
+                    />
+                    <input
+                      value={block.data.caption || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, caption: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="Legende (optionnelle)"
+                    />
+                  </div>
+                ) : block.kind === 'IMAGE' ? (
+                  <div className="mt-3 space-y-2">
+                    <input
+                      value={block.data.url || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, url: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="URL de l'image"
+                    />
+                    <input
+                      value={block.data.alt || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, alt: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="Texte alternatif"
+                    />
+                    {block.data.url && <img src={block.data.url} alt={block.data.alt || ''} className="mt-2 max-h-48 rounded-xl object-cover" />}
+                  </div>
+                ) : block.kind === 'CODE' ? (
+                  <div className="mt-3 space-y-2">
+                    <input
+                      value={block.data.language || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, language: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="Langage (ex: python, javascript)"
+                    />
+                    <textarea
+                      value={block.data.code || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, code: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="min-h-24 w-full rounded-xl border border-slate-200 bg-slate-900 p-3 text-sm font-mono text-slate-100 dark:border-slate-700"
+                      placeholder="Code source..."
+                    />
+                  </div>
+                ) : block.kind === 'EMBED' ? (
+                  <textarea
+                    value={block.data.html || ''}
+                    onChange={async (e) => {
+                      const updated = await courseService.updateContentBlock(block.id, { data: { html: e.target.value } });
+                      setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                    }}
+                    className="mt-3 min-h-20 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-mono dark:border-slate-700 dark:bg-slate-900"
+                    placeholder="Collez le code HTML d'embed (iframe, etc.)"
+                  />
+                ) : block.kind === 'FILE' ? (
+                  <div className="mt-3 space-y-2">
+                    <input
+                      value={block.data.title || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, title: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="Titre du fichier"
+                    />
+                    <input
+                      value={block.data.url || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, url: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="URL de telechargement"
+                    />
+                  </div>
+                ) : block.kind === 'QUIZ' ? (
+                  <div className="mt-3 space-y-2">
+                    <input
+                      value={block.data.question || ''}
+                      onChange={async (e) => {
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, question: e.target.value } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      placeholder="Question"
+                    />
+                    {(block.data.options || []).map((opt: string, i: number) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400">{i + 1}.</span>
+                        <input
+                          value={opt}
+                          onChange={async (e) => {
+                            const newOpts = [...(block.data.options || [])];
+                            newOpts[i] = e.target.value;
+                            const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, options: newOpts } });
+                            setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                          }}
+                          className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                          placeholder={`Option ${i + 1}`}
+                        />
+                      </div>
+                    ))}
+                    <button
+                      onClick={async () => {
+                        const newOpts = [...(block.data.options || []), ''];
+                        const updated = await courseService.updateContentBlock(block.id, { data: { ...block.data, options: newOpts } });
+                        setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                      }}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      + Ajouter une option
+                    </button>
+                  </div>
+                ) : (
+                  <textarea
+                    value={block.data.content || block.data.text || ''}
+                    onChange={async (e) => {
+                      const updated = await courseService.updateContentBlock(block.id, { data: { content: e.target.value } });
+                      setContentBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                    }}
+                    className="mt-3 min-h-20 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  />
+                )}
+              </div>
+            ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(['MARKDOWN', 'TEXT', 'VIDEO', 'IMAGE', 'CODE', 'EMBED', 'FILE', 'QUIZ'] as const).map((kind) => (
+            <button
+              key={kind}
+              onClick={async () => {
+                const nextOrder = Math.max(0, ...contentBlocks.map((b) => b.order)) + 1;
+                const defaultData: Record<string, any> =
+                  kind === 'MARKDOWN' ? { markdown: '' } :
+                  kind === 'VIDEO' ? { url: '', caption: '' } :
+                  kind === 'IMAGE' ? { url: '', alt: '' } :
+                  kind === 'CODE' ? { code: '', language: '' } :
+                  kind === 'EMBED' ? { html: '' } :
+                  kind === 'FILE' ? { url: '', title: '' } :
+                  kind === 'QUIZ' ? { question: '', options: ['', ''] } :
+                  { content: '' };
+                const block = await courseService.createContentBlock({
+                  lesson: lesson.id,
+                  kind,
+                  data: defaultData,
+                  order: nextOrder,
+                });
+                setContentBlocks((prev) => [...prev, block]);
+                showToast(`Bloc ${blockKindLabels[kind]} ajoute.`, 'success');
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {blockKindLabels[kind]}
+            </button>
+          ))}
         </div>
       </section>
 

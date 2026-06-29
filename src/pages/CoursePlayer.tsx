@@ -5,13 +5,61 @@ import { aiService } from '../services/aiService';
 import { courseService } from '../services/courseService';
 import { getApiErrorMessage } from '../services/apiClient';
 import { learningService, type QuizAttemptItem, type QuizItem } from '../services/learningService';
-import type { Course, CourseLesson, NoteItem, ProgressItem } from '../types/lms';
+import MarkdownRenderer from '../components/MarkdownRenderer';
+import type { ContentBlock, Course, CourseLesson, NoteItem, ProgressItem } from '../types/lms';
 import { useToast } from '../contexts/ToastContext';
 
 type TutorMessage = {
   role: 'user' | 'ai';
   text: string;
 };
+
+function renderContentBlocks(blocks: ContentBlock[]) {
+  return blocks
+    .sort((a, b) => a.order - b.order)
+    .map((block) => {
+      switch (block.kind) {
+        case 'MARKDOWN':
+          return <MarkdownRenderer key={block.id} content={block.data.markdown || ''} className="mb-6" />;
+        case 'TEXT':
+          return <p key={block.id} className="mb-3 leading-relaxed">{block.data.text || block.data.content || ''}</p>;
+        case 'VIDEO':
+          return (
+            <div key={block.id} className="mb-6 rounded-2xl overflow-hidden bg-slate-950">
+              <video src={block.data.url} controls className="w-full aspect-video" />
+              {block.data.caption && <p className="p-3 text-sm text-slate-400">{block.data.caption}</p>}
+            </div>
+          );
+        case 'CODE':
+          return <pre key={block.id} className="mb-6 rounded-xl bg-slate-900 p-4 overflow-x-auto text-sm text-slate-100"><code>{block.data.code || ''}</code></pre>;
+        case 'IMAGE':
+          return <img key={block.id} src={block.data.url} alt={block.data.alt || ''} className="mb-6 rounded-2xl" />;
+        case 'EMBED':
+          return <div key={block.id} className="mb-6 aspect-video rounded-2xl overflow-hidden" dangerouslySetInnerHTML={{ __html: block.data.html || '' }} />;
+        case 'FILE':
+          return (
+            <a key={block.id} href={block.data.url} target="_blank" rel="noreferrer"
+              className="mb-3 flex items-center gap-3 rounded-xl border border-slate-200 p-4 hover:border-blue-300 dark:border-slate-700">
+              <FileText className="h-5 w-5 text-blue-600" />
+              <span className="font-semibold">{block.data.title || 'Download'}</span>
+            </a>
+          );
+        case 'QUIZ':
+          return (
+            <div key={block.id} className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-6 dark:border-amber-500/30 dark:bg-amber-500/10">
+              <p className="font-bold text-amber-800 dark:text-amber-200">{block.data.question || 'Quiz'}</p>
+              {Array.isArray(block.data.options) && block.data.options.map((opt: string, i: number) => (
+                <label key={i} className="mt-2 flex items-center gap-2 text-sm">
+                  <input type="radio" name={block.id} className="accent-amber-600" /> {opt}
+                </label>
+              ))}
+            </div>
+          );
+        default:
+          return null;
+      }
+    });
+}
 
 function flattenLessons(course?: Course) {
   return (course?.modules || []).flatMap((module) =>
@@ -138,7 +186,7 @@ export default function CoursePlayer() {
 
   const passedModuleQuizIds = useMemo(() => {
     const passed = new Set<string>();
-    Object.entries(quizAttemptsByQuiz).forEach(([quizId, attempts]) => {
+    Object.entries(quizAttemptsByQuiz).forEach(([quizId, attempts]: [string, QuizAttemptItem[]]) => {
       if (attempts.some((attempt) => attempt.passed)) {
         passed.add(quizId);
       }
@@ -513,9 +561,15 @@ export default function CoursePlayer() {
                     <h4 className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">Lesson content</h4>
                   </div>
                 </div>
-                <div className="prose max-w-none text-slate-700 prose-headings:font-black prose-headings:text-slate-900 prose-p:leading-7 dark:prose-invert dark:text-slate-300 dark:prose-headings:text-white">
-                  <div dangerouslySetInnerHTML={{ __html: activeLesson.content || '<p>Lesson content is coming soon.</p>' }} />
-                </div>
+                {activeLesson.content_blocks && activeLesson.content_blocks.length > 0 ? (
+                  <div className="text-slate-700 dark:text-slate-300">
+                    {renderContentBlocks(activeLesson.content_blocks)}
+                  </div>
+                ) : (
+                  <div className="prose max-w-none text-slate-700 prose-headings:font-black prose-headings:text-slate-900 prose-p:leading-7 dark:prose-invert dark:text-slate-300 dark:prose-headings:text-white">
+                    <div dangerouslySetInnerHTML={{ __html: activeLesson.content || '<p>Lesson content is coming soon.</p>' }} />
+                  </div>
+                )}
               </div>
               </div>
             </section>

@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { Course, CourseCategory, CourseLesson, CourseModule, Enrollment, LessonResource, NoteItem, ProgressItem } from '../types/lms';
+import type { ContentBlock, Course, CourseCategory, CourseLesson, CourseModule, CourseReview, Enrollment, LearningPath, LessonResource, NoteItem, PathCourseItem, ProgressItem } from '../types/lms';
 import type { GeneratedCourseOutline } from './aiService';
 
 interface PaginatedResponse<T> {
@@ -333,5 +333,49 @@ export const courseService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data;
+  },
+
+  async listContentBlocks(params?: { lesson?: string }): Promise<ContentBlock[]> {
+    const { data } = await apiClient.get<ContentBlock[]>('/content-blocks/', { params });
+    return Array.isArray(data) ? data : (data as any).results ?? [];
+  },
+
+  async createContentBlock(payload: {
+    lesson: string;
+    kind: ContentBlock['kind'];
+    data: Record<string, any>;
+    order: number;
+  }): Promise<ContentBlock> {
+    const { data } = await apiClient.post<ContentBlock>('/content-blocks/', payload);
+    return data;
+  },
+
+  async updateContentBlock(id: string, payload: Partial<Pick<ContentBlock, 'kind' | 'data' | 'order'>>): Promise<ContentBlock> {
+    const { data } = await apiClient.patch<ContentBlock>(`/content-blocks/${id}/`, payload);
+    return data;
+  },
+
+  async deleteContentBlock(id: string): Promise<void> {
+    await apiClient.delete(`/content-blocks/${id}/`);
+  },
+
+  async listReviews(params?: { course?: string }): Promise<CourseReview[]> {
+    const { data } = await apiClient.get<CourseReview[]>('/reviews/', { params });
+    return Array.isArray(data) ? data : (data as any).results ?? [];
+  },
+
+  async createReview(payload: { course: string; rating: number; comment: string }): Promise<CourseReview> {
+    const { data } = await apiClient.post<CourseReview>('/reviews/', payload);
+    return data;
+  },
+
+  async listLearningPaths(params?: { is_active?: boolean }): Promise<LearningPath[]> {
+    const { data } = await apiClient.get<LearningPath[]>('/learning-paths/', { params });
+    return Array.isArray(data) ? data : (data as any).results ?? [];
+  },
+
+  async listTags(): Promise<import('../types/lms').Tag[]> {
+    const { data } = await apiClient.get<import('../types/lms').Tag[]>('/tags/');
+    return Array.isArray(data) ? data : (data as any).results ?? [];
   },
 };

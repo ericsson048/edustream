@@ -19,8 +19,22 @@ export const authService = {
     return data;
   },
 
+  async getUser(id: string): Promise<AuthUser> {
+    const { data } = await apiClient.get<AuthUser>(`/auth/users/${id}/`);
+    return data;
+  },
+
   async updateMe(payload: Partial<Pick<AuthUser, 'full_name' | 'email'>>): Promise<AuthUser> {
     const { data } = await apiClient.patch<AuthUser>('/auth/me/', payload);
+    return data;
+  },
+
+  async requestPasswordReset(email: string): Promise<void> {
+    await apiClient.post('/auth/forgot-password/', { email });
+  },
+
+  async getPublicStats(): Promise<{ total_courses: number; total_instructors: number; total_students: number; total_payouts: number }> {
+    const { data } = await apiClient.get('/auth/public/stats/');
     return data;
   },
 

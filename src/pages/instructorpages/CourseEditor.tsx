@@ -1,6 +1,5 @@
-import InstructorSidebar from '../../components/InstructorSidebar';
-import Header from '../../components/Header';
 import { Editor } from 'primereact/editor';
+import { CourseSummaryBar, EditorBreadcrumbs, EditorNav, InstructorEditorShell } from './editor/shared';
 import {
   Bot,
   Eye,
@@ -308,7 +307,7 @@ export default function CourseEditor() {
   const refreshCourse = async () => {
     if (!id) return;
     const data = await courseService.getCourse(id);
-    const modules = sortByOrder(data.modules || []);
+    const modules: CourseModule[] = sortByOrder(data.modules || []);
     const quizEntries = await Promise.all(
       modules.map(async (module) => {
         const quizzes = await learningService.listQuizzesByModule(module.id);
@@ -448,18 +447,18 @@ export default function CourseEditor() {
 
   useEffect(() => () => stopRecordingStream(), []);
 
-  const modules = useMemo(() => sortByOrder(course?.modules || []), [course]);
-  const selectedModule =
+  const modules: CourseModule[] = useMemo(() => sortByOrder(course?.modules || []), [course]);
+  const selectedModule: CourseModule | null =
     activeFocus.type === 'module'
       ? modules.find((module) => module.id === activeFocus.moduleId) || null
       : activeFocus.type === 'lesson'
         ? modules.find((module) => module.id === activeFocus.moduleId) || null
         : null;
-  const selectedLesson =
-    activeFocus.type === 'lesson'
-      ? sortByOrder(selectedModule?.lessons || []).find((lesson) => lesson.id === activeFocus.lessonId) || null
+  const selectedLesson: CourseLesson | null =
+    activeFocus.type === 'lesson' && selectedModule
+      ? sortByOrder(selectedModule.lessons || []).find((lesson) => lesson.id === activeFocus.lessonId) || null
       : null;
-  const selectedModuleLessons = useMemo(() => sortByOrder(selectedModule?.lessons || []), [selectedModule]);
+  const selectedModuleLessons: CourseLesson[] = useMemo(() => sortByOrder(selectedModule?.lessons || []), [selectedModule]);
   const completionStats = useMemo(() => {
     const checks = [
       Boolean(title.trim()),
@@ -789,66 +788,48 @@ export default function CourseEditor() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
-      <InstructorSidebar />
-      <main className="ml-64 flex-1">
-        <Header />
-        <div className="mx-auto max-w-7xl space-y-8 px-8 py-8">
-          <div className="grid gap-8 xl:grid-cols-[1.05fr,1.55fr]">
-            <section className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50 p-6 shadow-sm dark:border-blue-500/20 dark:from-[#0c1832] dark:via-[#0b1838] dark:to-[#09101f] dark:shadow-2xl dark:shadow-blue-950/20">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.35em] text-blue-300/70">Course Builder</p>
-                  <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-900 dark:text-white">{title || 'Untitled Course'}</h1>
-                  <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    Editez la structure complete du cours, enrichissez les lessons et terminez chaque module avec un quiz realiste.
-                  </p>
-                </div>
-                <button
-                  className="inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-300"
-                  onClick={async () => {
-                    if (!course) return;
-                    try {
-                      const updated = await courseService.updateCourse(course.id, {
-                        title,
-                        subtitle,
-                        description,
-                        category_id: categoryId || undefined,
-                        language,
-                        level,
-                        thumbnail_url: thumbnailUrl,
-                        thumbnail_file: thumbnailFile,
-                        learning_objectives: parseLines(objectivesText),
-                        prerequisites: parseLines(prerequisitesText),
-                        target_audience: parseLines(targetAudienceText),
-                        estimated_hours: estimatedHours,
-                        price,
-                        is_published: isPublished,
-                      });
-                      setCourse(updated);
-                      showToast('Cours mis a jour.', 'success');
-                    } catch {
-                      showToast('Sauvegarde impossible.', 'error');
-                    }
-                  }}
-                >
-                  <Save className="h-4 w-4" />
-                  Publier les changements
-                </button>
-              </div>
-
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
-                  <p className="text-xs uppercase tracking-[0.25em] text-blue-700/70 dark:text-blue-200/70">Modules</p>
-                  <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{modules.length}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
-                  <p className="text-xs uppercase tracking-[0.25em] text-blue-700/70 dark:text-blue-200/70">Lessons</p>
-                  <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">
-                    {modules.reduce((total, module) => total + (module.lessons || []).length, 0)}
-                  </p>
-                </div>
-              </div>
+    <InstructorEditorShell
+      title={title || 'Untitled Course'}
+      description="Editez la structure complete du cours, enrichissez les lessons et terminez chaque module avec un quiz realiste."
+      actions={
+        <button
+          className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+          onClick={async () => {
+            if (!course) return;
+            try {
+              const updated = await courseService.updateCourse(course.id, {
+                title,
+                subtitle,
+                description,
+                category_id: categoryId || undefined,
+                language,
+                level,
+                thumbnail_url: thumbnailUrl,
+                thumbnail_file: thumbnailFile,
+                learning_objectives: parseLines(objectivesText),
+                prerequisites: parseLines(prerequisitesText),
+                target_audience: parseLines(targetAudienceText),
+                estimated_hours: estimatedHours,
+                price,
+                is_published: isPublished,
+              });
+              setCourse(updated);
+              showToast('Cours mis a jour.', 'success');
+            } catch {
+              showToast('Sauvegarde impossible.', 'error');
+            }
+          }}
+        >
+          <Save className="h-4 w-4" />
+          Publier les changements
+        </button>
+      }
+    >
+      <EditorBreadcrumbs course={course} />
+      <EditorNav activeSection="course" courseId={course?.id} />
+      <CourseSummaryBar course={course} />
+      <div className="grid gap-8 xl:grid-cols-[1.05fr,1.55fr]">
+        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
               <div className="mt-4 rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1002,10 +983,10 @@ export default function CourseEditor() {
             </section>
 
             <section className="space-y-6">
-              <div className="rounded-[28px] border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-slate-50 p-6 shadow-sm dark:border-blue-500/20 dark:from-[#10204a] dark:via-[#0f2155] dark:to-[#091735] dark:shadow-2xl dark:shadow-blue-950/20">
+              <div className="rounded-[28px] border border-teal-200 bg-gradient-to-br from-teal-50 via-white to-slate-50 p-6 shadow-sm dark:border-teal-500/20 dark:from-[#08241a] dark:via-[#0a2f1f] dark:to-[#052015] dark:shadow-2xl dark:shadow-teal-950/20">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl border border-blue-300/20 bg-blue-400/10">
-                    <Bot className="h-5 w-5 text-blue-700 dark:text-blue-100" />
+                    <div className="grid h-12 w-12 place-items-center rounded-2xl border border-teal-300/20 bg-teal-400/10">
+                      <Bot className="h-5 w-5 text-teal-700 dark:text-teal-100" />
                   </div>
                   <div>
                     <h2 className="text-xl font-black text-slate-900 dark:text-white">Assistant IA</h2>
@@ -1187,7 +1168,7 @@ export default function CourseEditor() {
                     className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
                   />
                   <button
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-500"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white transition hover:bg-orange-600"
                     onClick={async () => {
                       if (!course || !newModuleTitle.trim()) return;
                       try {
@@ -1383,9 +1364,9 @@ export default function CourseEditor() {
                         <p className="mt-1 font-bold text-slate-900 dark:text-white">{selectedModuleLessons.length} noeuds enfants</p>
                       </div>
                     </div>
-                    <div className="rounded-[22px] border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">
+                    <div className="rounded-[22px] border border-teal-200 bg-teal-50 p-4 dark:border-teal-500/20 dark:bg-teal-500/10">
                       <div className="flex items-center gap-3">
-                        <Bot className="h-5 w-5 text-blue-700 dark:text-blue-200" />
+                        <Bot className="h-5 w-5 text-teal-700 dark:text-teal-200" />
                         <div>
                           <p className="font-bold text-slate-900 dark:text-white">Assistant IA de branche</p>
                           <p className="text-sm text-slate-600 dark:text-slate-300">Demandez une amelioration precise pour le noeud selectionne.</p>
@@ -1398,7 +1379,7 @@ export default function CourseEditor() {
                         className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
                       />
                       <button
-                        className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-500 disabled:opacity-60"
+                        className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-orange-600 disabled:opacity-60"
                         disabled={isBranchGenerating || !branchAiPrompt.trim()}
                         onClick={runBranchAssistant}
                       >
@@ -1536,7 +1517,7 @@ export default function CourseEditor() {
                           className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
                         />
                         <button
-                          className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+                          className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
                           onClick={async () => {
                             try {
                               await learningService.updateAssignment(assignment.id, draft);
@@ -1961,7 +1942,7 @@ export default function CourseEditor() {
                                           </div>
                                         </div>
                                         <button
-                                          className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-500"
+                                          className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white transition hover:bg-orange-600"
                                           onClick={async () => {
                                             try {
                                               await courseService.updateLesson(lesson.id, draft);
@@ -2071,7 +2052,7 @@ export default function CourseEditor() {
                                                   </a>
                                                 )}
                                                 <button
-                                                  className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+                                                  className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
                                                   onClick={async () => {
                                                     const draftResource = resourceEditDrafts[resource.id] || emptyResourceDraft;
                                                     try {
@@ -2270,7 +2251,7 @@ export default function CourseEditor() {
                                             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                           />
                                           <button
-                                            className="rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-500"
+                                            className="rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white transition hover:bg-orange-600"
                                             onClick={async () => {
                                               try {
                                                 const draftQuiz = quizDrafts[lesson.id] || emptyQuizDraft;
@@ -2296,7 +2277,7 @@ export default function CourseEditor() {
                                         </div>
                                         {lessonQuiz && (
                                           <div className="mt-4 space-y-4">
-                                            {(sortByOrder(lessonQuiz.questions || [])).map((question, questionIndex) => {
+                                            {(sortByOrder<QuizQuestionItem>(lessonQuiz.questions || [])).map((question, questionIndex) => {
                                               const draftQuestion = questionDrafts[question.id] || questionToDraft(question);
                                               return (
                                                 <div key={question.id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
@@ -2372,7 +2353,7 @@ export default function CourseEditor() {
                                                         className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-white/10 dark:bg-slate-900/40 dark:text-white"
                                                       />
                                                       <button
-                                                        className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500"
+                                                        className="rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-600"
                                                         onClick={async () => {
                                                           const options = parseOptions(draftQuestion.optionsText);
                                                           if (!draftQuestion.prompt.trim() || options.length < 2) {
@@ -2689,7 +2670,7 @@ export default function CourseEditor() {
                             </div>
                           </section>
 
-                          <section className="rounded-[24px] border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 dark:border-blue-400/15 dark:from-[#081424] dark:to-[#050c18]">
+                          <section className="rounded-[24px] border border-teal-200 bg-gradient-to-br from-teal-50 to-white p-5 dark:border-teal-400/15 dark:from-[#081424] dark:to-[#050c18]">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                               <div className="flex items-center gap-3">
                                 <div className="grid h-11 w-11 place-items-center rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/5">
@@ -2774,7 +2755,7 @@ export default function CourseEditor() {
                                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                   />
                                   <button
-                                    className="rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-500"
+                                    className="rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white transition hover:bg-orange-600"
                                     onClick={async () => {
                                       try {
                                         if (quiz) {
@@ -2801,7 +2782,7 @@ export default function CourseEditor() {
 
                                 {quiz && (
                                   <div className="space-y-4">
-                                    {sortByOrder(quiz.questions || []).map((question, questionIndex) => {
+                                    {sortByOrder<QuizQuestionItem>(quiz.questions || []).map((question, questionIndex) => {
                                       const draft = questionDrafts[question.id] || questionToDraft(question);
                                       return (
                                         <div key={question.id} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
@@ -2888,7 +2869,7 @@ export default function CourseEditor() {
                                                 Utilisez des indices bases sur zero. Exemple: `0` pour la premiere option.
                                               </div>
                                               <button
-                                                className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-500"
+                                                className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white transition hover:bg-orange-600"
                                                 onClick={async () => {
                                                   const options = parseOptions(draft.optionsText);
                                                   if (!draft.prompt.trim() || options.length < 2) {
@@ -3003,8 +2984,6 @@ export default function CourseEditor() {
               </div>
             </section>
           </div>
-        </div>
-      </main>
-    </div>
+    </InstructorEditorShell>
   );
 }

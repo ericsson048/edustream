@@ -80,6 +80,46 @@ class QuizAttempt(models.Model):
     submitted_at = models.DateTimeField(blank=True, null=True)
 
 
+class Skill(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    icon = models.CharField(max_length=50, blank=True, default="")
+    position_x = models.FloatField(default=50)
+    position_y = models.FloatField(default=10)
+    order = models.IntegerField(default=0)
+    related_courses = models.ManyToManyField("courses.Course", blank=True, related_name="skills")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order"]
+
+
+class UserSkill(models.Model):
+    class Status(models.TextChoices):
+        LOCKED = "LOCKED", "Locked"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COMPLETED = "COMPLETED", "Completed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_skills")
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name="user_skills")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.LOCKED)
+    completed_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ("user", "skill")
+
+
+class FocusSession(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="focus_sessions")
+    duration_seconds = models.PositiveIntegerField()
+    mode = models.CharField(max_length=10, choices=[("WORK", "Work"), ("BREAK", "Break")])
+    completed_at = models.DateTimeField(auto_now_add=True)
+
+
 class Notification(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")

@@ -42,7 +42,7 @@ export default function CourseModulePage() {
   });
   const [newLesson, setNewLesson] = useState<NewLessonDraft>({ title: '', lesson_type: 'VIDEO' });
 
-  const module = sortByOrder(course?.modules || []).find((item) => item.id === moduleId) || null;
+  const module: CourseModule | null = sortByOrder<CourseModule>(course?.modules || []).find((item) => item.id === moduleId) || null;
 
   useEffect(() => {
     if (!module) return;

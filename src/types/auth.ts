@@ -7,6 +7,11 @@ export interface AuthUser {
   role: UserRole;
   stripe_account_id?: string | null;
   stripe_customer_id?: string | null;
+  avatar_url?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
+  title?: string;
   date_joined?: string;
 }
 

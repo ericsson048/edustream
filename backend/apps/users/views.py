@@ -27,6 +27,47 @@ class MeView(APIView):
         return Response(serializer.data)
 
 
+class ForgotPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email", "")
+        try:
+            user = User.objects.get(email=email, is_active=True)
+        except User.DoesNotExist:
+            return Response({"detail": "If that email exists, a reset link has been sent."})
+        # In production, send a real email here.
+        print(f"[FORGOT PASSWORD] Reset link for {user.email}: https://edustream.com/reset-password/{user.id}")
+        return Response({"detail": "If that email exists, a reset link has been sent."})
+
+
+class PublicStatsView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from apps.courses.models import Course
+        total_courses = Course.objects.filter(is_published=True).count()
+        total_instructors = User.objects.filter(role="INSTRUCTOR", is_active=True).count()
+        total_students = User.objects.filter(role="STUDENT", is_active=True).count()
+        from apps.billing.models import Transaction
+        from django.db.models import Sum
+        earnings = Transaction.objects.filter(status="COMPLETED").aggregate(total=Sum("instructor_earning"))
+        total_payouts = float(earnings["total"] or 0)
+        return Response({
+            "total_courses": total_courses,
+            "total_instructors": total_instructors,
+            "total_students": total_students,
+            "total_payouts": total_payouts,
+        })
+
+
+class UserDetailView(generics.RetrieveAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]
+    lookup_field = "pk"
+
+
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all().order_by("-date_joined")
     serializer_class = UserSerializer

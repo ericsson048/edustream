@@ -14,6 +14,7 @@ urlpatterns = [
     path("api/v1/", include("apps.live.urls")),
     path("api/v1/", include("apps.community.urls")),
     path("api/v1/", include("apps.messaging.urls")),
+    path("api/v1/", include("apps.admin_dashboard.urls")),
 ]
 
 if find_spec("drf_spectacular"):

@@ -12,8 +12,11 @@ export function parseLines(value: string) {
     .filter(Boolean);
 }
 
-export function sortByOrder<T extends { order: number }>(items: T[]) {
-  return [...items].sort((left, right) => left.order - right.order);
+export function sortByOrder<T extends { order: number }>(items: T[]): T[] {
+  if (!items.length) return [];
+  const sorted = [...items] as T[];
+  sorted.sort((left, right) => left.order - right.order);
+  return sorted;
 }
 
 type ShellProps = {

@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Assignment, Notification, Quiz, QuizAttempt, QuizQuestion, Submission
+from .models import Assignment, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, Submission, UserSkill
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -67,6 +67,30 @@ class QuizAttemptSerializer(serializers.ModelSerializer):
         validated_data["passed"] = score >= quiz.passing_score
         validated_data["submitted_at"] = timezone.now()
         return super().create(validated_data)
+
+
+class SkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = "__all__"
+
+
+class UserSkillSerializer(serializers.ModelSerializer):
+    skill_title = serializers.CharField(source="skill.title", read_only=True)
+    skill_position_x = serializers.FloatField(source="skill.position_x", read_only=True)
+    skill_position_y = serializers.FloatField(source="skill.position_y", read_only=True)
+
+    class Meta:
+        model = UserSkill
+        fields = "__all__"
+        read_only_fields = ["user"]
+
+
+class FocusSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FocusSession
+        fields = "__all__"
+        read_only_fields = ["user", "completed_at"]
 
 
 class NotificationSerializer(serializers.ModelSerializer):

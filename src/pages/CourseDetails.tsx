@@ -4,22 +4,37 @@ import { Star, Clock, Users, PlayCircle, CheckCircle, FileText, Award } from 'lu
 import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { courseService } from '../services/courseService';
-import type { Course, Enrollment } from '../types/lms';
+import { authService } from '../services/authService';
+import type { Course, CourseReview, Enrollment } from '../types/lms';
+import type { AuthUser } from '../types/auth';
 
 export default function CourseDetails() {
   const { id = '' } = useParams();
   const [course, setCourse] = useState<Course | null>(null);
+  const [instructor, setInstructor] = useState<AuthUser | null>(null);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
+  const [studentCount, setStudentCount] = useState(0);
+  const [reviews, setReviews] = useState<CourseReview[]>([]);
+  const [tags, setTags] = useState<import('../types/lms').Tag[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([courseService.getCourse(id), courseService.listEnrollments({ course: id, is_active: true })])
-      .then(([courseItem, enrollments]) => {
-        setCourse(courseItem);
-        setEnrollment(enrollments[0] || null);
-      })
-      .catch(() => setError('Cours introuvable ou inaccessible.'));
+
+    courseService.getCourse(id).then((courseItem) => {
+      setCourse(courseItem);
+      if (courseItem.instructor) {
+        authService.getUser(courseItem.instructor).then(setInstructor).catch(() => {});
+      }
+    }).catch(() => setError('Cours introuvable ou inaccessible.'));
+
+    courseService.listEnrollments({ course: id, is_active: true }).then((enrollments) => {
+      setEnrollment(enrollments[0] || null);
+      setStudentCount(enrollments.length);
+    }).catch(() => {});
+
+    courseService.listReviews({ course: id }).then(setReviews).catch(() => {});
+    courseService.listTags().then(setTags).catch(() => {});
   }, [id]);
 
   if (error) {
@@ -43,6 +58,15 @@ export default function CourseDetails() {
         'Apply best practices used in production teams',
       ];
 
+  const totalMinutes = (course.modules || []).reduce((sum, mod) => sum + (mod.estimated_minutes || 0), 0);
+  const durationDisplay = course.estimated_hours
+    ? `${course.estimated_hours}h total`
+    : totalMinutes > 0
+      ? `${Math.round(totalMinutes / 60)}h total`
+      : undefined;
+
+  const instructorAvatar = instructor?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80';
+
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
@@ -55,27 +79,37 @@ export default function CourseDetails() {
           </div>
           <div className="max-w-5xl mx-auto relative z-10 flex flex-col md:flex-row gap-8 items-center">
             <div className="flex-1">
-              <div className="flex items-center gap-2 text-blue-400 font-bold text-sm mb-4">
-                <span className="bg-blue-500/20 px-2.5 py-1 rounded-md">{course.category || 'General'}</span>
-                <span>•</span>
-                <span>{course.level}</span>
-              </div>
+                <div className="flex items-center gap-2 text-blue-400 font-bold text-sm mb-4">
+                  <span className="bg-blue-500/20 px-2.5 py-1 rounded-md">{course.category || 'General'}</span>
+                  <span>•</span>
+                  <span>{course.level}</span>
+                  {course.tags && course.tags.length > 0 && (
+                    <>
+                      <span>•</span>
+                      <div className="flex gap-1.5">
+                        {course.tags.slice(0, 3).map((tag) => (
+                          <span key={tag.id} className="bg-slate-700/30 px-2 py-0.5 rounded text-xs">{tag.name}</span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{course.title}</h1>
               <p className="text-lg text-slate-300 mb-6 line-clamp-2">{course.description || 'Course description is being prepared.'}</p>
 
               <div className="flex flex-wrap items-center gap-6 text-sm text-slate-300 mb-8">
                 <div className="flex items-center gap-1 text-amber-400 font-bold">
-                  <Star className="w-5 h-5 fill-current" /> 4.9
+                  <Star className="w-5 h-5 fill-current" /> Featured
                 </div>
-                <div className="flex items-center gap-2"><Users className="w-5 h-5" /> 12,450 students</div>
-                <div className="flex items-center gap-2"><Clock className="w-5 h-5" /> 18h total</div>
+                <div className="flex items-center gap-2"><Users className="w-5 h-5" /> {studentCount > 0 ? `${studentCount.toLocaleString()} student${studentCount !== 1 ? 's' : ''}` : 'Enroll now'}</div>
+                {durationDisplay && <div className="flex items-center gap-2"><Clock className="w-5 h-5" /> {durationDisplay}</div>}
               </div>
 
               <div className="flex items-center gap-4">
-                <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="Instructor" className="w-12 h-12 rounded-full border-2 border-slate-700" />
+                <img src={instructorAvatar} alt={course.instructor_name || 'Instructor'} className="w-12 h-12 rounded-full border-2 border-slate-700" />
                 <div>
                   <p className="text-sm text-slate-400">Created by</p>
-                  <p className="font-bold">{course.instructor_name || 'Instructor'}</p>
+                  <p className="font-bold">{course.instructor_name || instructor?.full_name || 'Instructor'}</p>
                 </div>
               </div>
             </div>
@@ -127,6 +161,34 @@ export default function CourseDetails() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-2xl font-bold mb-6">
+                Student Reviews ({reviews.length})
+              </h2>
+              {reviews.length === 0 ? (
+                <p className="text-sm text-slate-500">No reviews yet. Be the first to review this course!</p>
+              ) : (
+                <div className="space-y-6">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="border-b border-slate-100 pb-6 last:border-b-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <img src={review.user_avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=64&h=64&q=80'} alt="" className="w-10 h-10 rounded-full" />
+                        <div>
+                          <p className="font-semibold text-sm">{review.user_full_name}</p>
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: 5 }, (_, i) => (
+                              <Star key={i} className={`w-4 h-4 ${i < review.rating ? 'text-amber-400 fill-current' : 'text-slate-300'}`} />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-700 ml-13">{review.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

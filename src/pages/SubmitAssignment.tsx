@@ -26,6 +26,8 @@ export default function SubmitAssignment() {
       .catch(() => showToast('Assignment introuvable.', 'error'));
   }, [id, showToast]);
 
+  const backUrl = '/assignments';
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -75,9 +77,9 @@ export default function SubmitAssignment() {
       <Sidebar />
       <main className="flex-1 ml-64">
         <Header />
-        <div className="p-8 max-w-3xl mx-auto">
-          <Link to="/assignments" className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors mb-8">
-            <ArrowLeft className="w-4 h-4" /> Back to Assignments
+        <div className="p-8  mx-auto">
+          <Link to={backUrl} className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors mb-8">
+            <ArrowLeft className="w-4 h-4" /> Retour aux devoirs
           </Link>
 
           <div className="mb-8">

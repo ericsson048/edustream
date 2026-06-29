@@ -76,29 +76,29 @@ Sur le plan technique, le projet mobilise un ensemble d'outils complémentaires.
 
 **Captures à insérer :** *Capture 2 - Page de tarification* et *Capture 13 - Tableau de bord administrateur*.
 
-#### Sous-point de présentation : Diagrammes UML du système
+#### Modélisation du système
 
-Dans le cadre de la présentation du projet, il est utile d'intégrer des diagrammes UML afin de mieux illustrer la structure logique et le fonctionnement général de la plateforme EduStream. Ces diagrammes permettent de compléter la description textuelle en apportant une représentation visuelle des entités, des rôles utilisateurs et des principaux scénarios d'utilisation.
+Afin de donner une représentation plus structurée du fonctionnement d'EduStream, il convient d'associer à la présentation du projet une modélisation UML des principaux aspects du système. Cette modélisation permet de compléter l'analyse descriptive en montrant, sous une forme normalisée, aussi bien l'organisation statique des données que les interactions fonctionnelles entre les acteurs et les services de la plateforme. Dans un rapport académique, ces diagrammes jouent un rôle important, car ils facilitent la compréhension de l'architecture logique du projet et mettent en évidence la cohérence entre les besoins exprimés et la solution développée.
+
+Le **diagramme de classes** constitue d'abord un outil essentiel pour représenter la structure interne du système. Il met en évidence les principales entités métier d'EduStream, telles que l'utilisateur, le cours, le module, la leçon, l'inscription, la progression, le quiz, la soumission, la transaction, l'abonnement, la session live, la discussion et le message. En montrant les relations entre ces éléments, ce diagramme permet de comprendre l'organisation générale de la base de données et la manière dont les différentes composantes du système s'articulent entre elles.
 
 **Diagramme 1. Diagramme de classes**  
 [Insérer ici le diagramme de classes du projet]
 
-Ce diagramme doit représenter les principales classes du système, notamment l'utilisateur, le cours, le module, la leçon, l'inscription, la progression, le quiz, la tentative de quiz, le devoir, la soumission, la transaction, l'abonnement, la session live, la discussion, le groupe d'étude, la conversation et le message. Il permet de visualiser les relations structurelles entre les composants métier de la plateforme.
+Le **diagramme de cas d'utilisation** permet ensuite de représenter la dimension fonctionnelle de la plateforme. Il met en relation les trois principaux acteurs du système, à savoir l'apprenant, le tuteur et l'administrateur, avec les services qu'ils utilisent respectivement. Cette représentation est particulièrement utile pour identifier les responsabilités de chaque profil et pour visualiser les principales fonctionnalités offertes par l'application, telles que l'inscription, la consultation des cours, le suivi des leçons, la création de contenus pédagogiques, la gestion des utilisateurs et la supervision administrative.
 
 **Diagramme 2. Diagramme de cas d'utilisation**  
 [Insérer ici le diagramme de cas d'utilisation]
 
-Ce diagramme doit mettre en évidence les interactions des acteurs principaux du système, à savoir l'apprenant, le tuteur et l'administrateur, avec les grandes fonctionnalités offertes par EduStream. Il permet de comprendre rapidement le périmètre fonctionnel de la plateforme et la répartition des usages selon les profils utilisateurs.
+Le **diagramme de séquence** complète cette approche en mettant l'accent sur la dimension dynamique du système. Il permet de décrire, dans l'ordre chronologique, les échanges qui s'établissent entre l'utilisateur, l'interface, les services backend et la base de données lors de l'exécution d'un scénario précis. Dans le cas d'EduStream, un exemple pertinent consiste à représenter le processus par lequel un apprenant se connecte, accède à ses cours, ouvre une leçon, interroge le tuteur IA et enregistre sa progression. Ce type de diagramme montre concrètement la circulation des informations dans l'application.
 
 **Diagramme 3. Diagramme de séquence**  
 [Insérer ici le diagramme de séquence]
 
-Ce diagramme doit présenter un scénario clé du système, par exemple la connexion d'un apprenant, l'ouverture d'un cours, l'accès à une leçon, l'utilisation du tuteur IA et l'enregistrement de la progression. Il met en évidence l'enchaînement temporel des échanges entre l'utilisateur, l'interface web, les services backend et la base de données.
+Enfin, le **diagramme d'activité** offre une vue synthétique du déroulement global d'un processus au sein de la plateforme. Il permet de représenter les différentes étapes suivies par un utilisateur dans son parcours d'apprentissage, depuis l'accès au système jusqu'à l'exécution des activités pédagogiques et la mise à jour de son état d'avancement. Ce diagramme est particulièrement utile pour illustrer la logique de navigation et les principales décisions qui interviennent au cours de l'utilisation de la plateforme.
 
 **Diagramme 4. Diagramme d'activité**  
 [Insérer ici le diagramme d'activité]
-
-Ce diagramme doit représenter le flux général d'apprentissage sur la plateforme, depuis l'accès de l'utilisateur jusqu'à la consultation des contenus, l'exécution des activités pédagogiques et la mise à jour de la progression. Il permet de visualiser les décisions importantes et les différentes étapes du parcours utilisateur.
 
 ### b. Déroulement du projet
 
