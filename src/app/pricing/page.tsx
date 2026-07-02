@@ -1,0 +1,169 @@
+﻿import { useEffect, useState } from 'react';
+import { Check, ArrowRight, Sparkles, Globe, Zap, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import PublicNavbar from '../../components/PublicNavbar';
+import { billingService } from '../../services/billingService';
+import type { Plan } from '../../services/billingService';
+
+export default function Pricing() {
+  const [studentPlans, setStudentPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    billingService.listPlans().then((plans) => {
+      setStudentPlans(plans.filter((p) => p.audience === 'STUDENT'));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 font-sans selection:bg-blue-500/30 pb-24">
+      <PublicNavbar active="pricing" />
+
+      <div className="pt-32 pb-16 px-6 text-center max-w-3xl mx-auto">
+        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6">
+          Simple, transparent pricing
+        </h1>
+        <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 leading-relaxed">
+          Whether you're here to learn new skills or share your expertise with the world, we have a plan that fits your needs.
+        </p>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 mb-32">
+        <div className="text-center mb-12">
+          <h2 className="text-2xl font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">For Students</h2>
+        </div>
+
+        {loading ? (
+          <div className="text-center text-slate-500 py-12">Loading plans...</div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {studentPlans.map((plan) => {
+              const isPopular = !!plan.badge;
+              return (
+                <div
+                  key={plan.id}
+                  className={`rounded-3xl p-8 border flex flex-col relative overflow-hidden ${
+                    isPopular
+                      ? 'bg-slate-900 dark:bg-slate-950 border-blue-500/30 shadow-2xl shadow-blue-900/20'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm'
+                  }`}
+                >
+                  {isPopular && (
+                    <>
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 blur-[80px] rounded-full pointer-events-none"></div>
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-1 rounded-b-lg text-xs font-bold uppercase tracking-wider">
+                        {plan.badge}
+                      </div>
+                    </>
+                  )}
+
+                  <div className="relative z-10">
+                    <h3 className={`text-2xl font-bold mb-2 flex items-center gap-2 ${isPopular ? 'text-white' : ''}`}>
+                      {plan.name}
+                      {plan.has_unlimited_ai && <Sparkles className="w-5 h-5 text-blue-400" />}
+                    </h3>
+                    <p className={`${isPopular ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400'} mb-6`}>
+                      {plan.price_monthly === '0.00' ? 'Perfect for getting started with free courses.' : 'Unlock the full power of AI and live learning.'}
+                    </p>
+                    <div className="mb-8">
+                      <span className={`text-5xl font-extrabold ${isPopular ? 'text-white' : ''}`}>
+                        {plan.price_monthly === '0.00' ? '$0' : `$${parseFloat(plan.price_monthly).toFixed(0)}`}
+                      </span>
+                      <span className={`font-medium ${isPopular ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>/month</span>
+                    </div>
+
+                    <ul className="space-y-4 mb-8 flex-1">
+                      {(plan.features || []).map((feature, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <Check className={`w-5 h-5 shrink-0 mt-0.5 ${isPopular ? 'text-blue-400' : 'text-emerald-500'}`} />
+                          <span className={isPopular ? 'text-slate-200' : 'text-slate-700 dark:text-slate-300'}>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <Link
+                      to="/register"
+                      className={`w-full block text-center font-bold py-4 rounded-xl transition-colors ${
+                        isPopular
+                          ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-600/20'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {plan.price_monthly === '0.00' ? 'Create Free Account' : 'Start 7-Day Free Trial'}
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-12">
+          <h2 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">For Instructors</h2>
+          <p className="text-slate-600 dark:text-slate-400 mt-4 max-w-2xl mx-auto">
+            Monetize your expertise with our fair revenue split model. We handle the hosting, streaming costs, and AI integration.
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2">
+            <div className="p-10 md:p-12 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800">
+              <h3 className="text-3xl font-bold mb-4">Marketplace Partner</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-8 text-lg">
+                No monthly fees. You only pay when you make a sale.
+              </p>
+
+              <div className="mb-8 p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/50">
+                <div className="flex items-end gap-2 mb-2">
+                  <span className="text-5xl font-extrabold text-indigo-600 dark:text-indigo-400">70%</span>
+                  <span className="text-xl font-bold text-slate-700 dark:text-slate-300 mb-1">Revenue Share</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">You keep 70% of every course sale. We take 30% to cover platform costs.</p>
+              </div>
+
+              <Link to="/register" className="inline-flex items-center justify-center gap-2 w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-colors">
+                Become an Instructor <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+
+            <div className="p-10 md:p-12 bg-slate-50 dark:bg-slate-950/50">
+              <h4 className="font-bold text-lg mb-6">What's included:</h4>
+              <ul className="space-y-5">
+                <li className="flex items-start gap-4">
+                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 shrink-0">
+                    <Globe className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <strong className="block text-slate-900 dark:text-white mb-1">Unlimited Video Hosting</strong>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Upload as many courses as you want. No storage limits.</span>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 shrink-0">
+                    <Zap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <strong className="block text-slate-900 dark:text-white mb-1">AI Tutor Integration</strong>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Your students get AI assistance on your courses automatically.</span>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 shrink-0">
+                    <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <strong className="block text-slate-900 dark:text-white mb-1">Automated Payouts</strong>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Powered by Stripe Connect. Get paid directly to your bank account.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
