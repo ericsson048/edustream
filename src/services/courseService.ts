@@ -251,6 +251,11 @@ export const courseService = {
     return data;
   },
 
+  async getLesson(id: string): Promise<CourseLesson> {
+    const { data } = await apiClient.get<CourseLesson>(`/lessons/${id}/`);
+    return data;
+  },
+
   async updateLesson(
     id: string,
     payload: Partial<
@@ -284,6 +289,11 @@ export const courseService = {
 
   async deleteLesson(id: string): Promise<void> {
     await apiClient.delete(`/lessons/${id}/`);
+  },
+
+  async listResources(params?: { lesson?: string }): Promise<LessonResource[]> {
+    const { data } = await apiClient.get<PaginatedResponse<LessonResource>>('/resources/', { params });
+    return data.results ?? [];
   },
 
   async createResource(payload: {
@@ -377,5 +387,14 @@ export const courseService = {
   async listTags(): Promise<import('../types/lms').Tag[]> {
     const { data } = await apiClient.get<import('../types/lms').Tag[]>('/tags/');
     return Array.isArray(data) ? data : (data as any).results ?? [];
+  },
+
+  async uploadImage(file: File): Promise<string> {
+    const form = new FormData();
+    form.append('file', file);
+    const { data } = await apiClient.post<{ url: string }>('/upload-image/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.url;
   },
 };

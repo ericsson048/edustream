@@ -4,10 +4,12 @@ from django.db import transaction
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import permissions, status, viewsets
+from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
+from django.conf import settings
 
 from django.db.models import Avg
 
@@ -468,3 +470,27 @@ class LearningPathViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filterset_fields = ["is_active"]
     search_fields = ["title", "description"]
+
+
+class UploadImageView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        import uuid, os
+        ext = os.path.splitext(file.name)[1]
+        filename = f"uploads/{uuid.uuid4()}{ext}"
+        path = os.path.join(settings.MEDIA_ROOT, filename)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb+") as dest:
+            for chunk in file.chunks():
+                dest.write(chunk)
+
+        url = f"{settings.MEDIA_URL}{filename}"
+        if request.build_absolute_uri:
+            url = request.build_absolute_uri(url)
+        return Response({"url": url}, status=status.HTTP_201_CREATED)

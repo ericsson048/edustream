@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, FileText, BarChart2, GraduationCap, MessageSquare, User, Calendar } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileText, BarChart2, GraduationCap, MessageSquare, User, Calendar, Paperclip } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -12,6 +12,7 @@ export default function InstructorSidebar() {
   const links = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/instructor' },
     { name: 'My Courses', icon: BookOpen, href: '/instructor/courses' },
+    { name: 'Resources', icon: Paperclip, href: '/instructor/resources' },
     { name: 'Schedule & Live', icon: Calendar, href: '/instructor/schedule' },
     { name: 'Grading', icon: FileText, href: '/instructor/assignments' },
     { name: 'Analytics', icon: BarChart2, href: '/instructor/analytics' },

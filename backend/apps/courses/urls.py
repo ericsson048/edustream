@@ -18,6 +18,7 @@ from .views import (
     ResourceViewSet,
     SectionViewSet,
     TagViewSet,
+    UploadImageView,
 )
 
 router = DefaultRouter()
@@ -40,4 +41,5 @@ router.register(r"learning-paths", LearningPathViewSet, basename="learning-path"
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("upload-image/", UploadImageView.as_view(), name="upload-image"),
 ]
