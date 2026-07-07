@@ -2,43 +2,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import type { Components } from 'react-markdown';
-
-function inlineMD(text: string): string {
-  return text
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-}
-
-function sbsMarkdownToHTML(md: string): string {
-  const lines = md.split('\n').map((l) => l.trim());
-  const blocks: string[] = [];
-  let i = 0;
-  const isUL = (l: string) => /^[-*+]\s/.test(l);
-  const isOL = (l: string) => /^\d+\.\s/.test(l);
-  while (i < lines.length) {
-    if (!lines[i]) { i++; continue; }
-    if (isUL(lines[i])) {
-      const items: string[] = [];
-      while (i < lines.length && isUL(lines[i])) { items.push(`<li>${inlineMD(lines[i].replace(/^[-*+]\s/, ''))}</li>`); i++; }
-      blocks.push(`<ul>${items.join('')}</ul>`);
-    } else if (isOL(lines[i])) {
-      const items: string[] = [];
-      while (i < lines.length && isOL(lines[i])) { items.push(`<li>${inlineMD(lines[i].replace(/^\d+\.\s/, ''))}</li>`); i++; }
-      blocks.push(`<ol>${items.join('')}</ol>`);
-    } else {
-      const para: string[] = [];
-      while (i < lines.length && lines[i] && !isUL(lines[i]) && !isOL(lines[i])) { para.push(inlineMD(lines[i])); i++; }
-      blocks.push(`<p>${para.join('<br/>')}</p>`);
-    }
-  }
-  return blocks.join('\n');
-}
-
-function preprocessContent(content: string): string {
-  return content.replace(/<!--sbsmd-->([\s\S]*?)<!--\/sbsmd-->/g, (_, md) => sbsMarkdownToHTML(md.trim()));
-}
+import { preprocessContent } from '../utils/md';
 
 const components: Components = {
   h1: ({ children }) => <h1 className="text-2xl font-bold mt-6 mb-3">{children}</h1>,

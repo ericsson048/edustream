@@ -21,6 +21,7 @@ import InstructorSidebar from "../../../../../../../components/InstructorSidebar
 import Header from "../../../../../../../components/Header";
 import MarkdownRenderer from "../../../../../../../components/MarkdownRenderer";
 import { courseService } from "../../../../../../../services/courseService";
+import { escapeHtml } from "../../../../../../../utils/md";
 import { useToast } from "../../../../../../../contexts/ToastContext";
 import type { CourseLesson } from "../../../../../../../types/lms";
 
@@ -56,6 +57,7 @@ export default function LessonContentEditor() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [viewMode, setViewMode] = useState<"preview" | "source">("preview");
   const [dialogMode, setDialogMode] = useState<"image" | "side" | null>(null);
   const [imageOpts, setImageOpts] = useState<ImageOpts>({
     url: "",
@@ -77,9 +79,12 @@ export default function LessonContentEditor() {
 
   useEffect(() => {
     if (!lessonId) return;
-    courseService.getLesson(lessonId).then(setLesson).catch(() => {
-      showToast("Impossible de charger la leçon.", "error");
-    });
+    courseService
+      .getLesson(lessonId)
+      .then(setLesson)
+      .catch(() => {
+        showToast("Impossible de charger la leçon.", "error");
+      });
   }, [lessonId, showToast]);
 
   useEffect(() => {
@@ -116,17 +121,26 @@ export default function LessonContentEditor() {
     return () => window.removeEventListener("keydown", handler);
   }, [save]);
 
+  const insertLink = useCallback(() => {
+    const ta = editorRef.current;
+    if (!ta) return;
+    const sel = content.slice(ta.selectionStart, ta.selectionEnd);
+    insertAtCursor("[", sel ? `](${sel})` : "text](url)");
+  }, [content]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (viewMode !== "source") return;
     const ctrl = e.ctrlKey || e.metaKey;
     if (!ctrl) return;
-    if (e.key === "b") { e.preventDefault(); wrapInline("**"); }
-    else if (e.key === "i") { e.preventDefault(); wrapInline("_"); }
-    else if (e.key === "k") {
+    if (e.key === "b") {
       e.preventDefault();
-      const ta = editorRef.current;
-      if (!ta) return;
-      const sel = content.slice(ta.selectionStart, ta.selectionEnd);
-      insertAtCursor("[", sel ? `](${sel})` : "text](url)");
+      wrapInline("**");
+    } else if (e.key === "i") {
+      e.preventDefault();
+      wrapInline("_");
+    } else if (e.key === "k") {
+      e.preventDefault();
+      insertLink();
     }
   };
 
@@ -160,7 +174,15 @@ export default function LessonContentEditor() {
     const end = ta.selectionEnd;
     const before = content.slice(0, start);
     const after = content.slice(end);
-    onChange(before + prefix + (before.endsWith("\n\n") ? "" : "\n") + (content.slice(start, end) || "text") + "\n" + after);
+    const needsBreak = before.length > 0 && !before.endsWith("\n\n");
+    onChange(
+      before +
+        (needsBreak ? "\n" : "") +
+        prefix +
+        (content.slice(start, end) || "text") +
+        "\n" +
+        after,
+    );
     requestAnimationFrame(() => ta.focus());
   };
 
@@ -168,11 +190,13 @@ export default function LessonContentEditor() {
     const { url, alt, width, align } = imageOpts;
     if (!url) return;
     const style = ALIGN_CLASSES[align];
-    const imgTag = `\n<img src="${url}" alt="${alt}" width="${width}" style="${style}" />\n`;
+    const imgTag = `\n<img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" width="${width}" style="${escapeHtml(style)}" />\n`;
     const ta = editorRef.current;
     if (ta) {
       const start = ta.selectionStart;
-      onChange(content.slice(0, start) + imgTag + content.slice(ta.selectionEnd));
+      onChange(
+        content.slice(0, start) + imgTag + content.slice(ta.selectionEnd),
+      );
       requestAnimationFrame(() => {
         ta.focus();
         const pos = start + imgTag.length;
@@ -187,11 +211,18 @@ export default function LessonContentEditor() {
     const { imageUrl, alt, width, align, position, markdown } = sideOpts;
     if (!imageUrl) return;
     const imgStyle = ALIGN_CLASSES[align];
-    const imgHtml = `<img src="${imageUrl}" alt="${alt}" width="${width}" style="${imgStyle}" />`;
+    const imgHtml = `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(alt)}" width="${width}" style="${escapeHtml(imgStyle)}" />`;
     const mdHtml = `<!--sbsmd-->\n${markdown}\n<!--/sbsmd-->`;
-    const [first, second] = position === "left"
-      ? [`<div style="flex: 1; min-width: 280px;">\n      ${imgHtml}\n    </div>`, `<div style="flex: 1; min-width: 280px;">\n      ${mdHtml}\n    </div>`]
-      : [`<div style="flex: 1; min-width: 280px;">\n      ${mdHtml}\n    </div>`, `<div style="flex: 1; min-width: 280px;">\n      ${imgHtml}\n    </div>`];
+    const [first, second] =
+      position === "left"
+        ? [
+            `<div style="flex: 1; min-width: 280px;">\n      ${imgHtml}\n    </div>`,
+            `<div style="flex: 1; min-width: 280px;">\n      ${mdHtml}\n    </div>`,
+          ]
+        : [
+            `<div style="flex: 1; min-width: 280px;">\n      ${mdHtml}\n    </div>`,
+            `<div style="flex: 1; min-width: 280px;">\n      ${imgHtml}\n    </div>`,
+          ];
     const html = `\n<div style="display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;">\n  ${first}\n  ${second}\n</div>\n`;
     const ta = editorRef.current;
     if (ta) {
@@ -204,64 +235,66 @@ export default function LessonContentEditor() {
       });
     }
     setDialogMode(null);
-    setSideOpts({ imageUrl: "", alt: "", width: 800, align: "center", position: "left", markdown: "" });
+    setSideOpts({
+      imageUrl: "",
+      alt: "",
+      width: 800,
+      align: "center",
+      position: "left",
+      markdown: "",
+    });
   };
+
+  const uploadImage = useCallback(
+    async (file: File, target: "image" | "side") => {
+      setUploading(true);
+      try {
+        const url = await courseService.uploadImage(file);
+        if (target === "side") {
+          setSideOpts((prev) => ({ ...prev, imageUrl: url }));
+        } else {
+          setImageOpts((prev) => ({ ...prev, url }));
+          setDialogMode("image");
+        }
+      } catch {
+        showToast("Erreur lors de l'upload.", "error");
+      } finally {
+        setUploading(false);
+      }
+    },
+    [showToast],
+  );
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
-    try {
-      const url = await courseService.uploadImage(file);
-      if (dialogMode === "side") {
-        setSideOpts((prev) => ({ ...prev, imageUrl: url }));
-      } else {
-        setImageOpts((prev) => ({ ...prev, url }));
-      }
-    } catch {
-      showToast("Erreur lors de l'upload.", "error");
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
+    await uploadImage(file, dialogMode === "side" ? "side" : "image");
+    if (fileRef.current) fileRef.current.value = "";
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (!file || !file.type.startsWith("image/")) return;
-    setUploading(true);
-    try {
-      const url = await courseService.uploadImage(file);
-      setImageOpts((prev) => ({ ...prev, url }));
-      setDialogMode("image");
-    } catch {
-      showToast("Erreur lors de l'upload.", "error");
-    } finally {
-      setUploading(false);
-    }
+    await uploadImage(file, "image");
   };
 
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
 
-  const toolbar = [
+  const formatToolbar = [
     { icon: Bold, label: "Bold (Ctrl+B)", action: () => wrapInline("**") },
     { icon: Italic, label: "Italic (Ctrl+I)", action: () => wrapInline("_") },
     { icon: Heading2, label: "H2", action: () => wrapBlock("## ") },
     { icon: Heading3, label: "H3", action: () => wrapBlock("### ") },
     { icon: List, label: "Bullet list", action: () => wrapBlock("- ") },
-    { icon: ListOrdered, label: "Ordered list", action: () => wrapBlock("1. ") },
+    {
+      icon: ListOrdered,
+      label: "Ordered list",
+      action: () => wrapBlock("1. "),
+    },
     { icon: Code, label: "Code block", action: () => wrapBlock("```\n") },
     { icon: Quote, label: "Blockquote", action: () => wrapBlock("> ") },
-    {
-      icon: Link2, label: "Link (Ctrl+K)", action: () => {
-        const ta = editorRef.current;
-        if (!ta) return;
-        const sel = content.slice(ta.selectionStart, ta.selectionEnd);
-        insertAtCursor("[", sel ? `](${sel})` : "text](url)");
-      },
-    },
-    { icon: Columns3, label: "Side by side", action: () => { setDialogMode("side"); setSideOpts({ imageUrl: "", alt: "", width: 800, align: "center", position: "left", markdown: "" }); } },
+    { icon: Link2, label: "Link (Ctrl+K)", action: insertLink },
   ];
 
   const words = content.trim() ? content.trim().split(/\s+/).length : 0;
@@ -321,46 +354,87 @@ export default function LessonContentEditor() {
           </div>
         </div>
 
-        <div className="flex h-[calc(100vh-140px)]">
-          <div className="flex w-1/2 flex-col border-r border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-200 px-2 py-1 bg-slate-50">
-              <div className="flex items-center gap-0.5">
-                {toolbar.map((t) => (
-                  <button
-                    key={t.label}
-                    onClick={t.action}
-                    title={t.label}
-                    className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors"
-                  >
-                    <t.icon size={15} />
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-1">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+        <div className="h-[calc(100vh-140px)] flex flex-col">
+          <div className="flex items-center justify-between border-b border-slate-200 px-2 py-1 bg-slate-50">
+            <div className="flex items-center gap-0.5">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => {
+                  setDialogMode("image");
+                  setImageOpts({
+                    url: "",
+                    alt: "",
+                    width: 800,
+                    align: "center",
+                  });
+                }}
+                disabled={uploading}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-colors"
+              >
+                {uploading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <ImageIcon size={14} />
+                )}
+                {uploading ? "Uploading..." : "Image"}
+              </button>
+              <button
+                onClick={() => {
+                  setDialogMode("side");
+                  setSideOpts({
+                    imageUrl: "",
+                    alt: "",
+                    width: 800,
+                    align: "center",
+                    position: "left",
+                    markdown: "",
+                  });
+                }}
+                disabled={uploading}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-colors"
+              >
+                <Columns3 size={14} />
+                Side by side
+              </button>
+              {viewMode === "source" && (
+                <div className="flex items-center gap-0.5 ml-2 pl-2 border-l border-slate-200">
+                  {formatToolbar.map((t) => (
+                    <button
+                      key={t.label}
+                      onClick={t.action}
+                      aria-label={t.label}
+                      className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors"
+                    >
+                      <t.icon size={15} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="flex bg-slate-200 rounded-lg p-0.5">
                 <button
-                  onClick={() => {
-                    setDialogMode("image");
-                    setImageOpts({ url: "", alt: "", width: 800, align: "center" });
-                  }}
-                  disabled={uploading}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-colors"
+                  onClick={() => setViewMode("preview")}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === "preview" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
                 >
-                  {uploading ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <ImageIcon size={14} />
-                  )}
-                  {uploading ? "Uploading..." : "Image"}
+                  Preview
+                </button>
+                <button
+                  onClick={() => setViewMode("source")}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === "source" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Source
                 </button>
               </div>
             </div>
+          </div>
+          {viewMode === "source" ? (
             <textarea
               ref={editorRef}
               value={content}
@@ -371,19 +445,18 @@ export default function LessonContentEditor() {
               className="flex-1 resize-none border-0 p-4 text-sm font-mono leading-relaxed focus:outline-none bg-white dark:bg-slate-900 dark:text-slate-100"
               placeholder="Write your lesson content in Markdown..."
             />
-          </div>
-          <div className="flex w-1/2 flex-col">
-            <div className="border-b border-slate-200 px-4 py-2 bg-slate-50">
-              <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">Preview</span>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-900">
+          ) : (
+            <div className="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-900">
               {content ? (
                 <MarkdownRenderer content={content} />
               ) : (
-                <p className="text-sm text-slate-400 italic">Nothing to preview yet.</p>
+                <p className="text-sm text-slate-400 italic">
+                  Add images, text, and side-by-side layouts using the toolbar
+                  above.
+                </p>
               )}
             </div>
-          </div>
+          )}
         </div>
       </main>
 
@@ -392,19 +465,27 @@ export default function LessonContentEditor() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold">Insert Image</h3>
-              <button onClick={() => setDialogMode(null)} className="p-1 rounded hover:bg-slate-100 transition-colors">
+              <button
+                onClick={() => setDialogMode(null)}
+                className="p-1 rounded hover:bg-slate-100 transition-colors"
+              >
                 <X size={18} />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Image URL</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Image URL
+                </label>
                 <div className="flex gap-2">
                   <input
                     value={imageOpts.url}
-                    onChange={(e) => setImageOpts((p) => ({ ...p, url: e.target.value }))}
+                    onChange={(e) =>
+                      setImageOpts((p) => ({ ...p, url: e.target.value }))
+                    }
                     className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="https://..." />
+                    placeholder="https://..."
+                  />
                   <button
                     onClick={() => fileRef.current?.click()}
                     className="px-3 py-2 rounded-lg border border-slate-300 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
@@ -414,29 +495,49 @@ export default function LessonContentEditor() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Alt text</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Alt text
+                </label>
                 <input
                   value={imageOpts.alt}
-                  onChange={(e) => setImageOpts((p) => ({ ...p, alt: e.target.value }))}
+                  onChange={(e) =>
+                    setImageOpts((p) => ({ ...p, alt: e.target.value }))
+                  }
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Description..." />
+                  placeholder="Description..."
+                />
               </div>
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Width (px)</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Width (px)
+                  </label>
                   <input
                     type="number"
                     min={50}
                     max={1920}
                     value={imageOpts.width}
-                    onChange={(e) => setImageOpts((p) => ({ ...p, width: Number(e.target.value) }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    onChange={(e) =>
+                      setImageOpts((p) => ({
+                        ...p,
+                        width: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Alignment</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Alignment
+                  </label>
                   <select
                     value={imageOpts.align}
-                    onChange={(e) => setImageOpts((p) => ({ ...p, align: e.target.value as ImageOpts["align"] }))}
+                    onChange={(e) =>
+                      setImageOpts((p) => ({
+                        ...p,
+                        align: e.target.value as ImageOpts["align"],
+                      }))
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="left">Left</option>
@@ -452,17 +553,27 @@ export default function LessonContentEditor() {
                     src={imageOpts.url}
                     alt={imageOpts.alt}
                     width={Math.min(imageOpts.width, 400)}
-                    style={{ ...(ALIGN_CLASSES[imageOpts.align] ? { margin: "0 auto", display: "block" } : {}) }}
+                    style={{
+                      ...(ALIGN_CLASSES[imageOpts.align]
+                        ? { margin: "0 auto", display: "block" }
+                        : {}),
+                    }}
                     className="rounded-lg max-h-40 object-contain"
                   />
                 </div>
               )}
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setDialogMode(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+              <button
+                onClick={() => setDialogMode(null)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              >
                 Cancel
               </button>
-              <button onClick={insertImageHtml} className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-bold text-white hover:bg-indigo-700 transition-colors">
+              <button
+                onClick={insertImageHtml}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-bold text-white hover:bg-indigo-700 transition-colors"
+              >
                 Insert
               </button>
             </div>
@@ -475,19 +586,27 @@ export default function LessonContentEditor() {
           <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold">Side-by-Side Layout</h3>
-              <button onClick={() => setDialogMode(null)} className="p-1 rounded hover:bg-slate-100 transition-colors">
+              <button
+                onClick={() => setDialogMode(null)}
+                className="p-1 rounded hover:bg-slate-100 transition-colors"
+              >
                 <X size={18} />
               </button>
             </div>
             <div className="space-y-4">
               <div className="flex gap-4 items-end">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Image URL</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Image URL
+                  </label>
                   <input
                     value={sideOpts.imageUrl}
-                    onChange={(e) => setSideOpts((p) => ({ ...p, imageUrl: e.target.value }))}
+                    onChange={(e) =>
+                      setSideOpts((p) => ({ ...p, imageUrl: e.target.value }))
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="https://..." />
+                    placeholder="https://..."
+                  />
                 </div>
                 <button
                   onClick={() => fileRef.current?.click()}
@@ -498,28 +617,48 @@ export default function LessonContentEditor() {
               </div>
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Alt text</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Alt text
+                  </label>
                   <input
                     value={sideOpts.alt}
-                    onChange={(e) => setSideOpts((p) => ({ ...p, alt: e.target.value }))}
+                    onChange={(e) =>
+                      setSideOpts((p) => ({ ...p, alt: e.target.value }))
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Description..." />
+                    placeholder="Description..."
+                  />
                 </div>
                 <div className="w-24">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Width (px)</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Width (px)
+                  </label>
                   <input
                     type="number"
                     min={50}
                     max={1920}
                     value={sideOpts.width}
-                    onChange={(e) => setSideOpts((p) => ({ ...p, width: Number(e.target.value) }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    onChange={(e) =>
+                      setSideOpts((p) => ({
+                        ...p,
+                        width: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
                 <div className="w-28">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Alignment</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Alignment
+                  </label>
                   <select
                     value={sideOpts.align}
-                    onChange={(e) => setSideOpts((p) => ({ ...p, align: e.target.value as ImageOpts["align"] }))}
+                    onChange={(e) =>
+                      setSideOpts((p) => ({
+                        ...p,
+                        align: e.target.value as ImageOpts["align"],
+                      }))
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="left">Left</option>
@@ -528,10 +667,17 @@ export default function LessonContentEditor() {
                   </select>
                 </div>
                 <div className="w-28">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Image side</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Image side
+                  </label>
                   <select
                     value={sideOpts.position}
-                    onChange={(e) => setSideOpts((p) => ({ ...p, position: e.target.value as "left" | "right" }))}
+                    onChange={(e) =>
+                      setSideOpts((p) => ({
+                        ...p,
+                        position: e.target.value as "left" | "right",
+                      }))
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="left">Left</option>
@@ -540,10 +686,14 @@ export default function LessonContentEditor() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Text side (Markdown)</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Text side (Markdown)
+                </label>
                 <textarea
                   value={sideOpts.markdown}
-                  onChange={(e) => setSideOpts((p) => ({ ...p, markdown: e.target.value }))}
+                  onChange={(e) =>
+                    setSideOpts((p) => ({ ...p, markdown: e.target.value }))
+                  }
                   rows={6}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="Write your **markdown** content here..."
@@ -554,23 +704,45 @@ export default function LessonContentEditor() {
                   <p className="text-xs text-slate-500 mb-2">Preview</p>
                   <div className="flex gap-6 items-start">
                     {sideOpts.position === "left" && (
-                      <img src={sideOpts.imageUrl} alt={sideOpts.alt} width={Math.min(sideOpts.width, 240)} className="rounded-lg max-h-32 object-contain" />
+                      <img
+                        src={sideOpts.imageUrl}
+                        alt={sideOpts.alt}
+                        width={Math.min(sideOpts.width, 240)}
+                        className="rounded-lg max-h-32 object-contain"
+                      />
                     )}
                     <div className="flex-1 text-xs text-slate-400 italic p-2 border border-dashed border-slate-300 rounded">
-                      {sideOpts.markdown ? sideOpts.markdown.split('\n').slice(0, 3).map((l, i) => <p key={i}>{l}</p>) : "Text side"}
+                      {sideOpts.markdown
+                        ? sideOpts.markdown
+                            .split("\n")
+                            .slice(0, 3)
+                            .map((l, i) => <p key={i}>{l}</p>)
+                        : "Text side"}
                     </div>
                     {sideOpts.position === "right" && (
-                      <img src={sideOpts.imageUrl} alt={sideOpts.alt} width={Math.min(sideOpts.width, 240)} className="rounded-lg max-h-32 object-contain" />
+                      <img
+                        src={sideOpts.imageUrl}
+                        alt={sideOpts.alt}
+                        width={Math.min(sideOpts.width, 240)}
+                        className="rounded-lg max-h-32 object-contain"
+                      />
                     )}
                   </div>
                 </div>
               )}
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setDialogMode(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+              <button
+                onClick={() => setDialogMode(null)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              >
                 Cancel
               </button>
-              <button onClick={insertSideLayout} disabled={!sideOpts.imageUrl} className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              <button
+                onClick={insertSideLayout}
+                disabled={!sideOpts.imageUrl}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
                 Insert
               </button>
             </div>
