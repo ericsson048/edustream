@@ -20,8 +20,10 @@ class UserSerializer(serializers.ModelSerializer):
             "website",
             "title",
             "date_joined",
+            "last_seen",
+            "preferences",
         ]
-        read_only_fields = ["id", "stripe_account_id", "stripe_customer_id", "date_joined"]
+        read_only_fields = ["id", "stripe_account_id", "stripe_customer_id", "date_joined", "last_seen"]
 
 
 class RegisterSerializer(serializers.ModelSerializer):

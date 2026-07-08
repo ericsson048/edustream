@@ -120,6 +120,31 @@ class FocusSession(models.Model):
     completed_at = models.DateTimeField(auto_now_add=True)
 
 
+class UserActivity(models.Model):
+    class Kind(models.TextChoices):
+        LESSON_STARTED = "LESSON_STARTED", "Lesson started"
+        LESSON_COMPLETED = "LESSON_COMPLETED", "Lesson completed"
+        QUIZ_STARTED = "QUIZ_STARTED", "Quiz started"
+        QUIZ_PASSED = "QUIZ_PASSED", "Quiz passed"
+        QUIZ_FAILED = "QUIZ_FAILED", "Quiz failed"
+        COURSE_ENROLLED = "COURSE_ENROLLED", "Course enrolled"
+        COURSE_COMPLETED = "COURSE_COMPLETED", "Course completed"
+        CERTIFICATE_CLAIMED = "CERTIFICATE_CLAIMED", "Certificate claimed"
+        NOTE_CREATED = "NOTE_CREATED", "Note created"
+        ASSIGNMENT_SUBMITTED = "ASSIGNMENT_SUBMITTED", "Assignment submitted"
+        FOCUS_SESSION = "FOCUS_SESSION", "Focus session completed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="activities")
+    kind = models.CharField(max_length=30, choices=Kind.choices)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name_plural = "user activities"
+        ordering = ["-created_at"]
+
+
 class Notification(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")

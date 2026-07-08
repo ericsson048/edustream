@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Assignment, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, Submission, UserSkill
+from .models import Assignment, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, Submission, UserActivity, UserSkill
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -98,3 +98,37 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = "__all__"
         read_only_fields = ["user"]
+
+
+class UserActivitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserActivity
+        fields = "__all__"
+        read_only_fields = ["user"]
+
+
+class UserStatsSerializer(serializers.Serializer):
+    courses_in_progress = serializers.IntegerField()
+    courses_completed = serializers.IntegerField()
+    lessons_completed = serializers.IntegerField()
+    lessons_completed_today = serializers.IntegerField()
+    streak_days = serializers.IntegerField()
+    total_focus_minutes = serializers.IntegerField()
+    average_quiz_score = serializers.FloatField()
+    total_ai_tokens_used = serializers.IntegerField()
+    skills_earned = serializers.ListField(child=serializers.CharField())
+    last_activity = serializers.DateTimeField(allow_null=True)
+
+
+class RecommendedCourseSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    title = serializers.CharField()
+    slug = serializers.SlugField()
+    thumbnail_url = serializers.URLField(allow_blank=True)
+    category_name = serializers.CharField(allow_null=True)
+    level = serializers.CharField()
+    estimated_hours = serializers.IntegerField(allow_null=True)
+    average_rating = serializers.FloatField()
+    review_count = serializers.IntegerField()
+    enrolled_count = serializers.IntegerField()
+    reason = serializers.CharField()

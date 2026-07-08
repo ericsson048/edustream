@@ -1,10 +1,29 @@
-from django.db.models import Q
+from collections import Counter
+from datetime import date, datetime, timedelta
+
+from django.db.models import Avg, Count, Q
+from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import Assignment, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, Submission, UserSkill
+from apps.ai_tutor.models import AITutorMessage
+
+from .models import (
+    Assignment,
+    FocusSession,
+    Notification,
+    Quiz,
+    QuizAttempt,
+    QuizQuestion,
+    Skill,
+    Submission,
+    UserActivity,
+    UserSkill,
+)
 from .serializers import (
     AssignmentSerializer,
     FocusSessionSerializer,
@@ -12,11 +31,14 @@ from .serializers import (
     QuizAttemptSerializer,
     QuizQuestionSerializer,
     QuizSerializer,
+    RecommendedCourseSerializer,
     SkillSerializer,
     SubmissionSerializer,
+    UserActivitySerializer,
     UserSkillSerializer,
+    UserStatsSerializer,
 )
-from apps.courses.models import Enrollment
+from apps.courses.models import Course, Enrollment, Progress, CourseReview
 from apps.courses.permissions import is_admin, is_instructor_or_admin, owns_learning_object
 
 
@@ -206,3 +228,188 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)
+
+
+class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = UserActivitySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UserActivity.objects.filter(user=self.request.user)
+
+
+class UserStatsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        now = timezone.now()
+        today = now.date()
+        yesterday = today - timedelta(days=1)
+
+        enrollments = Enrollment.objects.filter(student=user, is_active=True)
+        courses_in_progress = enrollments.count()
+
+        completed_course_ids = set()
+        for enrollment in enrollments:
+            total = enrollment.course.modules.aggregate(c=Count("lessons"))["c"] or 0
+            done = Progress.objects.filter(enrollment=enrollment, is_completed=True).count()
+            if total > 0 and done >= total:
+                completed_course_ids.add(enrollment.course_id)
+        courses_completed = len(completed_course_ids)
+
+        lessons_completed = Progress.objects.filter(enrollment__student=user, is_completed=True).count()
+
+        today_start = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        lessons_completed_today = Progress.objects.filter(
+            enrollment__student=user, is_completed=True, updated_at__gte=today_start
+        ).count()
+
+        streak_days = 0
+        check = today
+        while True:
+            day_start = timezone.make_aware(datetime.combine(check, datetime.min.time()))
+            day_end = day_start + timedelta(days=1)
+            has_activity = UserActivity.objects.filter(
+                user=user, created_at__gte=day_start, created_at__lt=day_end
+            ).exists()
+            if has_activity:
+                streak_days += 1
+                check -= timedelta(days=1)
+            else:
+                break
+
+        focus_qs = FocusSession.objects.filter(user=user, mode="WORK")
+        total_focus_seconds = sum(s.duration_seconds for s in focus_qs)
+
+        avg_score = QuizAttempt.objects.filter(student=user).aggregate(avg=Avg("score"))["avg"] or 0.0
+
+        ai_tokens = AITutorMessage.objects.filter(user=user).count()
+
+        skills_earned = list(
+            UserSkill.objects.filter(user=user, status=UserSkill.Status.COMPLETED).values_list(
+                "skill__title", flat=True
+            )
+        )
+
+        last_activity = (
+            UserActivity.objects.filter(user=user).values_list("created_at", flat=True).first()
+        )
+
+        data = {
+            "courses_in_progress": courses_in_progress,
+            "courses_completed": courses_completed,
+            "lessons_completed": lessons_completed,
+            "lessons_completed_today": lessons_completed_today,
+            "streak_days": streak_days,
+            "total_focus_minutes": round(total_focus_seconds / 60),
+            "average_quiz_score": float(avg_score),
+            "total_ai_tokens_used": ai_tokens,
+            "skills_earned": skills_earned,
+            "last_activity": last_activity,
+        }
+        return Response(UserStatsSerializer(data).data)
+
+
+class RecommendedCoursesView(ListAPIView):
+    serializer_class = RecommendedCourseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        course_ids = set()
+
+        if user.role == "STUDENT":
+            enrolled_ids = set(
+                Enrollment.objects.filter(student=user, is_active=True).values_list("course_id", flat=True)
+            )
+            user_skills = UserSkill.objects.filter(user=user).select_related("skill")
+            skill_course_ids = set()
+            for us in user_skills:
+                for course in us.skill.related_courses.all():
+                    skill_course_ids.add(course.id)
+
+            enrolled_courses = Course.objects.filter(id__in=enrolled_ids)
+            cat_counts = Counter()
+            for course in enrolled_courses:
+                if course.category_id:
+                    cat_counts[course.category_id] += 1
+            top_cats = [c for c, _ in cat_counts.most_common(3)]
+
+            cat_course_ids = set(
+                Course.objects.filter(category_id__in=top_cats)
+                .exclude(id__in=enrolled_ids)
+                .values_list("id", flat=True)
+            )
+
+            top_rated_ids = set(
+                Course.objects.annotate(avg_rating=Avg("reviews__rating"))
+                .filter(avg_rating__gte=4.5)
+                .exclude(id__in=enrolled_ids)
+                .order_by("-avg_rating")[:5]
+                .values_list("id", flat=True)
+            )
+
+            course_ids = (skill_course_ids | cat_course_ids | top_rated_ids) - enrolled_ids
+
+        if not course_ids:
+            course_ids = set(
+                Course.objects.filter(is_published=True)
+                .annotate(avg_rating=Avg("reviews__rating"))
+                .order_by("-avg_rating", "-created_at")[:10]
+                .values_list("id", flat=True)
+            )
+
+        return (
+            Course.objects.filter(id__in=course_ids, is_published=True)
+            .annotate(
+                avg_rating=Avg("reviews__rating"),
+                review_count=Count("reviews"),
+                enrolled_count=Count("enrollments", filter=Q(enrollments__is_active=True)),
+            )
+            .select_related("category")
+        )
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        enrolled_ids = set()
+        if request.user.role == "STUDENT":
+            enrolled_ids = set(
+                Enrollment.objects.filter(student=request.user, is_active=True).values_list("course_id", flat=True)
+            )
+
+        user_skills = set(
+            UserSkill.objects.filter(user=request.user, status=UserSkill.Status.COMPLETED)
+            .values_list("skill__title", flat=True)
+        )
+
+        results = []
+        for course in queryset:
+            if course.id in enrolled_ids:
+                continue
+            reason = self._get_reason(course, user_skills)
+            results.append({
+                "id": course.id,
+                "title": course.title,
+                "slug": course.slug,
+                "thumbnail_url": course.thumbnail_url or "",
+                "category_name": course.category.name if course.category else None,
+                "level": course.level,
+                "estimated_hours": course.estimated_hours,
+                "average_rating": float(course.avg_rating or 0),
+                "review_count": course.review_count,
+                "enrolled_count": course.enrolled_count,
+                "reason": reason,
+            })
+        return Response(results[:10])
+
+    def _get_reason(self, course, user_skills):
+        common = set(course.skills.values_list("title", flat=True)) & user_skills
+        if common:
+            return f"Complète tes compétences en {', '.join(list(common)[:2])}"
+        if course.avg_rating and course.avg_rating >= 4.5:
+            rating = round(course.avg_rating, 1)
+            return f"Très bien noté ({rating}/5) par les étudiants"
+        if course.category:
+            return f"Populaire dans {course.category.name}"
+        return "Recommandé pour toi"

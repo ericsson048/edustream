@@ -59,6 +59,41 @@ export interface QuizAttemptItem {
   submitted_at?: string | null;
 }
 
+export interface UserStats {
+  courses_in_progress: number;
+  courses_completed: number;
+  lessons_completed: number;
+  lessons_completed_today: number;
+  streak_days: number;
+  total_focus_minutes: number;
+  average_quiz_score: number;
+  total_ai_tokens_used: number;
+  skills_earned: string[];
+  last_activity: string | null;
+}
+
+export interface RecommendedCourseItem {
+  id: string;
+  title: string;
+  slug: string;
+  thumbnail_url: string;
+  category_name: string | null;
+  level: string;
+  estimated_hours: number | null;
+  average_rating: number;
+  review_count: number;
+  enrolled_count: number;
+  reason: string;
+}
+
+export interface UserActivityItem {
+  id: string;
+  user: string;
+  kind: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 export const learningService = {
   async listAssignments(): Promise<AssignmentItem[]> {
     const { data } = await apiClient.get<PaginatedResponse<AssignmentItem>>('/assignments/');
@@ -178,5 +213,18 @@ export const learningService = {
   },
   async deleteQuiz(id: string): Promise<void> {
     await apiClient.delete(`/quizzes/${id}/`);
+  },
+
+  async getUserStats(): Promise<UserStats> {
+    const { data } = await apiClient.get<UserStats>('/me/stats/');
+    return data;
+  },
+  async getRecommendedCourses(): Promise<RecommendedCourseItem[]> {
+    const { data } = await apiClient.get<RecommendedCourseItem[]>('/courses/recommended/');
+    return data;
+  },
+  async listActivities(): Promise<UserActivityItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<UserActivityItem>>('/activities/');
+    return data.results ?? [];
   },
 };
