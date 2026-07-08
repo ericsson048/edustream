@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy, MessageSquare, User } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,6 +16,8 @@ export default function AdminSidebar() {
     { name: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
     { name: 'Financial Reports', icon: TrendingUp, href: '/admin/reports' },
     { name: 'Support Tickets', icon: LifeBuoy, href: '/admin/support' },
+    { name: 'Messages', icon: MessageSquare, href: '/admin/messages' },
+    { name: 'Profile', icon: User, href: '/admin/profile' },
     { name: 'Settings', icon: Settings, href: '/admin/settings' },
   ];
 

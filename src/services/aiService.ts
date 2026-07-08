@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import type { PaginatedResponse } from './common';
 import { buildWebSocketUrl } from './realtime';
 
 export interface GeneratedCourseOutline {
@@ -66,6 +67,28 @@ export interface GeneratedLessonPackage {
   quiz: GeneratedQuizPackage;
 }
 
+export interface TutorMessageItem {
+  id: string;
+  prompt: string;
+  response: string;
+  created_at: string;
+  conversation: string;
+}
+
+export interface ConversationItem {
+  id: string;
+  title: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReasoningResult {
+  content: string;
+  reasoning_details?: Record<string, unknown>;
+  role: string;
+}
+
 export interface GeneratedModulePackage {
   title: string;
   description: string;
@@ -77,9 +100,36 @@ export interface GeneratedModulePackage {
 }
 
 export const aiService = {
-  async askTutor(prompt: string): Promise<string> {
-    const { data } = await apiClient.post<{ response: string }>('/ai/tutor/chat/', { prompt });
-    return data.response;
+  async listConversations(): Promise<ConversationItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<ConversationItem>>('/ai/tutor/conversations/');
+    return data.results ?? [];
+  },
+  async createConversation(title?: string): Promise<ConversationItem> {
+    const { data } = await apiClient.post<ConversationItem>('/ai/tutor/conversations/', { title: title || 'New conversation' });
+    return data;
+  },
+  async updateConversation(id: string, payload: { title: string }): Promise<ConversationItem> {
+    const { data } = await apiClient.patch<ConversationItem>(`/ai/tutor/conversations/${id}/`, payload);
+    return data;
+  },
+  async deleteConversation(id: string): Promise<void> {
+    await apiClient.delete(`/ai/tutor/conversations/${id}/`);
+  },
+  async listMessages(conversationId: string): Promise<TutorMessageItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<TutorMessageItem>>(`/ai/tutor/messages/?conversation=${conversationId}`);
+    return data.results ?? [];
+  },
+  async askTutor(prompt: string, conversation_id?: string): Promise<{ response: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }> {
+    const { data } = await apiClient.post<{ response: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }>('/ai/tutor/chat/', { prompt, conversation_id });
+    return data;
+  },
+  async askTutorWithReasoning(prompt: string, history?: { role: string; content: string; reasoning_details?: Record<string, unknown> }[]): Promise<ReasoningResult> {
+    const { data } = await apiClient.post<ReasoningResult>('/ai/tutor/reasoning/', { prompt, history });
+    return data;
+  },
+  async continueReasoning(followUp: string, assistantMessage: { content: string; reasoning_details?: Record<string, unknown> }, history?: { role: string; content: string; reasoning_details?: Record<string, unknown> }[]): Promise<ReasoningResult> {
+    const { data } = await apiClient.post<ReasoningResult>('/ai/tutor/reasoning/', { follow_up: followUp, assistant_message: assistantMessage, history });
+    return data;
   },
   async generateCourse(payload: { prompt: string; title?: string; category?: string; level?: string }): Promise<GeneratedCourseOutline> {
     const { data } = await apiClient.post<GeneratedCourseOutline>('/ai/instructor/generate-course/', payload);

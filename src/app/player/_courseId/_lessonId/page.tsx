@@ -1,5 +1,5 @@
 ﻿import { Skeleton } from "../../../../components/ui/skeleton";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Award,
@@ -18,12 +18,14 @@ import {
   MessageSquare,
   PenLine,
   PlayCircle,
+  Plus,
   Radio,
   Save,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { aiService } from "../../../../services/aiService";
+import { aiService, type ConversationItem } from "../../../../services/aiService";
 import { courseService } from "../../../../services/courseService";
 import { getApiErrorMessage } from "../../../../services/apiClient";
 import {
@@ -43,10 +45,21 @@ import type {
 } from "../../../../types/lms";
 import { useToast } from "../../../../contexts/ToastContext";
 
+interface Usage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 type TutorMessage = {
   role: "user" | "ai";
   text: string;
+  usage?: Usage;
 };
+
+function lessonConvTitle(lesson?: { title: string; moduleTitle?: string }) {
+  return lesson ? `Lesson: ${lesson.moduleTitle ? `${lesson.moduleTitle} - ` : ''}${lesson.title}` : 'Player Tutor';
+}
 
 function renderContentBlocks(blocks: ContentBlock[]) {
   return blocks
@@ -195,6 +208,7 @@ export default function CoursePlayer() {
     Record<string, QuizAttemptItem[]>
   >({});
   const [activeLessonId, setActiveLessonId] = useState<string>(lessonId || "");
+  useEffect(() => { setActiveLessonId(lessonId || ""); }, [lessonId]);
   const [activeTab, setActiveTab] = useState<
     "content" | "notes" | "resources" | "tutor"
   >("content");
@@ -204,6 +218,11 @@ export default function CoursePlayer() {
   const [tutorInput, setTutorInput] = useState("");
   const [tutorMessages, setTutorMessages] = useState<TutorMessage[]>([]);
   const [isTutorLoading, setIsTutorLoading] = useState(false);
+  const [tutorConvId, setTutorConvId] = useState<string | null>(null);
+  const tutorMessagesEndRef = useRef<HTMLDivElement>(null);
+  const [tutorConversations, setTutorConversations] = useState<ConversationItem[]>([]);
+  const [showTutorConvList, setShowTutorConvList] = useState(false);
+  const [tutorTotalTokens, setTutorTotalTokens] = useState(0);
   const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
   const [hasCertificate, setHasCertificate] = useState(false);
   const [isClaimingCertificate, setIsClaimingCertificate] = useState(false);
@@ -231,7 +250,7 @@ export default function CoursePlayer() {
   );
   const activeProgress = useMemo(
     () =>
-      progressItems.find((item) => item.lesson === activeLesson?.id) || null,
+      progressItems.find((item) => String(item.lesson) === String(activeLesson?.id)) || null,
     [activeLesson?.id, progressItems],
   );
   const activeNote = useMemo(
@@ -450,16 +469,18 @@ export default function CoursePlayer() {
         },
       );
       setProgressItems((prev) => {
+        const lessonId = String(updated.lesson);
         const withoutCurrent = prev.filter(
-          (item) => item.lesson !== updated.lesson,
+          (item) => String(item.lesson) !== lessonId,
         );
         return [...withoutCurrent, updated];
       });
       showToast(
-        isCompleted ? "Lesson marked as completed." : "Progress saved.",
+        isCompleted ? "Lesson marquée comme terminée." : "Progression sauvegardée.",
         "success",
       );
-    } catch {
+    } catch (err) {
+      console.error("saveProgress error:", err);
       showToast("Impossible de sauvegarder la progression.", "error");
     } finally {
       setIsSavingProgress(false);
@@ -488,16 +509,97 @@ export default function CoursePlayer() {
     }
   }
 
+  useEffect(() => {
+    if (!activeLesson) return;
+    const title = lessonConvTitle(activeLesson);
+    aiService.listConversations().then((list) => {
+      setTutorConversations(list);
+      setTutorConvId(null);
+      setTutorMessages([]);
+      setTutorTotalTokens(0);
+    }).catch(() => {});
+  }, [activeLesson?.id]);
+
+  async function loadTutorMessages(convId: string) {
+    try {
+      const items = await aiService.listMessages(convId);
+      const msgs: TutorMessage[] = [];
+      let tokens = 0;
+      for (const item of items) {
+        msgs.push({ role: "user", text: item.prompt });
+        msgs.push({ role: "ai", text: item.response });
+      }
+      setTutorMessages(msgs);
+      setTutorTotalTokens(tokens);
+    } catch {
+      setTutorMessages([]);
+    }
+  }
+
+  useEffect(() => {
+    tutorMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [tutorMessages]);
+
+  async function handleNewTutorConv() {
+    if (!activeLesson) return;
+    try {
+      const conv = await aiService.createConversation(lessonConvTitle(activeLesson));
+      setTutorConversations((prev) => [conv, ...prev]);
+      setTutorConvId(conv.id);
+      setTutorMessages([]);
+      setTutorTotalTokens(0);
+      setShowTutorConvList(false);
+    } catch {
+      showToast('Erreur creation conversation.', 'error');
+    }
+  }
+
+  async function handleDeleteTutorConv(id: string) {
+    try {
+      await aiService.deleteConversation(id);
+      const updated = tutorConversations.filter((c) => c.id !== id);
+      setTutorConversations(updated);
+      if (tutorConvId === id) {
+        if (updated.length > 0) {
+          setTutorConvId(updated[0].id);
+          loadTutorMessages(updated[0].id);
+        } else {
+          const conv = await aiService.createConversation(lessonConvTitle(activeLesson));
+          setTutorConversations([conv]);
+          setTutorConvId(conv.id);
+          setTutorMessages([]);
+          setTutorTotalTokens(0);
+        }
+      }
+    } catch {
+      showToast('Erreur suppression.', 'error');
+    }
+  }
+
   async function handleAskTutor() {
     if (!activeLesson || !tutorInput.trim()) return;
+    let convId = tutorConvId;
+    if (!convId) {
+      try {
+        const conv = await aiService.createConversation(lessonConvTitle(activeLesson));
+        setTutorConversations((prev) => [conv, ...prev]);
+        setTutorConvId(conv.id);
+        convId = conv.id;
+      } catch {
+        showToast('Erreur creation conversation.', 'error');
+        return;
+      }
+    }
     const prompt = `Course: ${course?.title}\nModule: ${activeLesson.moduleTitle}\nLesson: ${activeLesson.title}\nContent:\n${activeLesson.content}\n\nStudent question: ${tutorInput.trim()}`;
     const question = tutorInput.trim();
     setTutorMessages((prev) => [...prev, { role: "user", text: question }]);
     setTutorInput("");
     setIsTutorLoading(true);
     try {
-      const response = await aiService.askTutor(prompt);
-      setTutorMessages((prev) => [...prev, { role: "ai", text: response }]);
+      const result = await aiService.askTutor(prompt, convId);
+      const usage = result.usage;
+      if (usage?.total_tokens) setTutorTotalTokens((prev) => prev + usage.total_tokens);
+      setTutorMessages((prev) => [...prev, { role: "ai", text: result.response, usage }]);
     } catch {
       showToast("AI tutor unavailable right now.", "error");
     } finally {
@@ -781,6 +883,12 @@ export default function CoursePlayer() {
                   </button>
                 ) : null}
                 {!["QUIZ", "ASSIGNMENT", "LIVE"].includes(activeLesson.lesson_type || "") && (
+                  activeProgress?.is_completed ? (
+                    <span className="inline-flex items-center gap-2 rounded-2xl bg-emerald-100 px-5 py-3 text-sm font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                      <CheckCircle className="h-4 w-4" />
+                      Terminé
+                    </span>
+                  ) : (
                   <button
                     onClick={() => saveProgress(100, true)}
                     disabled={isSavingProgress}
@@ -793,6 +901,7 @@ export default function CoursePlayer() {
                     )}
                     {isSavingProgress ? "Saving..." : "Mark Complete"}
                   </button>
+                  )
                 )}
               </div>
             </div>
@@ -1140,26 +1249,52 @@ export default function CoursePlayer() {
             )}
 
             {activeTab === "tutor" && (
-              <section className="flex flex-col rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
-                    <Sparkles className="h-5 w-5 text-blue-600" />
-                  </span>
-                  <div>
-                    <h3 className="text-xl font-bold">AI Tutor</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Ask questions about the active lesson and get contextual
-                      help.
-                    </p>
+              <section className="flex flex-col rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" style={{ height: '600px' }}>
+                <div className="shrink-0 px-8 pt-8">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold">AI Tutor</h3>
+                        <button onClick={() => setShowTutorConvList(!showTutorConvList)} className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors">
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Ask questions about the active lesson and get contextual help.</p>
+                    </div>
+                    <button onClick={handleNewTutorConv} className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors" title="New conversation">
+                      <Plus className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                <div className="mt-6 space-y-3">
+
+                {showTutorConvList && (
+                  <div className="shrink-0 border-t border-slate-200 max-h-40 overflow-y-auto bg-slate-50">
+                    {tutorConversations.map((conv) => (
+                      <div
+                        key={conv.id}
+                        className={'flex items-center justify-between px-8 py-2.5 text-sm cursor-pointer hover:bg-slate-100 transition-colors ' + (conv.id === tutorConvId ? 'bg-blue-50' : '')}
+                        onClick={() => { setTutorConvId(conv.id); setShowTutorConvList(false); loadTutorMessages(conv.id); }}
+                      >
+                        <span className="truncate text-slate-700">{conv.title}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteTutorConv(conv.id); }}
+                          className="text-slate-400 hover:text-red-500 shrink-0 ml-2"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div ref={tutorMessagesEndRef} className="mt-6 flex-1 overflow-y-auto px-8 space-y-3 scroll-smooth">
                   {tutorMessages.length === 0 && !isTutorLoading && (
                     <div className="flex flex-col items-center py-10 text-center">
                       <MessageSquare className="mb-3 h-8 w-8 text-slate-300 dark:text-slate-600" />
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Pose ta première question sur cette leçon.
-                      </p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Pose ta première question sur cette leçon.</p>
                     </div>
                   )}
                   {tutorMessages.map((message, index) => (
@@ -1183,7 +1318,14 @@ export default function CoursePlayer() {
                         >
                           {message.role === "ai" ? "AI Tutor" : "You"}
                         </p>
-                        <p className="leading-relaxed">{message.text}</p>
+                        {message.role === "ai" ? (
+                          <MarkdownRenderer content={message.text} />
+                        ) : (
+                          <p className="leading-relaxed">{message.text}</p>
+                        )}
+                        {message.usage && (
+                          <p className="mt-1.5 text-[10px] text-slate-400 text-right">{message.usage.total_tokens} tokens</p>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1196,26 +1338,32 @@ export default function CoursePlayer() {
                     </div>
                   )}
                 </div>
-                <div className="mt-6 flex gap-3">
-                  <input
-                    value={tutorInput}
-                    onChange={(event) => setTutorInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault();
-                        handleAskTutor();
-                      }
-                    }}
-                    placeholder="Ask a question about this lesson..."
-                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                  />
-                  <button
-                    onClick={handleAskTutor}
-                    disabled={isTutorLoading || !tutorInput.trim()}
-                    className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    Ask
-                  </button>
+                <div className="shrink-0 px-8 pb-8 pt-4">
+                  <div className="flex gap-3">
+                    <input
+                      value={tutorInput}
+                      onChange={(event) => setTutorInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          handleAskTutor();
+                        }
+                      }}
+                      placeholder="Ask a question about this lesson..."
+                      className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                    <button
+                      onClick={handleAskTutor}
+                      disabled={isTutorLoading || !tutorInput.trim()}
+                      className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      Ask
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between px-1 mt-2">
+                    <p className="text-[10px] text-slate-400">{tutorTotalTokens > 0 && `${tutorTotalTokens} tokens used`}</p>
+                    <p className="text-[10px] text-slate-400">EduStream AI</p>
+                  </div>
                 </div>
               </section>
             )}
@@ -1304,7 +1452,7 @@ export default function CoursePlayer() {
                     <div className="border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                       {moduleLessons.map((lesson, lessonIndex) => {
                         const lessonProgress = progressItems.find(
-                          (item) => item.lesson === lesson.id,
+                          (item) => String(item.lesson) === String(lesson.id),
                         );
                         const isActive = activeLesson.id === lesson.id;
                         const hasResources =

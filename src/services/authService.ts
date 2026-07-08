@@ -24,7 +24,7 @@ export const authService = {
     return data;
   },
 
-  async updateMe(payload: Partial<Pick<AuthUser, 'full_name' | 'email'>>): Promise<AuthUser> {
+  async updateMe(payload: Partial<Pick<AuthUser, 'full_name' | 'email' | 'title' | 'bio' | 'location' | 'website' | 'avatar_url'>>): Promise<AuthUser> {
     const { data } = await apiClient.patch<AuthUser>('/auth/me/', payload);
     return data;
   },

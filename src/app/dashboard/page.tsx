@@ -83,11 +83,12 @@ export default function Dashboard() {
     return enrollments.map((enrollment) => {
       const course = coursesMap[enrollment.course];
       const lessons = (course?.modules || []).flatMap((module) => module.lessons || []);
-      const progressForCourse = progressItems.filter((item) => item.enrollment === enrollment.id);
+      const enrollmentId = String(enrollment.id);
+      const progressForCourse = progressItems.filter((item) => String(item.enrollment) === enrollmentId);
       const completedLessons = progressForCourse.filter((item) => item.is_completed).length;
       const totalLessons = lessons.length;
       const progressPercent = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0;
-      const firstUnfinished = lessons.find((lesson) => !progressForCourse.some((item) => item.lesson === lesson.id && item.is_completed));
+      const firstUnfinished = lessons.find((lesson) => !progressForCourse.some((item) => String(item.lesson) === String(lesson.id) && item.is_completed));
       return {
         enrollment,
         course,

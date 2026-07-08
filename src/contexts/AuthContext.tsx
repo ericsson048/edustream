@@ -11,7 +11,7 @@ interface AuthContextValue {
   register: (payload: RegisterPayload) => Promise<AuthUser>;
   logout: () => void;
   refreshMe: () => Promise<void>;
-  updateMe: (payload: Partial<Pick<AuthUser, 'full_name' | 'email'>>) => Promise<AuthUser>;
+  updateMe: (payload: Partial<Pick<AuthUser, 'full_name' | 'email' | 'title' | 'bio' | 'location' | 'website' | 'avatar_url'>>) => Promise<AuthUser>;
   hasRole: (roles: UserRole[]) => boolean;
 }
 

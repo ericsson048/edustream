@@ -1,6 +1,6 @@
 ﻿import Sidebar from '../../components/Sidebar';
 import Header from '../../components/Header';
-import { User, Mail, Lock, Bell, Camera, Save } from 'lucide-react';
+import { User, Mail, Camera, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -10,7 +10,6 @@ export default function Profile() {
   const { showToast } = useToast();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [bio, setBio] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -48,12 +47,12 @@ export default function Profile() {
               <button className="px-6 py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 whitespace-nowrap">Security</button>
               <button className="px-6 py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 whitespace-nowrap">Notifications</button>
             </div>
-            
+
             <div className="p-8">
               <div className="flex items-center gap-6 mb-8">
                 <div className="relative">
                   <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-md">
-                    <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="User" className="w-full h-full object-cover" />
+                    <img src={user?.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'} alt="User" className="w-full h-full object-cover" />
                   </div>
                   <button className="absolute bottom-0 right-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors border-2 border-white">
                     <Camera className="w-4 h-4" />
@@ -92,11 +91,6 @@ export default function Profile() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Bio</label>
-                  <textarea rows={4} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about you..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors resize-none"></textarea>
-                </div>
-
                 <div className="pt-6 border-t border-slate-100 flex justify-end">
                   <button type="submit" className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
                     <Save className="w-4 h-4" />
@@ -111,4 +105,3 @@ export default function Profile() {
     </div>
   );
 }
-

@@ -20,10 +20,15 @@ import Assignments from "./app/assignments/page";
 import SubmitAssignment from "./app/assignments/_id/submit/page";
 import Grades from "./app/grades/page";
 import Community from "./app/community/page";
+import GroupDetail from "./app/community/groups/_id/page";
 import Messages from "./app/messages/page";
 import Profile from "./app/profile/page";
 import Certificate from "./app/certificate/page";
 import InstructorProfile from "./app/instructor/profile/_id/page";
+import InstructorProfileSettings from "./app/instructor/profile/page";
+import InstructorMessages from "./app/instructor/messages/page";
+import AdminMessages from "./app/admin/messages/page";
+import AdminProfile from "./app/admin/profile/page";
 import Chatbot from "./components/Chatbot";
 import FocusRoom from "./app/focus/page";
 import SkillTree from "./app/skill-tree/page";
@@ -189,6 +194,14 @@ export default function App() {
             }
           />
           <Route
+            path="/community/groups/:id"
+            element={
+              <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
+                <GroupDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/messages"
             element={
               <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
@@ -302,6 +315,22 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/messages"
+            element={
+              <ProtectedRoute roles={["ADMIN"]}>
+                <AdminMessages />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/profile"
+            element={
+              <ProtectedRoute roles={["ADMIN"]}>
+                <AdminProfile />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Instructor Routes */}
           <Route
@@ -309,6 +338,22 @@ export default function App() {
             element={
               <ProtectedRoute roles={["INSTRUCTOR"]}>
                 <InstructorDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/profile"
+            element={
+              <ProtectedRoute roles={["INSTRUCTOR"]}>
+                <InstructorProfileSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/messages"
+            element={
+              <ProtectedRoute roles={["INSTRUCTOR"]}>
+                <InstructorMessages />
               </ProtectedRoute>
             }
           />

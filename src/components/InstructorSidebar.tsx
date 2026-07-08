@@ -16,8 +16,8 @@ export default function InstructorSidebar() {
     { name: 'Schedule & Live', icon: Calendar, href: '/instructor/schedule' },
     { name: 'Grading', icon: FileText, href: '/instructor/assignments' },
     { name: 'Analytics', icon: BarChart2, href: '/instructor/analytics' },
-    { name: 'Messages', icon: MessageSquare, href: '/messages' },
-    { name: 'Public Profile', icon: User, href: '/instructor/profile/sarah-chen' },
+    { name: 'Messages', icon: MessageSquare, href: '/instructor/messages' },
+    { name: 'Profile Settings', icon: User, href: '/instructor/profile' },
   ];
 
   return (

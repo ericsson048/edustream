@@ -18,6 +18,8 @@ export interface StudyGroupItem {
   description: string;
   next_session_at?: string | null;
   members_count?: number;
+  members?: string[];
+  created_by?: string;
 }
 
 export interface StudyGroupMessageItem {
@@ -45,6 +47,10 @@ export const communityService = {
       category: payload.category || 'General',
       tags: payload.tags || [],
     });
+    return data;
+  },
+  async getStudyGroup(groupId: string): Promise<StudyGroupItem> {
+    const { data } = await apiClient.get<StudyGroupItem>(`/study-groups/${groupId}/`);
     return data;
   },
   async createStudyGroup(payload: { name: string; description: string }): Promise<StudyGroupItem> {

@@ -18,7 +18,15 @@ import { authService } from "../services/authService";
 import { courseService } from "../services/courseService";
 import type { LearningPath } from "../types/lms";
 
-function CountUp({ value, suffix = "", decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
+function CountUp({
+  value,
+  suffix = "",
+  decimals = 0,
+}: {
+  value: number;
+  suffix?: string;
+  decimals?: number;
+}) {
   const [display, setDisplay] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
 
@@ -45,7 +53,12 @@ function CountUp({ value, suffix = "", decimals = 0 }: { value: number; suffix?:
     return Math.floor(display).toLocaleString();
   })();
 
-  return <span ref={ref}>{formatted}{suffix}</span>;
+  return (
+    <span ref={ref}>
+      {formatted}
+      {suffix}
+    </span>
+  );
 }
 
 export default function Welcome() {
@@ -61,7 +74,14 @@ export default function Welcome() {
     authService
       .getPublicStats()
       .then(setStats)
-      .catch(() => setStats({ total_courses: 48, total_instructors: 24, total_students: 12400, total_payouts: 86000 }));
+      .catch(() =>
+        setStats({
+          total_courses: 48,
+          total_instructors: 24,
+          total_students: 12400,
+          total_payouts: 86000,
+        }),
+      );
     courseService
       .listLearningPaths({ is_active: true })
       .then(setLearningPaths)
@@ -143,10 +163,36 @@ export default function Welcome() {
             className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto"
           >
             {[
-              { icon: Users, color: "text-blue-500", value: stats.total_students, suffix: "+", label: "Learners" },
-              { icon: BookOpen, color: "text-indigo-500", value: stats.total_courses, suffix: "+", label: "Courses" },
-              { icon: GraduationCap, color: "text-emerald-500", value: stats.total_instructors, suffix: "+", label: "Instructors" },
-              { icon: DollarSign, color: "text-amber-500", value: stats.total_payouts / 1000, suffix: "K+", decimals: 1, label: "Paid to Instructors", prefix: "$" },
+              {
+                icon: Users,
+                color: "text-blue-500",
+                value: stats.total_students,
+                suffix: "+",
+                label: "Learners",
+              },
+              {
+                icon: BookOpen,
+                color: "text-indigo-500",
+                value: stats.total_courses,
+                suffix: "+",
+                label: "Courses",
+              },
+              {
+                icon: GraduationCap,
+                color: "text-emerald-500",
+                value: stats.total_instructors,
+                suffix: "+",
+                label: "Instructors",
+              },
+              {
+                icon: DollarSign,
+                color: "text-amber-500",
+                value: stats.total_payouts / 1000,
+                suffix: "K+",
+                decimals: 1,
+                label: "Paid to Instructors",
+                prefix: "$",
+              },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
@@ -159,7 +205,12 @@ export default function Welcome() {
                 >
                   <Icon className={`w-6 h-6 ${item.color} mx-auto mb-2`} />
                   <p className="text-2xl font-bold">
-                    {item.prefix}<CountUp value={item.value as number} suffix={item.suffix} decimals={item.decimals as number | undefined} />
+                    {item.prefix}
+                    <CountUp
+                      value={item.value as number}
+                      suffix={item.suffix}
+                      decimals={item.decimals as number | undefined}
+                    />
                   </p>
                   <p className="text-xs text-slate-500">{item.label}</p>
                 </motion.div>
@@ -174,12 +225,18 @@ export default function Welcome() {
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, margin: "-100px" }}
-        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
+        variants={{
+          hidden: {},
+          visible: { transition: { staggerChildren: 0.15 } },
+        }}
         className="py-24 bg-white dark:bg-slate-900 border-y border-slate-200 dark:border-slate-800"
       >
         <div className="max-w-7xl mx-auto px-6">
           <motion.div
-            variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6 } } }}
+            variants={{
+              hidden: { opacity: 0, y: 30 },
+              visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
+            }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -192,24 +249,60 @@ export default function Welcome() {
 
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { icon: BrainCircuit, color: "blue", title: "Contextual AI Tutor", desc: "Stuck on a concept? Our Gemini-powered AI knows exactly which video and timestamp you're watching to give you perfect, contextual answers." },
-              { icon: Video, color: "indigo", title: "WebRTC Live Streams", desc: "Join interactive, ultra-low latency live classes. Ask questions in real-time, share your screen, and collaborate with peers seamlessly." },
-              { icon: Code2, color: "emerald", title: "Live IDE Integration", desc: "Practice coding directly in the browser while watching lessons. Real-time execution and error highlighting without leaving the platform." },
+              {
+                icon: BrainCircuit,
+                color: "blue",
+                title: "Contextual AI Tutor",
+                desc: "Stuck on a concept? Our Gemini-powered AI knows exactly which video and timestamp you're watching to give you perfect, contextual answers.",
+              },
+              {
+                icon: Video,
+                color: "indigo",
+                title: "WebRTC Live Streams",
+                desc: "Join interactive, ultra-low latency live classes. Ask questions in real-time, share your screen, and collaborate with peers seamlessly.",
+              },
+              {
+                icon: Code2,
+                color: "emerald",
+                title: "Live IDE Integration",
+                desc: "Practice coding directly in the browser while watching lessons. Real-time execution and error highlighting without leaving the platform.",
+              },
             ].map((feature) => {
               const Icon = feature.icon;
-              const borderColor = feature.color === "blue" ? "hover:border-blue-500/50" : feature.color === "indigo" ? "hover:border-indigo-500/50" : "hover:border-emerald-500/50";
-              const bgColor = feature.color === "blue" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : feature.color === "indigo" ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400";
+              const borderColor =
+                feature.color === "blue"
+                  ? "hover:border-blue-500/50"
+                  : feature.color === "indigo"
+                    ? "hover:border-indigo-500/50"
+                    : "hover:border-emerald-500/50";
+              const bgColor =
+                feature.color === "blue"
+                  ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                  : feature.color === "indigo"
+                    ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
+                    : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400";
               return (
                 <motion.div
                   key={feature.title}
-                  variants={{ hidden: { opacity: 0, y: 40 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6 } } }}
+                  variants={{
+                    hidden: { opacity: 0, y: 40 },
+                    visible: {
+                      opacity: 1,
+                      y: 0,
+                      transition: { duration: 0.6 },
+                    },
+                  }}
                   className={`bg-slate-50 dark:bg-slate-950 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 ${borderColor} transition-colors group`}
                 >
-                  <div className={`w-14 h-14 ${bgColor} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
+                  <div
+                    className={`w-14 h-14 ${bgColor} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}
+                  >
                     <Icon className="w-7 h-7" />
                   </div>
                   <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed">{feature.desc}</p>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {feature.desc}
+                  </p>
                 </motion.div>
               );
             })}
@@ -222,12 +315,18 @@ export default function Welcome() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
-          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12 } } }}
+          variants={{
+            hidden: {},
+            visible: { transition: { staggerChildren: 0.12 } },
+          }}
           className="py-24 px-6 bg-white dark:bg-slate-900"
         >
           <div className="max-w-7xl mx-auto">
             <motion.div
-              variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6 } } }}
+              variants={{
+                hidden: { opacity: 0, y: 30 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
+              }}
               className="flex items-center justify-between mb-12"
             >
               <div>
@@ -247,7 +346,14 @@ export default function Welcome() {
               {learningPaths.slice(0, 3).map((path) => (
                 <motion.div
                   key={path.id}
-                  variants={{ hidden: { opacity: 0, y: 40 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } }}
+                  variants={{
+                    hidden: { opacity: 0, y: 40 },
+                    visible: {
+                      opacity: 1,
+                      y: 0,
+                      transition: { duration: 0.5 },
+                    },
+                  }}
                 >
                   <Link
                     to="/catalog"

@@ -14,12 +14,24 @@ export interface ConversationItem {
   } | null;
 }
 
+export interface ContactItem {
+  id: string;
+  full_name: string;
+  role: string;
+  avatar_url: string;
+  title: string;
+  course_names: string[];
+  last_seen: string | null;
+  is_online: boolean;
+}
+
 export interface MessageItem {
   id: string;
   conversation: string;
   sender_name?: string;
   content: string;
   created_at: string;
+  is_read?: boolean;
 }
 
 export const messagingService = {
@@ -37,6 +49,13 @@ export const messagingService = {
   },
   async sendMessage(conversation: string, content: string): Promise<MessageItem> {
     const { data } = await apiClient.post<MessageItem>('/messages/', { conversation, content });
+    return data;
+  },
+  async markConversationRead(conversationId: string): Promise<void> {
+    await apiClient.post(`/conversations/${conversationId}/mark_read/`);
+  },
+  async listContacts(): Promise<ContactItem[]> {
+    const { data } = await apiClient.get<ContactItem[]>('/contacts/');
     return data;
   },
   createConversationSocket(conversationId: string): WebSocket {

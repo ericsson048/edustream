@@ -18,7 +18,9 @@ class CommunityHubConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        group = getattr(self, "room_group_name", None)
+        if group:
+            await self.channel_layer.group_discard(group, self.channel_name)
 
     async def broadcast_event(self, event):
         await self.send(text_data=json.dumps(event["event"]))
@@ -40,7 +42,9 @@ class DiscussionConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        group = getattr(self, "room_group_name", None)
+        if group:
+            await self.channel_layer.group_discard(group, self.channel_name)
 
     async def broadcast_event(self, event):
         await self.send(text_data=json.dumps(event["event"]))
@@ -66,7 +70,9 @@ class StudyGroupConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        group = getattr(self, "room_group_name", None)
+        if group:
+            await self.channel_layer.group_discard(group, self.channel_name)
 
     async def receive(self, text_data):
         payload = json.loads(text_data)

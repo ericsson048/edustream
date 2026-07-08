@@ -1,11 +1,13 @@
-from rest_framework import permissions, status
+from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.billing.services import can_use_ai
 
 from .gemini import GeminiGenerationError, generate_lesson_package, generate_module_package
-from .models import AITutorMessage
+from .models import AITutorConversation, AITutorMessage
+from .openrouter import OpenRouterError, ask_with_context, continue_with_reasoning
+from .serializers import AITutorConversationSerializer, AITutorMessageSerializer
 
 
 class TutorChatView(APIView):
@@ -21,18 +23,27 @@ class TutorChatView(APIView):
             status_code = status.HTTP_402_PAYMENT_REQUIRED if reason == "Upgrade to Unlimited." else status.HTTP_403_FORBIDDEN
             return Response({"detail": reason}, status=status_code)
 
-        response_text = (
-            "Tutor IA: voici une explication structurée de votre question. "
-            f"Point clé: {prompt[:180]}"
-        )
-        AITutorMessage.objects.create(user=request.user, prompt=prompt, response=response_text)
+        history = request.data.get("history")
+        conversation_id = request.data.get("conversation_id")
+
+        try:
+            result = ask_with_context(user_prompt=prompt, history=history or None)
+            response_text = result.get("content", "")
+            usage = result.get("usage", {})
+        except OpenRouterError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        conv = None
+        if conversation_id:
+            conv = AITutorConversation.objects.filter(id=conversation_id, user=request.user).first()
+        AITutorMessage.objects.create(user=request.user, prompt=prompt, response=response_text, conversation=conv)
 
         subscription = getattr(request.user, "subscription", None)
         if subscription and not subscription.plan.has_unlimited_ai:
             subscription.ai_prompts_used_this_month += 1
             subscription.save(update_fields=["ai_prompts_used_this_month", "updated_at"])
 
-        return Response({"response": response_text})
+        return Response({"response": response_text, "usage": usage})
 
 
 class InstructorCourseGenerationView(APIView):
@@ -239,3 +250,75 @@ class InstructorLessonGenerationView(APIView):
             subscription.save(update_fields=["ai_prompts_used_this_month", "updated_at"])
 
         return Response(payload)
+
+
+class TutorReasoningChatView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        prompt = request.data.get("prompt", "").strip()
+        history = request.data.get("history")
+        follow_up = request.data.get("follow_up")
+        assistant_message = request.data.get("assistant_message")
+
+        if not prompt and not follow_up:
+            return Response({"detail": "prompt or follow_up is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed, reason = can_use_ai(request.user)
+        if not allowed:
+            status_code = status.HTTP_402_PAYMENT_REQUIRED if reason == "Upgrade to Unlimited." else status.HTTP_403_FORBIDDEN
+            return Response({"detail": reason}, status=status_code)
+
+        try:
+            if follow_up and assistant_message:
+                result = continue_with_reasoning(
+                    previous_messages=history or [],
+                    last_assistant_message=assistant_message,
+                    follow_up=follow_up,
+                )
+            else:
+                result = ask_with_context(
+                    user_prompt=prompt,
+                    history=history or None,
+                )
+        except OpenRouterError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        conv = None
+        if conversation_id := request.data.get("conversation_id"):
+            conv = AITutorConversation.objects.filter(id=conversation_id, user=request.user).first()
+        AITutorMessage.objects.create(
+            user=request.user,
+            prompt=follow_up or prompt,
+            response=result.get("content", ""),
+            conversation=conv,
+        )
+        subscription = getattr(request.user, "subscription", None)
+        if subscription and not subscription.plan.has_unlimited_ai:
+            subscription.ai_prompts_used_this_month += 1
+            subscription.save(update_fields=["ai_prompts_used_this_month", "updated_at"])
+
+        return Response(result)
+
+
+class TutorMessageViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = AITutorMessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = AITutorMessage.objects.filter(user=self.request.user)
+        conversation = self.request.query_params.get("conversation")
+        if conversation:
+            qs = qs.filter(conversation_id=conversation)
+        return qs
+
+
+class TutorConversationViewSet(viewsets.ModelViewSet):
+    serializer_class = AITutorConversationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return AITutorConversation.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
