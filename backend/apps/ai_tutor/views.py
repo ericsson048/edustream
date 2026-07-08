@@ -1,12 +1,14 @@
+import json
+
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.billing.services import can_use_ai
 
-from .gemini import GeminiGenerationError, generate_lesson_package, generate_module_package
+from .gemini import GeminiGenerationError, generate_module_package
 from .models import AITutorConversation, AITutorMessage
-from .openrouter import OpenRouterError, ask_with_context, continue_with_reasoning
+from .openrouter import OpenRouterError, _post, ask_with_context, continue_with_reasoning
 from .serializers import AITutorConversationSerializer, AITutorMessageSerializer
 
 
@@ -231,17 +233,87 @@ class InstructorLessonGenerationView(APIView):
         if not prompt:
             return Response({"detail": "prompt is required"}, status=status.HTTP_400_BAD_REQUEST)
 
+        course_title = request.data.get("course_title", "").strip() or "Untitled course"
+        category = request.data.get("category", "").strip() or "General"
+        level = request.data.get("level", "").strip() or "INTERMEDIATE"
+        module_title = request.data.get("module_title", "").strip() or "Untitled module"
+        lesson_title = request.data.get("lesson_title", "").strip()
+
+        system_prompt = (
+            "You are a lesson content generator for an LMS platform called EduStream. "
+            "Return ONLY valid JSON with this exact shape — no markdown, no backticks, no extra text:\n"
+            '{\n'
+            '  "title": "string",\n'
+            '  "content": "string (markdown, at least 500 characters)",\n'
+            '  "lesson_type": "VIDEO|TEXT|QUIZ|ASSIGNMENT|LIVE|DOWNLOAD",\n'
+            '  "status": "DRAFT|PUBLISHED",\n'
+            '  "video_url": "string (empty string if none)",\n'
+            '  "transcript": "string (empty string if none)",\n'
+            '  "instructor_notes": "string",\n'
+            '  "duration_seconds": 0,\n'
+            '  "is_preview": false,\n'
+            '  "quiz": {\n'
+            '    "title": "string",\n'
+            '    "passing_score": 70,\n'
+            '    "time_limit_minutes": 10,\n'
+            '    "questions": [\n'
+            '      {\n'
+            '        "prompt": "string",\n'
+            '        "options": ["string", "string", "string", "string"],\n'
+            '        "correct_index": 0\n'
+            '      }\n'
+            '    ]\n'
+            '  }\n'
+            '}\n'
+            "Constraints:\n"
+            "- Fill every field.\n"
+            "- Status is DRAFT unless the prompt explicitly asks for publish-ready.\n"
+            "- Quiz must include exactly 4 questions with 4 options each.\n"
+            "- Content must be detailed educational markdown (headings, lists, code blocks if applicable).\n"
+            f"Context: course={course_title}, category={category}, level={level}, module={module_title}, lesson={lesson_title}\n"
+            f"Instructor request: {prompt}"
+        )
+
         try:
-            payload = generate_lesson_package(
-                prompt=prompt,
-                course_title=request.data.get("course_title", "").strip() or "Untitled course",
-                category=request.data.get("category", "").strip() or "General",
-                level=request.data.get("level", "").strip() or "INTERMEDIATE",
-                module_title=request.data.get("module_title", "").strip() or "Untitled module",
-                lesson_title=request.data.get("lesson_title", "").strip(),
+            result = _post(
+                messages=[{"role": "system", "content": system_prompt}],
+                model="cohere/north-mini-code:free",
+                max_tokens=4096,
             )
-        except GeminiGenerationError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            raw = result.get("content", "")
+            response_data = json.loads(raw)
+        except (OpenRouterError, json.JSONDecodeError) as exc:
+            return Response({"detail": f"AI generation failed: {exc}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+        # Replace literal \n with actual newlines (LLM often double-escapes)
+        def _fix_newlines(val: str) -> str:
+            return val.replace("\\n", "\n")
+
+        quiz = response_data.get("quiz") or {}
+        payload = {
+            "title": _fix_newlines(str(response_data.get("title", "")).strip()) or lesson_title or "AI Generated Lesson",
+            "content": _fix_newlines(str(response_data.get("content", "")).strip()),
+            "lesson_type": str(response_data.get("lesson_type", "TEXT")).strip() or "TEXT",
+            "status": str(response_data.get("status", "DRAFT")).strip() or "DRAFT",
+            "video_url": str(response_data.get("video_url", "")).strip(),
+            "transcript": _fix_newlines(str(response_data.get("transcript", "")).strip()),
+            "instructor_notes": _fix_newlines(str(response_data.get("instructor_notes", "")).strip()),
+            "duration_seconds": max(int(response_data.get("duration_seconds", 0) or 0), 300),
+            "is_preview": bool(response_data.get("is_preview", False)),
+            "quiz": {
+                "title": _fix_newlines(str(quiz.get("title", "")).strip()) or "Lesson Quiz",
+                "passing_score": min(max(int(quiz.get("passing_score", 70) or 70), 1), 100),
+                "time_limit_minutes": max(int(quiz.get("time_limit_minutes", 10) or 10), 1),
+                "questions": [
+                    {
+                        "prompt": _fix_newlines(str(q.get("prompt", ""))),
+                        "options": [_fix_newlines(str(o)) for o in (q.get("options", [])[:4])],
+                        "correct_index": min(max(int(q.get("correct_index", 0) or 0), 0), 3),
+                    }
+                    for q in (quiz.get("questions") or [])[:6]
+                ],
+            },
+        }
 
         AITutorMessage.objects.create(user=request.user, prompt=prompt, response=f"Generated lesson package for {payload['title']}.")
         subscription = getattr(request.user, "subscription", None)

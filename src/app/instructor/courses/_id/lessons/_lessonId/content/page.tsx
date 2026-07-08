@@ -14,12 +14,14 @@ import {
   Loader2,
   Quote,
   Save,
+  Sparkles,
   X,
 } from "lucide-react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import InstructorSidebar from "../../../../../../../components/InstructorSidebar";
 import Header from "../../../../../../../components/Header";
 import MarkdownRenderer from "../../../../../../../components/MarkdownRenderer";
+import { aiService } from "../../../../../../../services/aiService";
 import { courseService } from "../../../../../../../services/courseService";
 import { escapeHtml } from "../../../../../../../utils/md";
 import { useToast } from "../../../../../../../contexts/ToastContext";
@@ -58,7 +60,7 @@ export default function LessonContentEditor() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [viewMode, setViewMode] = useState<"preview" | "source">("preview");
-  const [dialogMode, setDialogMode] = useState<"image" | "side" | null>(null);
+  const [dialogMode, setDialogMode] = useState<"image" | "side" | "ai" | null>(null);
   const [imageOpts, setImageOpts] = useState<ImageOpts>({
     url: "",
     alt: "",
@@ -73,6 +75,9 @@ export default function LessonContentEditor() {
     position: "left",
     markdown: "",
   });
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -90,6 +95,44 @@ export default function LessonContentEditor() {
   useEffect(() => {
     if (lesson) setContent(lesson.content || "");
   }, [lesson]);
+
+  const handleAiGenerate = useCallback(async (mode: "generate" | "improve") => {
+    const prompt = aiPrompt.trim();
+    if (!prompt) return;
+    setAiLoading(true);
+    setAiResult("");
+    try {
+      const existing = mode === "improve" ? content : "";
+      const fullPrompt = mode === "improve"
+        ? `Improve the following lesson content. ${prompt}\n\nCurrent content:\n${existing}`
+        : prompt;
+      const result = await aiService.generateLesson({
+        prompt: fullPrompt,
+        course_title: lesson?.title || "",
+        module_title: "",
+        lesson_title: prompt.slice(0, 80),
+      });
+      setAiResult(result.content);
+    } catch {
+      showToast("Erreur generation IA.", "error");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiPrompt, content, lesson?.title, showToast]);
+
+  const insertAiResult = () => {
+    if (!aiResult) return;
+    const ta = editorRef.current;
+    if (ta) {
+      const start = ta.selectionStart;
+      onChange(content.slice(0, start) + "\n" + aiResult + "\n" + content.slice(ta.selectionEnd));
+    } else {
+      onChange(content + "\n" + aiResult);
+    }
+    setAiPrompt("");
+    setAiResult("");
+    setDialogMode(null);
+  };
 
   const save = useCallback(async () => {
     setSaving(true);
@@ -402,6 +445,14 @@ export default function LessonContentEditor() {
                 <Columns3 size={14} />
                 Side by side
               </button>
+              <span className="w-px h-5 bg-slate-200 mx-1"></span>
+              <button
+                onClick={() => { setDialogMode("ai"); setAiPrompt(""); setAiResult(""); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-purple-600 hover:bg-purple-50 transition-colors"
+              >
+                <Sparkles size={14} />
+                AI Generate
+              </button>
               {viewMode === "source" && (
                 <div className="flex items-center gap-0.5 ml-2 pl-2 border-l border-slate-200">
                   {formatToolbar.map((t) => (
@@ -576,6 +627,64 @@ export default function LessonContentEditor() {
               >
                 Insert
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dialogMode === "ai" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-500" />
+                AI Content Generator
+              </h3>
+              <button onClick={() => setDialogMode(null)} className="p-1 rounded hover:bg-slate-100 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Describe the lesson content you want to generate..."
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleAiGenerate("generate")}
+                  disabled={aiLoading || !aiPrompt.trim()}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 text-sm font-bold text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                >
+                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {aiLoading ? "Generating..." : "Generate"}
+                </button>
+                <button
+                  onClick={() => handleAiGenerate("improve")}
+                  disabled={aiLoading || !aiPrompt.trim() || !content.trim()}
+                  className="px-5 py-2.5 rounded-xl border border-purple-200 text-sm font-medium text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors"
+                >
+                  Improve Existing
+                </button>
+              </div>
+              {aiResult && (
+                <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-bold text-purple-600 uppercase tracking-wide">Generated Content</p>
+                    <button
+                      onClick={insertAiResult}
+                      className="px-4 py-1.5 rounded-lg bg-purple-600 text-xs font-bold text-white hover:bg-purple-700 transition-colors"
+                    >
+                      Insert into Editor
+                    </button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto rounded-lg bg-white p-4 border border-purple-100 text-sm">
+                    <MarkdownRenderer content={aiResult} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
