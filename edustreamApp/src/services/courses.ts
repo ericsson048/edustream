@@ -89,7 +89,7 @@ export interface Enrollment {
   student: string;
   course: string;
   course_title: string;
-  course_thumbnail?: string;
+  thumbnail?: string;
   instructor_name?: string;
   is_active: boolean;
   purchased_at: string;

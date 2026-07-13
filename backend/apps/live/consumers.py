@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -148,6 +149,17 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
             return True
         return Enrollment.objects.filter(student_id=user_id, course=session.course, is_active=True).exists()
 
+    @staticmethod
+    def _serialize(participant_data: dict) -> dict:
+        """Convert UUID objects to strings for channel layer serialization."""
+        result = {}
+        for key, value in participant_data.items():
+            if isinstance(value, uuid.UUID):
+                result[key] = str(value)
+            else:
+                result[key] = value
+        return result
+
     @sync_to_async
     def _mark_joined(self, user_id, session_id):
         session = LiveSession.objects.get(id=session_id)
@@ -160,7 +172,7 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
         participant.role = role
         participant.left_at = None
         participant.save(update_fields=["role", "left_at"])
-        return LiveParticipantSerializer(participant).data
+        return self._serialize(LiveParticipantSerializer(participant).data)
 
     @sync_to_async
     def _mark_left(self, user_id, session_id):
@@ -174,7 +186,7 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
         participant.is_recording = False
         participant.last_reaction = ""
         participant.save(update_fields=["left_at", "is_screen_sharing", "hand_raised", "is_recording", "last_reaction"])
-        return LiveParticipantSerializer(participant).data
+        return self._serialize(LiveParticipantSerializer(participant).data)
 
     @sync_to_async
     def _update_participant_state(self, user_id, session_id, raw_state):
@@ -187,11 +199,11 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
             updated_fields.append(field)
         if updated_fields:
             participant.save(update_fields=updated_fields)
-        return LiveParticipantSerializer(participant).data
+        return self._serialize(LiveParticipantSerializer(participant).data)
 
     @sync_to_async
     def _set_reaction(self, user_id, session_id, reaction):
         participant = LiveParticipant.objects.select_related("user").get(session_id=session_id, user_id=user_id)
         participant.last_reaction = reaction
         participant.save(update_fields=["last_reaction"])
-        return LiveParticipantSerializer(participant).data
+        return self._serialize(LiveParticipantSerializer(participant).data)

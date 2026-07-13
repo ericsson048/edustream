@@ -5,6 +5,8 @@ import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { OnboardingProvider, useOnboarding } from '../src/contexts/OnboardingContext';
 import { AlertProvider } from '../src/components/AlertDialog';
+import '../src/i18n';
+import { NotificationSetup } from '../src/components/NotificationSetup';
 
 function RootNavigator() {
   const { isLoading: authLoading, isAuthenticated } = useAuth();
@@ -32,9 +34,20 @@ function RootNavigator() {
         </Stack>
       ) : (
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+          <NotificationSetup />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="course/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="player/[courseId]/[lessonId]" options={{ headerShown: false }} />
+          <Stack.Screen name="certificate/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="checkout/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="quiz/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="assignments/[id]/submit" options={{ headerShown: false }} />
+          <Stack.Screen name="live/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="ai-tutor/[courseId]/[lessonId]" options={{ headerShown: false }} />
+          <Stack.Screen name="messages/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="community/groups/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="community/discussions/[id]" options={{ headerShown: false }} />
+          {/* instructor/ routes - disabled for student-only phase */}
         </Stack>
       )}
     </AlertProvider>

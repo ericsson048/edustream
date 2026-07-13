@@ -30,7 +30,16 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow EduStream to access your camera for live video sessions.",
+          "microphonePermission": "Allow EduStream to access your microphone for live audio.",
+          "recordAudioAndroid": true
+        }
+      ],
+      "expo-localization"
     ]
   }
 }

@@ -8,6 +8,8 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { courseService, type Course } from '../../src/services/courses';
 import { Spacing, BorderRadius } from '../../src/theme/colors';
 import { SkeletonLoader } from '../../src/components/SkeletonLoader';
+import { LanguageSwitcher } from '../../src/components/LanguageSwitcher';
+import { NotificationBell } from '../../src/components/NotificationBell';
 
 export default function ExploreScreen() {
   const { colors } = useTheme();
@@ -40,8 +42,19 @@ export default function ExploreScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ThemedView variant="surface" style={{ paddingTop: 60, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.md }}>
-        <ThemedText variant="h1" bold>Explore</ThemedText>
-        <ThemedText variant="caption" color="secondary" style={{ marginTop: 2 }}>Discover new courses</ThemedText>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View>
+            <ThemedText variant="h1" bold>Explore</ThemedText>
+            <ThemedText variant="caption" color="secondary" style={{ marginTop: 2 }}>Discover new courses</ThemedText>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/more/messages')} accessibilityLabel="Messages">
+              <Ionicons name="chatbubbles-outline" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <NotificationBell />
+            <LanguageSwitcher />
+          </View>
+        </View>
         <ThemedView variant="secondary" rounded="xl" style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginTop: Spacing.md }}>
           <Ionicons name="search-outline" size={20} color={colors.textMuted} />
           <TextInput

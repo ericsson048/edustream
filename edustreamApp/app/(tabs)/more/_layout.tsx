@@ -9,6 +9,8 @@ export default function MoreLayout() {
       contentStyle: { backgroundColor: colors.background },
     }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="messages" />
+      <Stack.Screen name="community" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="skill-tree" />
       <Stack.Screen name="focus" />

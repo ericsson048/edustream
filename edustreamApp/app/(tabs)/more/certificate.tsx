@@ -51,20 +51,23 @@ export default function CertificateScreen() {
           </ThemedView>
         ) : (
           certs.map((c) => (
-            <ThemedView key={c.id} variant="card" rounded="xl" elevated style={{ padding: Spacing['2xl'], marginBottom: Spacing.md, borderLeftWidth: 4, borderLeftColor: colors.success }}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                <View style={[styles.certIcon, { backgroundColor: colors.success + '20' }]}>
-                  <Ionicons name="ribbon" size={24} color={colors.success} />
+            <TouchableOpacity key={c.id} onPress={() => router.push(`/certificate/${c.id}`)}>
+              <ThemedView variant="card" rounded="xl" elevated style={{ padding: Spacing['2xl'], marginBottom: Spacing.md, borderLeftWidth: 4, borderLeftColor: colors.success }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                  <View style={[styles.certIcon, { backgroundColor: colors.success + '20' }]}>
+                    <Ionicons name="ribbon" size={24} color={colors.success} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                    <ThemedText variant="h3" bold>{c.course_title}</ThemedText>
+                    <ThemedText variant="body" color="secondary" style={{ marginTop: 4 }}>{c.instructor_name}</ThemedText>
+                    <ThemedText variant="caption" color="muted" style={{ marginTop: Spacing.sm }}>
+                      {c.certificate_code} · {new Date(c.issued_at).toLocaleDateString()}
+                    </ThemedText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
                 </View>
-                <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                  <ThemedText variant="h3" bold>{c.course_title}</ThemedText>
-                  <ThemedText variant="body" color="secondary" style={{ marginTop: 4 }}>{c.instructor_name}</ThemedText>
-                  <ThemedText variant="caption" color="muted" style={{ marginTop: Spacing.sm }}>
-                    {c.certificate_code} · {new Date(c.issued_at).toLocaleDateString()}
-                  </ThemedText>
-                </View>
-              </View>
-            </ThemedView>
+              </ThemedView>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>

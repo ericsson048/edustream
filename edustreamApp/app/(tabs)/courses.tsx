@@ -10,6 +10,8 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { courseService, enrollmentService, type Enrollment } from '../../src/services/courses';
 import { Spacing, BorderRadius } from '../../src/theme/colors';
 import { SkeletonLoader } from '../../src/components/SkeletonLoader';
+import { LanguageSwitcher } from '../../src/components/LanguageSwitcher';
+import { NotificationBell } from '../../src/components/NotificationBell';
 
 const filters = ['All', 'In Progress', 'Completed'] as const;
 
@@ -66,7 +68,19 @@ export default function CoursesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <Header title="My Courses" subtitle={`${enrollments.length} enrolled`} />
+      <Header
+        title="My Courses"
+        subtitle={`${enrollments.length} enrolled`}
+        rightAction={
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/more/messages')} accessibilityLabel="Messages">
+              <Ionicons name="chatbubbles-outline" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <NotificationBell />
+            <LanguageSwitcher />
+          </View>
+        }
+      />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: Spacing.xl, paddingBottom: Spacing['6xl'] }}
@@ -116,7 +130,7 @@ export default function CoursesScreen() {
               key={e.id}
               title={e.course_title}
               instructor={e.instructor_name}
-              thumbnail={e.course_thumbnail}
+              thumbnail={e.thumbnail}
               progress={progressMap[e.id]}
               onPress={() => router.push(`/course/${e.course}`)}
             />

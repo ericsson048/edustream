@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Linking, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, ScrollView, TouchableOpacity, Linking, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
+import { ResizeMode, Video } from 'expo-av';
 import { ThemedText } from '../../../src/components/ThemedText';
 import { ThemedView } from '../../../src/components/ThemedView';
 import { useTheme } from '../../../src/contexts/ThemeContext';
 import { MarkdownRenderer } from '../../../src/components/MarkdownRenderer';
 import { playerService, type Lesson } from '../../../src/services/player';
 import { courseService, enrollmentService, type Progress, type Course } from '../../../src/services/courses';
+import { learningService } from '../../../src/services/learning';
 import { scheduleService } from '../../../src/services/schedule';
 import { certificateService } from '../../../src/services/certificate';
+import { noteService, Note } from '../../../src/services/noteService';
 import { BorderRadius, Spacing } from '../../../src/theme/colors';
+
 import { SkeletonLoader } from '../../../src/components/SkeletonLoader';
 import { useAlert } from '../../../src/components/AlertDialog';
 
@@ -36,8 +40,10 @@ export default function PlayerScreen() {
   const [allProgress, setAllProgress] = useState<Progress[]>([]);
   const [completing, setCompleting] = useState(false);
   const [certificateClaiming, setCertificateClaiming] = useState(false);
+  const videoRef = useRef<Video>(null);
   const [hasCertificate, setHasCertificate] = useState(false);
   const [liveSessionMap, setLiveSessionMap] = useState<Record<string, string>>({});
+  const [quizId, setQuizId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!lessonId || !courseId) return;
@@ -54,6 +60,12 @@ export default function PlayerScreen() {
       setLesson(l);
       setCourse(c);
       setLiveSessionMap(liveMap);
+      if (l.lesson_type === 'QUIZ') {
+        learningService.listQuizzesByLesson(l.id).then(q => {
+          const quiz = (q.results ?? [])[0];
+          if (quiz) setQuizId(quiz.id);
+        }).catch(() => {});
+      }
       if (enrollment) {
         courseService.listProgress({ enrollment: enrollment.id }).then(p => {
           setAllProgress(p.results ?? []);
@@ -144,24 +156,16 @@ export default function PlayerScreen() {
           <>
             {/* Video player */}
             {hasVideo && (
-              <TouchableOpacity
-                onPress={() => {
-                  const url = lesson.video || lesson.video_file || lesson.video_url;
-                  if (url) Linking.openURL(url);
-                }}
-                style={[styles.videoPlayer, { backgroundColor: '#000' }]}
-              >
-                <View style={styles.videoOverlay}>
-                  <View style={[styles.playBtn, { backgroundColor: cfg.color }]}>
-                    <Ionicons name="play" size={36} color="#fff" />
-                  </View>
-                  <ThemedText style={{ color: '#fff', marginTop: Spacing.sm, fontWeight: '600' }}>
-                    {lesson.duration_seconds > 0
-                      ? `${Math.floor(lesson.duration_seconds / 60)}:${String(lesson.duration_seconds % 60).padStart(2, '0')}`
-                      : 'Tap to play'}
-                  </ThemedText>
-                </View>
-              </TouchableOpacity>
+              <View style={[styles.videoPlayer, { backgroundColor: '#000' }]}>
+                <Video
+                  ref={videoRef}
+                  source={{ uri: lesson.video_file || lesson.video || lesson.video_url || '' }}
+                  useNativeControls
+                  resizeMode={ResizeMode.CONTAIN}
+                  onPlaybackStatusUpdate={() => {}}
+                  style={{ width: '100%', height: '100%' }}
+                />
+              </View>
             )}
 
             <View style={{ padding: Spacing.xl }}>
@@ -190,7 +194,10 @@ export default function PlayerScreen() {
               {/* Type-specific actions */}
               {lesson.lesson_type === 'QUIZ' && (
                 <TouchableOpacity
-                  onPress={() => router.push(`/quiz/${lesson.id}`)}
+                  onPress={() => {
+                    if (quizId) router.push(`/quiz/${quizId}`);
+                    else alert({ title: 'Quiz not found', message: 'No quiz is associated with this lesson.' });
+                  }}
                   style={[styles.actionBtn, { backgroundColor: colors.warning, marginTop: Spacing.lg }]}
                 >
                   <Ionicons name="help-circle-outline" size={20} color="#fff" />
@@ -276,6 +283,9 @@ export default function PlayerScreen() {
                   <ThemedText variant="body" color="secondary" style={{ marginTop: Spacing.sm, lineHeight: 22 }}>{lesson.instructor_notes}</ThemedText>
                 </ThemedView>
               ) : null}
+
+              {/* Notes */}
+              <NotesSection lessonId={lesson.id} colors={colors} />
 
               {/* Mark Complete button */}
               {lesson.lesson_type !== 'LIVE' && (
@@ -375,7 +385,87 @@ export default function PlayerScreen() {
           </ThemedView>
         )}
       </ScrollView>
+      <TouchableOpacity
+        onPress={() => router.push(`/ai-tutor/${courseId}/${lessonId}`)}
+        style={[styles.tutorFab, { backgroundColor: colors.primary }]}
+      >
+        <Ionicons name="chatbubbles-outline" size={24} color="#fff" />
+      </TouchableOpacity>
     </View>
+  );
+}
+
+function NotesSection({ lessonId, colors }: { lessonId: string; colors: Record<string, string> }) {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [text, setText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    noteService.list(lessonId).then(d => { setNotes(d.results ?? []); }).catch(() => {}).finally(() => setLoading(false));
+  }, [lessonId]);
+
+  const addNote = async () => {
+    if (!text.trim() || saving) return;
+    setSaving(true);
+    try {
+      const note = await noteService.create({ lesson: lessonId, content: text.trim() });
+      setNotes(prev => [...prev, note]);
+      setText('');
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ThemedView variant="card" rounded="xl" elevated style={{ padding: Spacing.lg, marginTop: Spacing.lg }}>
+      <TouchableOpacity onPress={() => setExpanded(prev => !prev)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Ionicons name="document-text-outline" size={18} color={colors.primary} />
+        <ThemedText variant="body" bold style={{ marginLeft: Spacing.sm, flex: 1 }}>My Notes ({notes.length})</ThemedText>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
+      </TouchableOpacity>
+      {expanded && (
+        <>
+          {notes.map(n => (
+            <View key={n.id} style={{ paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border + '44' }}>
+              <ThemedText variant="body" color="secondary">{n.content}</ThemedText>
+            </View>
+          ))}
+          {!loading && notes.length === 0 && (
+            <ThemedText variant="caption" color="secondary" style={{ marginVertical: Spacing.sm }}>No notes yet. Add one below.</ThemedText>
+          )}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: Spacing.sm, gap: Spacing.sm }}>
+            <TextInput
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                padding: Spacing.sm,
+                color: colors.text,
+                backgroundColor: colors.background,
+                maxHeight: 80,
+              }}
+              placeholder="Write a note..."
+              placeholderTextColor={colors.text + '66'}
+              value={text}
+              onChangeText={setText}
+              multiline
+            />
+            <TouchableOpacity
+              onPress={addNote}
+              disabled={!text.trim() || saving}
+              style={[{ backgroundColor: colors.primary, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: 12, opacity: !text.trim() || saving ? 0.5 : 1 }]}
+            >
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <ThemedText style={{ color: '#fff' }}>Save</ThemedText>}
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+    </ThemedView>
   );
 }
 
@@ -463,5 +553,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
+  },
+  tutorFab: {
+    position: 'absolute',
+    right: Spacing.lg,
+    bottom: 100,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
 });

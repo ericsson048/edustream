@@ -35,6 +35,10 @@ export interface Submission {
   id: string;
   assignment: string;
   assignment_title?: string;
+  student: string;
+  student_name?: string;
+  course_id?: string;
+  course_title?: string;
   grade?: string | null;
   status: string;
   feedback?: string;
@@ -118,12 +122,24 @@ export const learningService = {
     const { data } = await apiClient.get<Paginated<Quiz>>('/quizzes/', { params: { module: moduleId } });
     return data;
   },
+  async listQuizzesByLesson(lessonId: string) {
+    const { data } = await apiClient.get<Paginated<Quiz>>('/quizzes/', { params: { lesson: lessonId } });
+    return data;
+  },
   async getAssignment(id: string) {
     const { data } = await apiClient.get<Assignment>(`/assignments/${id}/`);
     return data;
   },
   async createSubmission(payload: { assignment: string; content_text?: string; file_url?: string }) {
     const { data } = await apiClient.post<Submission>('/submissions/', payload);
+    return data;
+  },
+  async gradeSubmission(id: string, payload: { grade: string; feedback?: string; status?: string }) {
+    const { data } = await apiClient.post<Submission>(`/submissions/${id}/grade/`, payload);
+    return data;
+  },
+  async createAssignment(payload: { course: string; title: string; description: string; due_date: string; points: number; type: string }) {
+    const { data } = await apiClient.post<Assignment>('/assignments/', payload);
     return data;
   },
 };

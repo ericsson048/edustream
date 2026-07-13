@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, ScrollView, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, ScrollView, RefreshControl, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,10 +10,12 @@ import { CourseCard } from '../../src/components/CourseCard';
 import { Header } from '../../src/components/Header';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { learningService, type UserStats, type RecommendedCourse } from '../../src/services/learning';
+import { learningService, type UserStats, type RecommendedCourse, type Activity } from '../../src/services/learning';
 import { courseService, enrollmentService, type Enrollment } from '../../src/services/courses';
 import { Spacing, BorderRadius } from '../../src/theme/colors';
 import { SkeletonLoader } from '../../src/components/SkeletonLoader';
+import { LanguageSwitcher } from '../../src/components/LanguageSwitcher';
+import { NotificationBell } from '../../src/components/NotificationBell';
 
 export default function DashboardScreen() {
   const { colors } = useTheme();
@@ -86,9 +88,13 @@ export default function DashboardScreen() {
         title={`Hi, ${firstName}`}
         subtitle="Ready to learn something new?"
         rightAction={
-          <TouchableOpacity onPress={() => router.push('/(tabs)/more/notifications')} style={[styles.notifBtn, { backgroundColor: colors.surfaceSecondary }]}>
-            <Ionicons name="notifications-outline" size={22} color={colors.text} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/more/messages')} accessibilityLabel="Messages">
+              <Ionicons name="chatbubbles-outline" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <NotificationBell />
+            <LanguageSwitcher />
+          </View>
         }
       />
 
@@ -144,6 +150,7 @@ export default function DashboardScreen() {
               key={e.id}
               title={e.course_title}
               instructor={e.instructor_name}
+              thumbnail={e.thumbnail}
               progress={progressMap[e.id]}
               onPress={() => router.push(`/course/${e.course}`)}
             />
@@ -164,8 +171,14 @@ export default function DashboardScreen() {
                     style={{ width: 220 }}
                   >
                     <ThemedView variant="card" rounded="xl" elevated style={{ overflow: 'hidden' }}>
-                      <View style={[styles.recThumb, { backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Ionicons name="compass-outline" size={32} color={colors.primary} />
+                      <View style={[styles.recThumb, { backgroundColor: colors.primaryLight, overflow: 'hidden' }]}>
+                        {r.thumbnail_url ? (
+                          <Image source={{ uri: r.thumbnail_url }} style={{ width: '100%', height: '100%' }} />
+                        ) : (
+                          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="compass-outline" size={32} color={colors.primary} />
+                          </View>
+                        )}
                       </View>
                       <View style={{ padding: Spacing.md }}>
                         <ThemedText variant="body" bold numberOfLines={2}>{r.title}</ThemedText>
@@ -179,9 +192,52 @@ export default function DashboardScreen() {
           </>
         )}
 
+        {/* Activity Feed */}
+        {!loading && (
+          <ActivityFeed colors={colors} />
+        )}
+
         <View style={{ height: Spacing.xl }} />
       </ScrollView>
     </View>
+  );
+}
+
+function ActivityFeed({ colors }: { colors: Record<string, string> }) {
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    learningService.listActivities().then(d => setActivities(d.results ?? [])).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  if (loading || activities.length === 0) return null;
+
+  return (
+    <>
+      <View style={styles.sectionHeader}>
+        <ThemedText variant="h3" bold>Recent Activity</ThemedText>
+      </View>
+      <ThemedView variant="card" rounded="xl" elevated style={{ padding: Spacing.md }}>
+        {activities.slice(0, 5).map((a, i) => (
+          <View key={a.id} style={[i > 0 && { borderTopWidth: 1, borderTopColor: colors.border + '44', marginTop: Spacing.sm, paddingTop: Spacing.sm }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons
+                  name={a.kind === 'lesson_completed' ? 'checkmark-circle' : a.kind === 'quiz_completed' ? 'help-circle' : a.kind === 'enrolled' ? 'book' : a.kind === 'submission' ? 'clipboard' : 'time'}
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <ThemedText variant="caption" color="secondary" style={{ marginLeft: Spacing.sm, flex: 1 }}>
+                {a.kind === 'lesson_completed' ? 'Completed a lesson' : a.kind === 'quiz_completed' ? 'Completed a quiz' : a.kind === 'enrolled' ? 'Enrolled in a course' : a.kind === 'submission' ? 'Submitted an assignment' : 'Activity'}
+              </ThemedText>
+              <ThemedText variant="caption" color="muted">{new Date(a.created_at).toLocaleDateString()}</ThemedText>
+            </View>
+          </View>
+        ))}
+      </ThemedView>
+    </>
   );
 }
 

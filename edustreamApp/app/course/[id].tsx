@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Image, StyleSheet, ActivityIndicator, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -10,6 +10,7 @@ import { courseService, enrollmentService, type Course, type Enrollment } from '
 import { BorderRadius, Spacing } from '../../src/theme/colors';
 import { SkeletonLoader } from '../../src/components/SkeletonLoader';
 import { useAlert } from '../../src/components/AlertDialog';
+import { reviewService, Review } from '../../src/services/reviewService';
 
 const typeIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   VIDEO: 'play-circle',
@@ -210,6 +211,9 @@ export default function CourseDetailScreen() {
                 </ThemedView>
               )}
 
+              {/* Reviews */}
+              <ReviewsSection courseId={course.id} colors={colors} />
+
               {/* Course Content - Modules */}
               {course.modules?.length > 0 && (
                 <View style={{ marginTop: Spacing.xl }}>
@@ -285,6 +289,99 @@ export default function CourseDetailScreen() {
         )}
       </ScrollView>
     </View>
+  );
+}
+
+function ReviewsSection({ courseId, colors }: { courseId: string; colors: Record<string, string> }) {
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    reviewService.list(courseId).then(d => setReviews(d.results ?? [])).catch(() => {}).finally(() => setLoading(false));
+  }, [courseId]);
+
+  const submitReview = async () => {
+    if (!comment.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      const r = await reviewService.create({ course: courseId, rating, comment: comment.trim() });
+      setReviews(prev => [r, ...prev]);
+      setComment('');
+      setShowForm(false);
+    } catch {} finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <ThemedView variant="card" rounded="xl" elevated style={{ padding: Spacing.lg, marginTop: Spacing.xl }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Ionicons name="star" size={18} color={colors.warning} />
+          <ThemedText variant="body" bold style={{ marginLeft: Spacing.sm }}>Reviews ({reviews.length})</ThemedText>
+        </View>
+        <TouchableOpacity onPress={() => setShowForm(prev => !prev)}>
+          <ThemedText variant="label" style={{ color: colors.primary }}>{showForm ? 'Cancel' : 'Write a review'}</ThemedText>
+        </TouchableOpacity>
+      </View>
+
+      {showForm && (
+        <ThemedView variant="secondary" rounded="lg" style={{ padding: Spacing.md, marginTop: Spacing.md }}>
+          <View style={{ flexDirection: 'row', gap: 4, marginBottom: Spacing.sm }}>
+            {[1, 2, 3, 4, 5].map(n => (
+              <TouchableOpacity key={n} onPress={() => setRating(n)}>
+                <Ionicons name={n <= rating ? 'star' : 'star-outline'} size={24} color={colors.warning} />
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            style={{
+              borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: Spacing.sm,
+              color: colors.text, backgroundColor: colors.background, minHeight: 80, textAlignVertical: 'top',
+            }}
+            placeholder="Share your experience..."
+            placeholderTextColor={colors.text + '66'}
+            value={comment}
+            onChangeText={setComment}
+            multiline
+          />
+          <TouchableOpacity
+            onPress={submitReview}
+            disabled={!comment.trim() || submitting}
+            style={[{ backgroundColor: colors.primary, padding: Spacing.md, borderRadius: 12, marginTop: Spacing.sm, opacity: !comment.trim() || submitting ? 0.5 : 1, alignItems: 'center' }]}
+          >
+            {submitting ? <ActivityIndicator color="#fff" /> : <ThemedText bold style={{ color: '#fff' }}>Submit Review</ThemedText>}
+          </TouchableOpacity>
+        </ThemedView>
+      )}
+
+      {reviews.map(r => (
+        <View key={r.id} style={{ paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.border + '44', marginTop: Spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="person-circle" size={16} color={colors.textMuted} />
+              <ThemedText variant="caption" bold>{r.user_name || 'User'}</ThemedText>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 2 }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <Ionicons key={n} name={n <= r.rating ? 'star' : 'star-outline'} size={12} color={colors.warning} />
+              ))}
+            </View>
+          </View>
+          <ThemedText variant="body" color="secondary" style={{ marginTop: 4 }}>{r.comment}</ThemedText>
+        </View>
+      ))}
+
+      {reviews.length === 0 && (
+        <ThemedText variant="caption" color="secondary" style={{ marginTop: Spacing.sm }}>No reviews yet. Be the first!</ThemedText>
+      )}
+    </ThemedView>
   );
 }
 
