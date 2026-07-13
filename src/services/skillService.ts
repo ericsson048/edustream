@@ -24,6 +24,39 @@ export interface UserSkill {
   completed_at: string | null;
 }
 
+export interface SkillTreeNode {
+  id: string;
+  skill_tree: string;
+  title: string;
+  description: string;
+  course: string | null;
+  icon: string;
+  position_x: number;
+  position_y: number;
+  order: number;
+  depth: number;
+  status: 'LOCKED' | 'UNLOCKED' | 'COMPLETED';
+  completed_at: string | null;
+}
+
+export interface SkillTreeEdge {
+  id: string;
+  skill_tree: string;
+  parent: string;
+  child: string;
+}
+
+export interface SkillTreeData {
+  id: string;
+  user: string;
+  title: string;
+  description: string;
+  is_active: boolean;
+  nodes: SkillTreeNode[];
+  edges: SkillTreeEdge[];
+  created_at: string;
+}
+
 export const skillService = {
   async listSkills(): Promise<Skill[]> {
     const { data } = await apiClient.get<PaginatedResponse<Skill>>('/skills/');
@@ -39,6 +72,24 @@ export const skillService = {
   },
   async updateUserSkill(id: string, status: UserSkill['status']): Promise<UserSkill> {
     const { data } = await apiClient.patch<UserSkill>(`/user-skills/${id}/`, { status });
+    return data;
+  },
+
+  // Dynamic Skill Tree
+  async listSkillTrees(): Promise<SkillTreeData[]> {
+    const { data } = await apiClient.get<PaginatedResponse<SkillTreeData>>('/skill-trees/');
+    return data.results ?? [];
+  },
+  async getSkillTree(id: string): Promise<SkillTreeData> {
+    const { data } = await apiClient.get<SkillTreeData>(`/skill-trees/${id}/`);
+    return data;
+  },
+  async generateSkillTree(): Promise<SkillTreeData> {
+    const { data } = await apiClient.post<SkillTreeData>('/skill-trees/generate/');
+    return data;
+  },
+  async unlockNextNode(treeId: string, nodeId: string): Promise<SkillTreeNode> {
+    const { data } = await apiClient.post<SkillTreeNode>(`/skill-trees/${treeId}/unlock_next/`, { node_id: nodeId });
     return data;
   },
 };

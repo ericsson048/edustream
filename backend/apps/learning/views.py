@@ -20,6 +20,9 @@ from .models import (
     QuizAttempt,
     QuizQuestion,
     Skill,
+    SkillEdge,
+    SkillNode,
+    SkillTree,
     Submission,
     UserActivity,
     UserSkill,
@@ -33,6 +36,9 @@ from .serializers import (
     QuizSerializer,
     RecommendedCourseSerializer,
     SkillSerializer,
+    SkillEdgeSerializer,
+    SkillNodeSerializer,
+    SkillTreeSerializer,
     SubmissionSerializer,
     UserActivitySerializer,
     UserSkillSerializer,
@@ -199,6 +205,46 @@ class UserSkillViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+class SkillTreeViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = SkillTreeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return SkillTree.objects.filter(user=self.request.user).prefetch_related("nodes", "edges")
+
+    @action(detail=False, methods=["post"])
+    def generate(self, request):
+        from .skill_tree_generator import generate_skill_tree
+        SkillTree.objects.filter(user=request.user).update(is_active=False)
+        tree = generate_skill_tree(request.user)
+        if not tree:
+            return Response({"detail": "Unable to generate skill tree. Enroll in courses first."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(tree)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def unlock_next(self, request, pk=None):
+        tree = self.get_object()
+        node_id = request.data.get("node_id")
+        try:
+            node = tree.nodes.get(id=node_id)
+        except SkillNode.DoesNotExist:
+            return Response({"detail": "Node not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if node.status == SkillNode.Status.LOCKED:
+            parents = SkillEdge.objects.filter(child=node).select_related("parent")
+            all_parents_complete = all(
+                edge.parent.status == SkillNode.Status.COMPLETED or edge.parent.status == SkillNode.Status.UNLOCKED
+                for edge in parents
+            )
+            if not parents.exists() or all_parents_complete:
+                node.status = SkillNode.Status.UNLOCKED
+                node.save(update_fields=["status"])
+                return Response(SkillNodeSerializer(node).data)
+
+        return Response({"detail": "Cannot unlock this node yet."}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class FocusSessionViewSet(viewsets.ModelViewSet):
     serializer_class = FocusSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -225,9 +271,27 @@ class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     http_method_names = ["get", "patch", "head", "options"]
+    filterset_fields = ["notification_type", "is_read"]
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)
+
+    @action(detail=True, methods=["patch"])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save(update_fields=["is_read"])
+        return Response(self.get_serializer(notification).data)
+
+    @action(detail=False, methods=["post"])
+    def mark_all_read(self, request):
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({"status": "ok"})
+
+    @action(detail=False, methods=["get"])
+    def unread_count(self, request):
+        count = Notification.objects.filter(user=request.user, is_read=False).count()
+        return Response({"count": count})
 
 
 class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):

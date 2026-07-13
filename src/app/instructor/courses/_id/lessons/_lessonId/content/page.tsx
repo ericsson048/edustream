@@ -80,7 +80,7 @@ export default function LessonContentEditor() {
   const [aiResult, setAiResult] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (!lessonId) return;

@@ -12,6 +12,7 @@ from .views import (
     QuizQuestionViewSet,
     QuizViewSet,
     RecommendedCoursesView,
+    SkillTreeViewSet,
     SkillViewSet,
     SubmissionViewSet,
     UserActivityViewSet,
@@ -30,6 +31,7 @@ router.register(r"skills", SkillViewSet, basename="skill")
 router.register(r"user-skills", UserSkillViewSet, basename="user-skill")
 router.register(r"focus-sessions", FocusSessionViewSet, basename="focus-session")
 router.register(r"activities", UserActivityViewSet, basename="activity")
+router.register(r"skill-trees", SkillTreeViewSet, basename="skill-tree")
 
 urlpatterns = [
     path("", include(router.urls)),

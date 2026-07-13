@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Assignment, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, Submission, UserActivity, UserSkill
+from .models import Assignment, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, SkillEdge, SkillNode, SkillTree, Submission, UserActivity, UserSkill
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -118,6 +118,30 @@ class UserStatsSerializer(serializers.Serializer):
     total_ai_tokens_used = serializers.IntegerField()
     skills_earned = serializers.ListField(child=serializers.CharField())
     last_activity = serializers.DateTimeField(allow_null=True)
+
+
+class SkillNodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SkillNode
+        fields = "__all__"
+        read_only_fields = ["skill_tree", "status", "completed_at"]
+
+
+class SkillEdgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SkillEdge
+        fields = "__all__"
+        read_only_fields = ["skill_tree"]
+
+
+class SkillTreeSerializer(serializers.ModelSerializer):
+    nodes = SkillNodeSerializer(many=True, read_only=True)
+    edges = SkillEdgeSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SkillTree
+        fields = "__all__"
+        read_only_fields = ["user"]
 
 
 class RecommendedCourseSerializer(serializers.Serializer):

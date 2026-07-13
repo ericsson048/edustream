@@ -1,6 +1,7 @@
-import { Search, Bell, MessageSquare, Calendar, Globe, Sun, Moon } from 'lucide-react';
+import { Search, MessageSquare, Calendar, Globe, Sun, Moon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
+import NotificationDropdown from './NotificationDropdown';
 
 export default function Header({ title, subtitle }: { title?: string; subtitle?: string }) {
   const { t, i18n } = useTranslation();
@@ -40,10 +41,7 @@ export default function Header({ title, subtitle }: { title?: string; subtitle?:
           <Globe className="w-5 h-5" />
           {i18n.language}
         </button>
-        <button className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
-        </button>
+        <NotificationDropdown />
         <button className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
           <MessageSquare className="w-5 h-5" />
         </button>

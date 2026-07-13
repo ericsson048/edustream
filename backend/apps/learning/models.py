@@ -120,6 +120,54 @@ class FocusSession(models.Model):
     completed_at = models.DateTimeField(auto_now_add=True)
 
 
+class SkillTree(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="skill_trees")
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class SkillNode(models.Model):
+    class Status(models.TextChoices):
+        LOCKED = "LOCKED", "Locked"
+        UNLOCKED = "UNLOCKED", "Unlocked"
+        COMPLETED = "COMPLETED", "Completed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    skill_tree = models.ForeignKey(SkillTree, on_delete=models.CASCADE, related_name="nodes")
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    course = models.ForeignKey("courses.Course", on_delete=models.SET_NULL, null=True, blank=True, related_name="skill_nodes")
+    icon = models.CharField(max_length=50, blank=True, default="")
+    position_x = models.FloatField(default=50)
+    position_y = models.FloatField(default=10)
+    order = models.IntegerField(default=0)
+    depth = models.IntegerField(default=0)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.LOCKED)
+    unlock_condition = models.JSONField(default=dict, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["depth", "order"]
+
+
+class SkillEdge(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    skill_tree = models.ForeignKey(SkillTree, on_delete=models.CASCADE, related_name="edges")
+    parent = models.ForeignKey(SkillNode, on_delete=models.CASCADE, related_name="children")
+    child = models.ForeignKey(SkillNode, on_delete=models.CASCADE, related_name="parents")
+
+    class Meta:
+        unique_together = ("parent", "child")
+
+
 class UserActivity(models.Model):
     class Kind(models.TextChoices):
         LESSON_STARTED = "LESSON_STARTED", "Lesson started"
@@ -146,8 +194,17 @@ class UserActivity(models.Model):
 
 
 class Notification(models.Model):
+    class Type(models.TextChoices):
+        COURSE_UPDATE = "COURSE_UPDATE", "Course Update"
+        ASSIGNMENT = "ASSIGNMENT", "Assignment"
+        GRADE = "GRADE", "Grade"
+        MESSAGE = "MESSAGE", "Message"
+        SKILL_UNLOCK = "SKILL_UNLOCK", "Skill Unlock"
+        SYSTEM = "SYSTEM", "System"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
+    notification_type = models.CharField(max_length=20, choices=Type.choices, default=Type.SYSTEM)
     title = models.CharField(max_length=255)
     body = models.TextField()
     link = models.CharField(max_length=255, blank=True)

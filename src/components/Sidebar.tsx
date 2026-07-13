@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, FileText, BarChart2, Users, Settings, Compass, MessageSquare, Target, GitMerge, Video } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileText, BarChart2, Users, Settings, Compass, MessageSquare, Target, GitMerge, Video, Bell } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../hooks/useNotifications';
 import { useNavigate } from 'react-router-dom';
 
 export default function Sidebar() {
@@ -10,6 +11,7 @@ export default function Sidebar() {
   const path = location.pathname;
   const { t } = useTranslation();
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
 
   const links = [
@@ -22,6 +24,7 @@ export default function Sidebar() {
     { name: t('sidebar.assignments'), icon: FileText, href: '/assignments' },
     { name: t('sidebar.grades'), icon: BarChart2, href: '/grades' },
     { name: t('sidebar.community'), icon: Users, href: '/community' },
+    { name: t('sidebar.notifications'), icon: Bell, href: '/notifications', badge: unreadCount },
     { name: t('sidebar.messages'), icon: MessageSquare, href: '/messages' },
   ];
 
@@ -49,7 +52,12 @@ export default function Sidebar() {
               )}
             >
               <link.icon className={clsx('w-5 h-5', isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400')} />
-              {link.name}
+              <span className="flex-1">{link.name}</span>
+              {(link as any).badge > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
+                  {(link as any).badge > 99 ? '99+' : (link as any).badge}
+                </span>
+              )}
             </Link>
           );
         })}

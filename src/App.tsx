@@ -4,12 +4,13 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import Welcome from "./app/page";
 import Pricing from "./app/pricing/page";
 import Login from "./app/login/page";
 import Register from "./app/register/page";
 import ForgotPassword from "./app/forgot-password/page";
-import Dashboard from "./app/dashboard/page";
+const Dashboard = lazy(() => import("./app/dashboard/page"));
 import Catalog from "./app/catalog/page";
 import CourseDetails from "./app/course/_id/page";
 import Checkout from "./app/checkout/_id/page";
@@ -32,6 +33,7 @@ import AdminProfile from "./app/admin/profile/page";
 import Chatbot from "./components/Chatbot";
 import FocusRoom from "./app/focus/page";
 import SkillTree from "./app/skill-tree/page";
+import Notifications from "./app/notifications/page";
 import StudentSchedule from "./app/schedule/page";
 import LiveMeeting from "./app/live/_id/page";
 
@@ -57,6 +59,43 @@ import ProtectedRoute, {
   getDefaultRoute,
 } from "./components/guards/ProtectedRoute";
 import { useAuth } from "./contexts/AuthContext";
+
+function DashboardFallback() {
+  return (
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
+      <aside className="fixed left-0 top-0 h-full w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 space-y-3">
+        <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-3/4 animate-pulse" />
+        <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-1/2 animate-pulse" />
+        <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-2/3 animate-pulse" />
+        <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-3/4 animate-pulse" />
+        <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-1/3 animate-pulse" />
+      </aside>
+      <main className="flex-1 ml-64 p-8 max-w-7xl mx-auto w-full">
+        <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded w-1/4 animate-pulse mb-8" />
+        <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-1/2 animate-pulse mb-8" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-6">
+          <div className="col-span-2 space-y-4">
+            <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-1/3 animate-pulse" />
+            <div className="h-48 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+            <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-1/3 animate-pulse" />
+            <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+          </div>
+          <div className="space-y-4">
+            <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-2/3 animate-pulse" />
+            <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+            <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-2/3 animate-pulse" />
+            <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default function App() {
   const { isAuthenticated, user } = useAuth();
@@ -93,7 +132,9 @@ export default function App() {
             path="/dashboard"
             element={
               <ProtectedRoute roles={["STUDENT"]}>
-                <Dashboard />
+                <Suspense fallback={<DashboardFallback />}>
+                  <Dashboard />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -134,6 +175,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["STUDENT"]}>
                 <SkillTree />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
+                <Notifications />
               </ProtectedRoute>
             }
           />

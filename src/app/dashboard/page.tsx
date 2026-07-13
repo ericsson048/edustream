@@ -10,6 +10,7 @@ import { liveService, type LiveSessionItem } from '../../services/liveService';
 import type { Course, Enrollment, ProgressItem } from '../../types/lms';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 type CourseWithMetrics = {
   enrollment: Enrollment;
@@ -21,16 +22,16 @@ type CourseWithMetrics = {
 };
 
 const ACTIVITY_LABELS: Record<string, string> = {
-  LESSON_STARTED: 'Lesson started',
-  LESSON_COMPLETED: 'Lesson completed',
-  QUIZ_PASSED: 'Quiz passed',
-  QUIZ_FAILED: 'Quiz failed',
-  COURSE_ENROLLED: 'Course enrolled',
-  COURSE_COMPLETED: 'Course completed',
-  CERTIFICATE_CLAIMED: 'Certificate claimed',
-  NOTE_CREATED: 'Note created',
-  ASSIGNMENT_SUBMITTED: 'Assignment submitted',
-  FOCUS_SESSION: 'Focus session completed',
+  LESSON_STARTED: 'activity_LESSON_STARTED',
+  LESSON_COMPLETED: 'activity_LESSON_COMPLETED',
+  QUIZ_PASSED: 'activity_QUIZ_PASSED',
+  QUIZ_FAILED: 'activity_QUIZ_FAILED',
+  COURSE_ENROLLED: 'activity_COURSE_ENROLLED',
+  COURSE_COMPLETED: 'activity_COURSE_COMPLETED',
+  CERTIFICATE_CLAIMED: 'activity_CERTIFICATE_CLAIMED',
+  NOTE_CREATED: 'activity_NOTE_CREATED',
+  ASSIGNMENT_SUBMITTED: 'activity_ASSIGNMENT_SUBMITTED',
+  FOCUS_SESSION: 'activity_FOCUS_SESSION',
 };
 
 const ACTIVITY_ICONS: Record<string, typeof PlayCircle> = {
@@ -70,6 +71,7 @@ function getWeeklyActivity(progressItems: ProgressItem[]) {
 export default function DashboardPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [coursesMap, setCoursesMap] = useState<Record<string, Course>>({});
   const [progressItems, setProgressItems] = useState<ProgressItem[]>([]);
@@ -155,15 +157,43 @@ export default function DashboardPage() {
   const activityData = getWeeklyActivity(progressItems);
 
   const statCards = [
-    { label: 'Courses in Progress', value: stats ? String(stats.courses_in_progress) : String(coursesInProgress), icon: PlayCircle, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', badge: `${enrolledCourses.length} enrolled` },
-    { label: 'Completed Courses', value: stats ? String(stats.courses_completed) : String(completedCourses), icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', badge: `${stats?.lessons_completed ?? totalCompletedLessons} lessons` },
-    { label: 'Average Score', value: stats ? `${stats.average_quiz_score.toFixed(1)}%` : (gradedSubmissions.length ? `${averageScore}%` : 'N/A'), icon: Star, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30', badge: `${stats?.skills_earned.length ?? 0} skills` },
+    { label: t('dashboard.coursesInProgress'), value: stats ? String(stats.courses_in_progress) : String(coursesInProgress), icon: PlayCircle, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', badge: `${enrolledCourses.length} ${t('dashboard.enrolled')}` },
+    { label: t('dashboard.completedCourses'), value: stats ? String(stats.courses_completed) : String(completedCourses), icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', badge: `${stats?.lessons_completed ?? totalCompletedLessons} ${t('dashboard.lessons')}` },
+    { label: t('dashboard.averageScore'), value: stats ? `${stats.average_quiz_score.toFixed(1)}%` : (gradedSubmissions.length ? `${averageScore}%` : 'N/A'), icon: Star, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30', badge: `${stats?.skills_earned.length ?? 0} ${t('dashboard.skills')}` },
   ];
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
+        <Sidebar />
+        <main className="flex-1 ml-64">
+          <Header />
+          <div className="p-8 max-w-7xl mx-auto">
+            <div className="mb-8">
+              <div className="h-9 bg-slate-200 dark:bg-slate-800 rounded-lg w-72 animate-pulse mb-1" />
+              <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-56 animate-pulse" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl animate-pulse" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-5">
+                <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-44 animate-pulse" />
+                <div className="h-52 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+                <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-36 animate-pulse" />
+                <div className="h-44 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+              </div>
+              <div className="space-y-5">
+                <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-28 animate-pulse" />
+                <div className="h-36 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+                <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-32 animate-pulse" />
+                <div className="h-36 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -175,8 +205,8 @@ export default function DashboardPage() {
         <Header />
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
-            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-1">Welcome back, {user?.full_name?.split(' ')[0] || 'Student'}!</h2>
-            <p className="text-slate-500 dark:text-slate-400">Your personalized learning dashboard.</p>
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-1">{t('dashboard.welcome', { name: user?.full_name?.split(' ')[0] || 'Student' })}</h2>
+            <p className="text-slate-500 dark:text-slate-400">{t('dashboard.subtitle')}</p>
           </div>
 
           {stats && (
@@ -184,34 +214,34 @@ export default function DashboardPage() {
               <div className="bg-gradient-to-br from-orange-500 to-red-500 p-5 rounded-2xl text-white shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <Flame className="w-5 h-5" />
-                  <span className="text-sm font-bold opacity-80">Streak</span>
+                  <span className="text-sm font-bold opacity-80">{t('dashboard.streak')}</span>
                 </div>
                 <p className="text-3xl font-black">{stats.streak_days}</p>
-                <p className="text-xs opacity-80 mt-1">days in a row</p>
+                <p className="text-xs opacity-80 mt-1">{t('dashboard.daysInARow')}</p>
               </div>
               <div className="bg-gradient-to-br from-blue-500 to-indigo-500 p-5 rounded-2xl text-white shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="w-5 h-5" />
-                  <span className="text-sm font-bold opacity-80">Today</span>
+                  <span className="text-sm font-bold opacity-80">{t('dashboard.today')}</span>
                 </div>
                 <p className="text-3xl font-black">{stats.lessons_completed_today}</p>
-                <p className="text-xs opacity-80 mt-1">lessons completed</p>
+                <p className="text-xs opacity-80 mt-1">{t('dashboard.lessonsCompleted')}</p>
               </div>
               <div className="bg-gradient-to-br from-emerald-500 to-teal-500 p-5 rounded-2xl text-white shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <Zap className="w-5 h-5" />
-                  <span className="text-sm font-bold opacity-80">Focus</span>
+                  <span className="text-sm font-bold opacity-80">{t('dashboard.focus')}</span>
                 </div>
                 <p className="text-3xl font-black">{stats.total_focus_minutes}</p>
-                <p className="text-xs opacity-80 mt-1">total minutes</p>
+                <p className="text-xs opacity-80 mt-1">{t('dashboard.totalMinutes')}</p>
               </div>
               <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-5 rounded-2xl text-white shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <Sparkles className="w-5 h-5" />
-                  <span className="text-sm font-bold opacity-80">AI</span>
+                  <span className="text-sm font-bold opacity-80">{t('dashboard.ai')}</span>
                 </div>
                 <p className="text-3xl font-black">{stats.total_ai_tokens_used}</p>
-                <p className="text-xs opacity-80 mt-1">AI interactions</p>
+                <p className="text-xs opacity-80 mt-1">{t('dashboard.aiInteractions')}</p>
               </div>
             </div>
           )}
@@ -235,8 +265,8 @@ export default function DashboardPage() {
             <div className="lg:col-span-2 space-y-8">
               <div>
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold dark:text-white">Continue Learning</h3>
-                  <Link to="/courses" className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">View All</Link>
+                  <h3 className="text-xl font-bold dark:text-white">{t('dashboard.continueLearning')}</h3>
+                  <Link to="/courses" className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">{t('dashboard.viewAll')}</Link>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {enrolledCourses.slice(0, 4).map((item) => (
@@ -255,7 +285,7 @@ export default function DashboardPage() {
                       <div className="p-5">
                         <h4 className="font-bold text-lg mb-1 dark:text-white">{item.course?.title || item.enrollment.course_title}</h4>
                         <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
-                          {item.completedLessons} / {item.totalLessons || 0} lesson(s) completed
+                          {t('dashboard.lessonProgress', { completed: item.completedLessons, total: item.totalLessons || 0 })}
                         </p>
                         <div className="flex items-center gap-4 mb-4">
                           <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -267,14 +297,14 @@ export default function DashboardPage() {
                           to={item.course && item.nextLessonId ? `/player/${item.course.id}/${item.nextLessonId}` : '/courses'}
                           className="block w-full py-2.5 bg-slate-900 dark:bg-slate-800 text-white text-center rounded-xl text-sm font-bold hover:bg-blue-600 dark:hover:bg-blue-600 transition-colors"
                         >
-                          Continue Lesson
+                          {t('dashboard.continueLesson')}
                         </Link>
                       </div>
                     </div>
                   ))}
                   {enrolledCourses.length === 0 && (
                     <div className="md:col-span-2 rounded-2xl border border-dashed border-slate-300 bg-white dark:bg-slate-900 p-8 text-sm text-slate-500">
-                      You are not enrolled in any published course yet.
+                      {t('dashboard.noEnrollments')}
                     </div>
                   )}
                 </div>
@@ -282,8 +312,8 @@ export default function DashboardPage() {
 
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold dark:text-white">Study Activity</h3>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 rounded-lg py-1 px-2 bg-slate-50 dark:bg-slate-800">Last 7 days</span>
+                  <h3 className="text-lg font-bold dark:text-white">{t('dashboard.studyActivity')}</h3>
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 rounded-lg py-1 px-2 bg-slate-50 dark:bg-slate-800">{t('dashboard.last7Days')}</span>
                 </div>
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -305,9 +335,9 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-5 h-5 text-purple-500" />
-                      <h3 className="text-xl font-bold dark:text-white">Recommended for You</h3>
+                      <h3 className="text-xl font-bold dark:text-white">{t('dashboard.recommendedForYou')}</h3>
                     </div>
-                    <Link to="/courses" className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">Browse All</Link>
+                    <Link to="/courses" className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">{t('dashboard.browseAll')}</Link>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {recommended.map((course) => (
@@ -340,7 +370,7 @@ export default function DashboardPage() {
 
               {activities.length > 0 && (
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                  <h3 className="text-lg font-bold mb-6 dark:text-white">Recent Activity</h3>
+                  <h3 className="text-lg font-bold mb-6 dark:text-white">{t('dashboard.recentActivity')}</h3>
                   <div className="space-y-4">
                     {activities.map((act) => {
                       const Icon = ACTIVITY_ICONS[act.kind] || MessageSquare;
@@ -350,7 +380,7 @@ export default function DashboardPage() {
                             <Icon className="w-4 h-4 text-slate-500" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{ACTIVITY_LABELS[act.kind] || act.kind}</p>
+                            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{t(`dashboard.${ACTIVITY_LABELS[act.kind] || act.kind}`)}</p>
                             <p className="text-xs text-slate-400 mt-0.5">{new Date(act.created_at).toLocaleString()}</p>
                           </div>
                         </div>
@@ -363,7 +393,7 @@ export default function DashboardPage() {
 
             <div className="space-y-8">
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 text-center">
-                <h3 className="text-lg font-bold mb-6 text-left dark:text-white">Learning Goal</h3>
+                <h3 className="text-lg font-bold mb-6 text-left dark:text-white">{t('dashboard.learningGoal')}</h3>
                 <div className="relative w-40 h-40 mx-auto mb-6">
                   <svg className="w-full h-full transform -rotate-90">
                     <circle cx="80" cy="80" r="70" fill="transparent" stroke="currentColor" className="text-slate-100 dark:text-slate-800" strokeWidth="12" />
@@ -376,21 +406,21 @@ export default function DashboardPage() {
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-4xl font-extrabold text-slate-900 dark:text-white">{goalPercent}%</span>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-1">Complete</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-1">{t('dashboard.complete')}</span>
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between text-sm p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <span className="text-slate-600 dark:text-slate-400 font-medium">Completed</span>
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">{t('dashboard.completed')}</span>
                     </div>
                     <span className="font-bold text-slate-900 dark:text-white">{totalCompletedLessons}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full"></span>
-                      <span className="text-slate-600 dark:text-slate-400 font-medium">Remaining</span>
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">{t('dashboard.remaining')}</span>
                     </div>
                     <span className="font-bold text-slate-900 dark:text-white">{Math.max(0, totalTrackedLessons - totalCompletedLessons)}</span>
                   </div>
@@ -399,7 +429,7 @@ export default function DashboardPage() {
 
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold dark:text-white">Upcoming Deadlines</h3>
+                  <h3 className="text-lg font-bold dark:text-white">{t('dashboard.upcomingDeadlines')}</h3>
                   <CalendarClock className="text-slate-400 w-5 h-5" />
                 </div>
                 <div className="space-y-5">
@@ -418,16 +448,16 @@ export default function DashboardPage() {
                       </div>
                     );
                   })}
-                  {upcomingAssignments.length === 0 && <p className="text-sm text-slate-500">No upcoming assignment deadlines.</p>}
+                  {upcomingAssignments.length === 0 && <p className="text-sm text-slate-500">{t('dashboard.noDeadlines')}</p>}
                 </div>
                 <Link to="/assignments" className="w-full mt-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                  View Assignments <ArrowRight className="w-4 h-4" />
+                  {t('dashboard.viewAssignments')} <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
 
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold dark:text-white">Upcoming Live Sessions</h3>
+                  <h3 className="text-lg font-bold dark:text-white">{t('dashboard.upcomingLiveSessions')}</h3>
                   <CalendarClock className="text-slate-400 w-5 h-5" />
                 </div>
                 <div className="space-y-4">
@@ -437,10 +467,10 @@ export default function DashboardPage() {
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{session.course_title || 'Course'} — {new Date(session.scheduled_at).toLocaleString()}</p>
                     </div>
                   ))}
-                  {upcomingLiveSessions.length === 0 && <p className="text-sm text-slate-500">No live sessions scheduled yet.</p>}
+                  {upcomingLiveSessions.length === 0 && <p className="text-sm text-slate-500">{t('dashboard.noLiveSessions')}</p>}
                 </div>
                 <Link to="/schedule" className="w-full mt-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                  View Full Schedule <ArrowRight className="w-4 h-4" />
+                  {t('dashboard.viewFullSchedule')} <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
             </div>
