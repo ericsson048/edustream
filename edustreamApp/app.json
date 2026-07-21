@@ -22,7 +22,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.edustream.app",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -39,7 +43,14 @@
           "recordAudioAndroid": true
         }
       ],
-      "expo-localization"
-    ]
+      "expo-localization",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "06669953-ef1f-4805-b5c8-f7311cce93e2"
+      }
+    }
   }
 }
