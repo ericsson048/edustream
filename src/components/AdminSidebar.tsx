@@ -1,13 +1,10 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy, MessageSquare, User } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useAuth } from '../contexts/AuthContext';
 
 export default function AdminSidebar() {
   const location = useLocation();
   const path = location.pathname;
-  const { logout } = useAuth();
-  const navigate = useNavigate();
 
   const links = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
@@ -16,8 +13,6 @@ export default function AdminSidebar() {
     { name: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
     { name: 'Financial Reports', icon: TrendingUp, href: '/admin/reports' },
     { name: 'Support Tickets', icon: LifeBuoy, href: '/admin/support' },
-    { name: 'Messages', icon: MessageSquare, href: '/admin/messages' },
-    { name: 'Profile', icon: User, href: '/admin/profile' },
     { name: 'Settings', icon: Settings, href: '/admin/settings' },
   ];
 
@@ -52,9 +47,9 @@ export default function AdminSidebar() {
       </nav>
       
       <div className="p-4 mt-auto border-t border-slate-100">
-        <button className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors" onClick={() => { logout(); navigate('/'); }}>
+        <Link to="/" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
           Logout
-        </button>
+        </Link>
       </div>
     </aside>
   );

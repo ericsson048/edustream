@@ -1,18 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, FileText, BarChart2, Users, Settings, Compass, MessageSquare, Target, GitMerge, Video, Bell } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileText, BarChart2, Users, Settings, LogOut, Compass, MessageSquare, User, Target, GitMerge, Video } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../contexts/AuthContext';
-import { useNotifications } from '../hooks/useNotifications';
-import { useNavigate } from 'react-router-dom';
 
 export default function Sidebar() {
   const location = useLocation();
   const path = location.pathname;
   const { t } = useTranslation();
-  const { user, logout } = useAuth();
-  const { unreadCount } = useNotifications();
-  const navigate = useNavigate();
 
   const links = [
     { name: t('sidebar.dashboard'), icon: LayoutDashboard, href: '/dashboard' },
@@ -24,7 +18,6 @@ export default function Sidebar() {
     { name: t('sidebar.assignments'), icon: FileText, href: '/assignments' },
     { name: t('sidebar.grades'), icon: BarChart2, href: '/grades' },
     { name: t('sidebar.community'), icon: Users, href: '/community' },
-    { name: t('sidebar.notifications'), icon: Bell, href: '/notifications', badge: unreadCount },
     { name: t('sidebar.messages'), icon: MessageSquare, href: '/messages' },
   ];
 
@@ -37,7 +30,7 @@ export default function Sidebar() {
         <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">EduStream</h1>
       </div>
 
-      <nav className="flex-1 px-4 space-y-1 mt-4 h-(calc(100vh-200px)) overflow-y-auto">
+      <nav className="flex-1 px-4 space-y-1 mt-4">
         {links.map((link) => {
           const isActive = path === link.href;
           return (
@@ -52,12 +45,7 @@ export default function Sidebar() {
               )}
             >
               <link.icon className={clsx('w-5 h-5', isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400')} />
-              <span className="flex-1">{link.name}</span>
-              {(link as any).badge > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
-                  {(link as any).badge > 99 ? '99+' : (link as any).badge}
-                </span>
-              )}
+              {link.name}
             </Link>
           );
         })}
@@ -80,23 +68,14 @@ export default function Sidebar() {
               className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700 group-hover:border-blue-400 transition-colors"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{user?.full_name || 'User'}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user?.email || 'No email'}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Alex Johnson</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Computer Science</p>
             </div>
           </Link>
           <Link to="/profile">
             <Settings className="w-4 h-4 text-slate-400 cursor-pointer hover:text-slate-600 dark:hover:text-slate-300" />
           </Link>
         </div>
-        <button
-          className="mt-3 w-full py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-          onClick={() => {
-            logout();
-            navigate('/');
-          }}
-        >
-          Logout
-        </button>
       </div>
     </aside>
   );

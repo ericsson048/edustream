@@ -1,23 +1,19 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, FileText, BarChart2, GraduationCap, MessageSquare, User, Calendar, Paperclip } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { LayoutDashboard, BookOpen, FileText, BarChart2, GraduationCap, MessageSquare, User, Calendar } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useAuth } from '../contexts/AuthContext';
 
 export default function InstructorSidebar() {
   const location = useLocation();
   const path = location.pathname;
-  const { logout } = useAuth();
-  const navigate = useNavigate();
 
   const links = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/instructor' },
     { name: 'My Courses', icon: BookOpen, href: '/instructor/courses' },
-    { name: 'Resources', icon: Paperclip, href: '/instructor/resources' },
     { name: 'Schedule & Live', icon: Calendar, href: '/instructor/schedule' },
     { name: 'Grading', icon: FileText, href: '/instructor/assignments' },
     { name: 'Analytics', icon: BarChart2, href: '/instructor/analytics' },
-    { name: 'Messages', icon: MessageSquare, href: '/instructor/messages' },
-    { name: 'Profile Settings', icon: User, href: '/instructor/profile' },
+    { name: 'Messages', icon: MessageSquare, href: '/messages' },
+    { name: 'Public Profile', icon: User, href: '/instructor/profile/sarah-chen' },
   ];
 
   return (
@@ -51,9 +47,9 @@ export default function InstructorSidebar() {
       </nav>
       
       <div className="p-4 mt-auto border-t border-slate-100">
-        <button className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors" onClick={() => { logout(); navigate('/'); }}>
+        <Link to="/" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
           Logout
-        </button>
+        </Link>
       </div>
     </aside>
   );
