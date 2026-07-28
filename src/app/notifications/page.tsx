@@ -10,6 +10,8 @@ const typeConfig: Record<NotificationType, { icon: string; color: string; bg: st
   ASSIGNMENT: { icon: '📝', color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30' },
   GRADE: { icon: '📊', color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
   MESSAGE: { icon: '💬', color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
+  LIVE_SESSION: { icon: '🔴', color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-900/30' },
+  LIVE_REMINDER: { icon: '⏰', color: 'text-orange-600', bg: 'bg-orange-100 dark:bg-orange-900/30' },
   SKILL_UNLOCK: { icon: '⭐', color: 'text-amber-500', bg: 'bg-amber-100 dark:bg-amber-900/30' },
   SYSTEM: { icon: '🔔', color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
 };

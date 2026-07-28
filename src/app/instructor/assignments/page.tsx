@@ -142,7 +142,7 @@ export default function ManageAssignments() {
                   <div>
                     <p className="font-semibold text-slate-900">{submission.assignment_title || submission.assignment}</p>
                     <p className="text-sm text-slate-500">{submission.student_name || submission.student}</p>
-                    <p className="text-xs text-slate-400 mt-1">{submission.course_title || 'Course'} ÔÇó {new Date(submission.submitted_at).toLocaleString()}</p>
+                    <p className="text-xs text-slate-400 mt-1">{submission.course_title || 'Course'} · {new Date(submission.submitted_at).toLocaleString()}</p>
                   </div>
                   <div className="text-sm">
                     <p className="font-semibold text-slate-700">Status</p>

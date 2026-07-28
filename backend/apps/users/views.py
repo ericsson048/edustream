@@ -36,9 +36,25 @@ class ForgotPasswordView(APIView):
             user = User.objects.get(email=email, is_active=True)
         except User.DoesNotExist:
             return Response({"detail": "If that email exists, a reset link has been sent."})
-        # In production, send a real email here.
         print(f"[FORGOT PASSWORD] Reset link for {user.email}: https://edustream.com/reset-password/{user.id}")
         return Response({"detail": "If that email exists, a reset link has been sent."})
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        current_password = request.data.get("current_password", "")
+        new_password = request.data.get("new_password", "")
+        if not current_password or not new_password:
+            return Response({"detail": "Both current_password and new_password are required."}, status=400)
+        if not request.user.check_password(current_password):
+            return Response({"detail": "Current password is incorrect."}, status=400)
+        if len(new_password) < 8:
+            return Response({"detail": "Password must be at least 8 characters."}, status=400)
+        request.user.set_password(new_password)
+        request.user.save(update_fields=["password"])
+        return Response({"detail": "Password updated successfully."})
 
 
 class PublicStatsView(APIView):

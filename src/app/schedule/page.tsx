@@ -6,6 +6,20 @@ import { useEffect, useState } from 'react';
 import { liveService, type LiveSessionItem } from '../../services/liveService';
 import { useToast } from '../../contexts/ToastContext';
 
+const statusStyles: Record<string, string> = {
+  LIVE: 'bg-red-50 text-red-600',
+  WAITING: 'bg-amber-50 text-amber-700',
+  ENDED: 'bg-slate-100 text-slate-500',
+  SCHEDULED: 'bg-blue-50 text-blue-600',
+};
+
+const statusLabels: Record<string, string> = {
+  LIVE: 'Live Now',
+  WAITING: 'Waiting',
+  ENDED: 'Ended',
+  SCHEDULED: 'Scheduled',
+};
+
 export default function StudentSchedule() {
   const [sessions, setSessions] = useState<LiveSessionItem[]>([]);
   const { showToast } = useToast();
@@ -42,14 +56,14 @@ export default function StudentSchedule() {
                 <div className="flex items-center gap-3">
                   <span
                     className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${
-                      session.status === 'LIVE' ? 'bg-red-50 text-red-600' : session.status === 'ENDED' ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-700'
+                      statusStyles[session.status] || statusStyles.SCHEDULED
                     }`}
                   >
                     <Radio className="w-3 h-3" />
-                    {session.status}
+                    {statusLabels[session.status] || session.status}
                   </span>
                   <Link to={`/live/${session.id}`} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">
-                    {session.status === 'LIVE' ? 'Join now' : 'Open'}
+                    {session.status === 'LIVE' ? 'Join now' : session.status === 'WAITING' ? 'Join' : 'Open'}
                   </Link>
                 </div>
               </div>
@@ -65,4 +79,3 @@ export default function StudentSchedule() {
     </div>
   );
 }
-

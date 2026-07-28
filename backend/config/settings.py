@@ -227,3 +227,8 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API backend for EduStream LMS",
     "VERSION": "1.0.0",
 }
+
+WEBRTC_STUN_URLS = [u.strip() for u in os.getenv("WEBRTC_STUN_URLS", "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302").split(",") if u.strip()]
+WEBRTC_TURN_URLS = [u.strip() for u in os.getenv("WEBRTC_TURN_URLS", "").split(",") if u.strip()]
+WEBRTC_TURN_USERNAME = os.getenv("WEBRTC_TURN_USERNAME", "")
+WEBRTC_TURN_CREDENTIAL = os.getenv("WEBRTC_TURN_CREDENTIAL", "")

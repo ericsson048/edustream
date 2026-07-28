@@ -375,6 +375,8 @@
       "ASSIGNMENT": "Assignments",
       "GRADE": "Grades",
       "MESSAGE": "Messages",
+      "LIVE_SESSION": "Live Sessions",
+      "LIVE_REMINDER": "Live Reminders",
       "SKILL_UNLOCK": "Skill Unlocks",
       "SYSTEM": "System"
     }

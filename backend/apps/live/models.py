@@ -9,6 +9,7 @@ from apps.courses.models import Course
 class LiveSession(models.Model):
     class Status(models.TextChoices):
         SCHEDULED = "SCHEDULED", "Scheduled"
+        WAITING = "WAITING", "Waiting"
         LIVE = "LIVE", "Live"
         ENDED = "ENDED", "Ended"
 
@@ -20,6 +21,8 @@ class LiveSession(models.Model):
     duration_minutes = models.PositiveIntegerField(default=60)
     room_name = models.CharField(max_length=120, unique=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.SCHEDULED)
+    requires_permission = models.BooleanField(default=False)
+    recording_file = models.FileField(upload_to="recordings/", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
@@ -32,6 +35,7 @@ class LiveParticipant(models.Model):
     session = models.ForeignKey(LiveSession, on_delete=models.CASCADE, related_name="participants")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="live_participations")
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
+    is_admitted = models.BooleanField(default=True)
     is_mic_on = models.BooleanField(default=True)
     is_camera_on = models.BooleanField(default=True)
     is_screen_sharing = models.BooleanField(default=False)
@@ -43,3 +47,14 @@ class LiveParticipant(models.Model):
 
     class Meta:
         unique_together = ("session", "user")
+
+
+class LiveChatMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(LiveSession, on_delete=models.CASCADE, related_name="chat_messages")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="live_chat_messages")
+    content = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]

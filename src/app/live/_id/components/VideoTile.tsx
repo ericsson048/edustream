@@ -12,6 +12,8 @@ interface VideoTileProps {
   isScreenSharing: boolean;
   peerStatus: PeerStatus;
   isSpeaking?: boolean;
+  presentationMode?: boolean;
+  filmstrip?: boolean;
 }
 
 export default function VideoTile({
@@ -23,6 +25,8 @@ export default function VideoTile({
   isScreenSharing,
   peerStatus,
   isSpeaking,
+  presentationMode,
+  filmstrip,
 }: VideoTileProps) {
   const initials = (participant.user_name || 'P').slice(0, 2).toUpperCase();
   const hasRemoteMedia = Boolean(stream && stream.getTracks().length);
@@ -31,7 +35,9 @@ export default function VideoTile({
 
   return (
     <div
-      className={`relative aspect-video overflow-hidden rounded-2xl bg-slate-800 border transition-all duration-300 ${
+      className={`relative overflow-hidden bg-slate-800 border transition-all duration-300 ${
+        presentationMode ? 'h-full rounded-2xl' : filmstrip ? 'h-full rounded-xl' : 'aspect-video rounded-2xl'
+      } ${
         isSpeaking ? 'border-emerald-400/60 shadow-lg shadow-emerald-500/10' : 'border-white/5'
       }`}
     >

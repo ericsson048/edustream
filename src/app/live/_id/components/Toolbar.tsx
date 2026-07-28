@@ -19,6 +19,8 @@ interface ToolbarProps {
   onToggleHand: () => void;
   onReaction: (reaction: string) => void;
   onLeave: () => void;
+  onEndSession?: () => void;
+  onMuteAll?: () => void;
   onToggleChat: () => void;
   chatOpen: boolean;
   participantCount: number;
@@ -27,7 +29,7 @@ interface ToolbarProps {
 export default function Toolbar({
   isMuted, isVideoOff, isScreenSharing, isRecording, isHandRaised,
   onToggleMute, onToggleVideo, onToggleScreenShare, onToggleRecording,
-  onToggleHand, onReaction, onLeave, onToggleChat, chatOpen, participantCount,
+  onToggleHand, onReaction, onLeave, onEndSession, onMuteAll, onToggleChat, chatOpen, participantCount,
 }: ToolbarProps) {
   const [showReactions, setShowReactions] = useState(false);
 
@@ -148,6 +150,29 @@ export default function Toolbar({
           <PhoneOff className="h-5 w-5" />
           <span className="hidden sm:inline">Leave</span>
         </button>
+
+        {/* End Session (host only) */}
+        {onEndSession && (
+          <button
+            onClick={onEndSession}
+            className="h-12 px-6 grid place-items-center gap-2 rounded-full bg-red-700 text-white font-bold text-sm hover:bg-red-800 transition-all border border-red-400/30"
+            title="End session for everyone"
+          >
+            <span className="hidden sm:inline">End Session</span>
+          </button>
+        )}
+
+        {/* Mute All (host only) */}
+        {onMuteAll && (
+          <button
+            onClick={onMuteAll}
+            className="h-12 px-4 grid place-items-center gap-2 rounded-full bg-amber-600/80 text-white font-bold text-sm hover:bg-amber-700 transition-all"
+            title="Mute all participants"
+          >
+            <MicOff className="h-5 w-5" />
+            <span className="hidden sm:inline">Mute All</span>
+          </button>
+        )}
       </div>
     </div>
   );

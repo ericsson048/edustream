@@ -16,6 +16,7 @@ from .models import (
     Assignment,
     FocusSession,
     Notification,
+    PushDevice,
     Quiz,
     QuizAttempt,
     QuizQuestion,
@@ -292,6 +293,26 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def unread_count(self, request):
         count = Notification.objects.filter(user=request.user, is_read=False).count()
         return Response({"count": count})
+
+    @action(detail=False, methods=["post"])
+    def register_push(self, request):
+        token = request.data.get("token", "").strip()
+        platform = request.data.get("platform", "android")
+        if not token:
+            return Response({"detail": "token is required."}, status=status.HTTP_400_BAD_REQUEST)
+        obj, created = PushDevice.objects.update_or_create(
+            expo_push_token=token,
+            defaults={"user": request.user, "platform": platform},
+        )
+        return Response({"status": "ok", "created": created})
+
+    @action(detail=False, methods=["post"])
+    def unregister_push(self, request):
+        token = request.data.get("token", "").strip()
+        if not token:
+            return Response({"detail": "token is required."}, status=status.HTTP_400_BAD_REQUEST)
+        PushDevice.objects.filter(expo_push_token=token, user=request.user).delete()
+        return Response({"status": "ok"})
 
 
 class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):

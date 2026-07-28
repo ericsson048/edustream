@@ -199,6 +199,8 @@ class Notification(models.Model):
         ASSIGNMENT = "ASSIGNMENT", "Assignment"
         GRADE = "GRADE", "Grade"
         MESSAGE = "MESSAGE", "Message"
+        LIVE_SESSION = "LIVE_SESSION", "Live Session"
+        LIVE_REMINDER = "LIVE_REMINDER", "Live Reminder"
         SKILL_UNLOCK = "SKILL_UNLOCK", "Skill Unlock"
         SYSTEM = "SYSTEM", "System"
 
@@ -213,3 +215,17 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class PushDevice(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_devices",
+    )
+    expo_push_token = models.CharField(max_length=255, unique=True)
+    platform = models.CharField(max_length=20, default="android")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} – {self.platform} – {self.expo_push_token[:20]}"

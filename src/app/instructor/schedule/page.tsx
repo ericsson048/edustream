@@ -15,6 +15,7 @@ type SessionForm = {
   scheduled_at: string;
   duration_minutes: number;
   status: LiveSessionItem['status'];
+  requires_permission: boolean;
 };
 
 const emptyForm: SessionForm = {
@@ -23,6 +24,7 @@ const emptyForm: SessionForm = {
   scheduled_at: '',
   duration_minutes: 60,
   status: 'SCHEDULED',
+  requires_permission: false,
 };
 
 function toDateTimeInput(value: string) {
@@ -75,6 +77,7 @@ export default function InstructorSchedule() {
       scheduled_at: toDateTimeInput(session.scheduled_at),
       duration_minutes: session.duration_minutes,
       status: session.status,
+      requires_permission: session.requires_permission || false,
     });
     setIsModalOpen(true);
   };
@@ -98,6 +101,7 @@ export default function InstructorSchedule() {
           scheduled_at: new Date(form.scheduled_at).toISOString(),
           duration_minutes: form.duration_minutes,
           status: form.status,
+          requires_permission: form.requires_permission,
         });
         showToast('Live session updated.', 'success');
       } else {
@@ -107,6 +111,7 @@ export default function InstructorSchedule() {
           scheduled_at: new Date(form.scheduled_at).toISOString(),
           duration_minutes: form.duration_minutes,
           status: form.status,
+          requires_permission: form.requires_permission,
         });
         showToast('Live session scheduled.', 'success');
       }
@@ -150,13 +155,13 @@ export default function InstructorSchedule() {
               {orderedSessions.map((session) => (
                 <div key={session.id} className="p-6 hover:bg-slate-50 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${session.status === 'LIVE' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${session.status === 'LIVE' ? 'bg-red-50 text-red-600' : session.status === 'WAITING' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
                       <Video className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="flex items-center gap-3 mb-1">
                         <h3 className="font-bold text-lg text-slate-900">{session.title}</h3>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${session.status === 'LIVE' ? 'bg-red-100 text-red-700' : session.status === 'ENDED' ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${session.status === 'LIVE' ? 'bg-red-100 text-red-700' : session.status === 'WAITING' ? 'bg-amber-100 text-amber-700' : session.status === 'ENDED' ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
                           {session.status}
                         </span>
                       </div>
@@ -170,7 +175,7 @@ export default function InstructorSchedule() {
                         <div className="flex items-center gap-1.5">
                           <Clock className="w-4 h-4 text-slate-400" />
                           <span className="font-medium">
-                            {new Date(session.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ÔÇó {session.duration_minutes} min
+                            {new Date(session.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {session.duration_minutes} min
                           </span>
                         </div>
                       </div>
@@ -178,9 +183,9 @@ export default function InstructorSchedule() {
                   </div>
 
                   <div className="flex items-center gap-3 md:ml-auto">
-                    {session.status === 'LIVE' && (
+                    {(session.status === 'LIVE' || session.status === 'WAITING') && (
                       <Link to={`/live/${session.id}`} className="px-6 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-colors shadow-sm">
-                        Enter Room
+                        {session.status === 'WAITING' ? 'Go Live' : 'Enter Room'}
                       </Link>
                     )}
                     <button
@@ -263,10 +268,27 @@ export default function InstructorSchedule() {
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"
               >
                 <option value="SCHEDULED">Scheduled</option>
+                <option value="WAITING">Waiting</option>
                 <option value="LIVE">Live</option>
                 <option value="ENDED">Ended</option>
               </select>
             </div>
+
+            <label className="flex items-center justify-between p-3 bg-slate-50 rounded-xl cursor-pointer">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Require permission to enter</p>
+                <p className="text-xs text-slate-500">Students must be admitted by the host</p>
+              </div>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={form.requires_permission}
+                  onChange={(e) => setForm((current) => ({ ...current, requires_permission: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </div>
+            </label>
 
             <div className="flex gap-3">
               <button onClick={submit} className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">

@@ -77,6 +77,8 @@
       "ASSIGNMENT": "Devoirs",
       "GRADE": "Notes",
       "MESSAGE": "Messages",
+      "LIVE_SESSION": "Sessions en direct",
+      "LIVE_REMINDER": "Rappels en direct",
       "SKILL_UNLOCK": "Déblocages de compétences",
       "SYSTEM": "Système"
     }

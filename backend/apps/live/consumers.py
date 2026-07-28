@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.courses.models import Enrollment
 
-from .models import LiveParticipant, LiveSession
+from .models import LiveChatMessage, LiveParticipant, LiveSession
 from .serializers import LiveParticipantSerializer
 
 
@@ -25,9 +25,47 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
             await self.close(code=4403)
             return
 
+        self.user_id = str(user.id)
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
-        participant = await self._mark_joined(user.id, self.session_id)
+
+        session_status = await self._get_session_status(self.session_id)
+        is_host = await self._is_host(user.id, self.session_id)
+
+        if session_status in (LiveSession.Status.ENDED, LiveSession.Status.SCHEDULED):
+            await self.send(text_data=json.dumps({
+                "payload": {"kind": "session_not_available", "status": session_status},
+                "sender_id": "",
+            }))
+            await self.close(code=4404)
+            return
+
+        if is_host:
+            participant = await self._mark_joined(user.id, self.session_id)
+        else:
+            requires_perm = await self._session_requires_permission(self.session_id)
+            admitted = not requires_perm
+            participant = await self._mark_joined_with_admission(user.id, self.session_id, admitted)
+
+        await self._cleanup_stale_participants(user.id, self.session_id)
+
+        if not is_host and participant:
+            import json as _json
+            participant_data = _json.loads(participant) if isinstance(participant, str) else participant
+            if not participant_data.get("is_admitted", True):
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "room.event",
+                        "payload": {
+                            "kind": "entry_requested",
+                            "participant": participant_data,
+                        },
+                        "sender_id": str(user.id),
+                    },
+                )
+                return
+
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -41,9 +79,10 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
         )
 
     async def disconnect(self, close_code):
-        user = self.scope.get("user")
-        if user and user.is_authenticated:
-            participant = await self._mark_left(user.id, self.session_id)
+        user_id = getattr(self, "user_id", None)
+        session_id = getattr(self, "session_id", None)
+        if user_id and session_id:
+            participant = await self._mark_left(user_id, session_id)
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -52,10 +91,11 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
                         "kind": "participant_left",
                         "participant": participant,
                     },
-                    "sender_id": str(user.id),
+                    "sender_id": user_id,
                 },
             )
-        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        if hasattr(self, "room_group_name"):
+            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
         payload = json.loads(text_data)
@@ -110,6 +150,7 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
             content = str(payload.get("content") or "").strip()
             if not content:
                 return
+            await self._save_chat_message(user.id, self.session_id, content)
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -120,6 +161,20 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
                         "user_id": str(user.id),
                         "user_name": user.full_name,
                     },
+                    "sender_id": str(user.id),
+                },
+            )
+            return
+
+        if kind == "mute_all":
+            if user.id != await self._get_session_host_id(self.session_id):
+                return
+            await self._mute_all_participants(self.session_id)
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "room.event",
+                    "payload": {"kind": "mute_all"},
                     "sender_id": str(user.id),
                 },
             )
@@ -206,4 +261,67 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
         participant = LiveParticipant.objects.select_related("user").get(session_id=session_id, user_id=user_id)
         participant.last_reaction = reaction
         participant.save(update_fields=["last_reaction"])
+        return self._serialize(LiveParticipantSerializer(participant).data)
+
+    @sync_to_async
+    def _save_chat_message(self, user_id, session_id, content):
+        LiveChatMessage.objects.create(user_id=user_id, session_id=session_id, content=content)
+
+    @sync_to_async
+    def _get_session_host_id(self, session_id):
+        try:
+            session = LiveSession.objects.get(id=session_id)
+            return session.instructor_id
+        except LiveSession.DoesNotExist:
+            return None
+
+    @sync_to_async
+    def _mute_all_participants(self, session_id):
+        LiveParticipant.objects.filter(session_id=session_id, left_at__isnull=True).update(is_mic_on=False)
+
+    @sync_to_async
+    def _cleanup_stale_participants(self, current_user_id, session_id):
+        """Mark all participants except the current user as left if left_at is null.
+        This handles cases where previous WebSocket connections died without a clean disconnect."""
+        stale = LiveParticipant.objects.filter(
+            session_id=session_id, left_at__isnull=True
+        ).exclude(user_id=current_user_id)
+        if stale.exists():
+            now = timezone.now()
+            stale.update(
+                left_at=now,
+                is_screen_sharing=False,
+                hand_raised=False,
+                is_recording=False,
+                last_reaction="",
+            )
+
+    @sync_to_async
+    def _get_session_status(self, session_id):
+        try:
+            return LiveSession.objects.values_list("status", flat=True).get(id=session_id)
+        except LiveSession.DoesNotExist:
+            return None
+
+    @sync_to_async
+    def _is_host(self, user_id, session_id):
+        return LiveSession.objects.filter(id=session_id, instructor_id=user_id).exists()
+
+    @sync_to_async
+    def _session_requires_permission(self, session_id):
+        return LiveSession.objects.values_list("requires_permission", flat=True).get(id=session_id)
+
+    @sync_to_async
+    def _mark_joined_with_admission(self, user_id, session_id, admitted):
+        session = LiveSession.objects.get(id=session_id)
+        role = LiveParticipant.Role.HOST if session.instructor_id == user_id else LiveParticipant.Role.STUDENT
+        participant, _ = LiveParticipant.objects.select_related("user").get_or_create(
+            session=session,
+            user_id=user_id,
+            defaults={"role": role, "is_admitted": admitted},
+        )
+        participant.role = role
+        participant.is_admitted = admitted
+        participant.left_at = None
+        participant.save(update_fields=["role", "left_at", "is_admitted"])
         return self._serialize(LiveParticipantSerializer(participant).data)

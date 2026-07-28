@@ -29,6 +29,10 @@ export const authService = {
     return data;
   },
 
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await apiClient.post('/auth/change-password/', { current_password: currentPassword, new_password: newPassword });
+  },
+
   async requestPasswordReset(email: string): Promise<void> {
     await apiClient.post('/auth/forgot-password/', { email });
   },

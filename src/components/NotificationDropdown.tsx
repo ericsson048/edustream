@@ -9,6 +9,8 @@ const typeIcons: Record<string, string> = {
   ASSIGNMENT: '📝',
   GRADE: '📊',
   MESSAGE: '💬',
+  LIVE_SESSION: '🔴',
+  LIVE_REMINDER: '⏰',
   SKILL_UNLOCK: '⭐',
   SYSTEM: '🔔',
 };

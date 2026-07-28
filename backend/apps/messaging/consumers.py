@@ -3,10 +3,13 @@ from uuid import UUID
 
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from .models import Conversation, Message
+from .models import Conversation, ConversationParticipant, Message
 from .serializers import MessageSerializer
+
+User = get_user_model()
 
 
 def _serialize_for_channel(data):
@@ -47,6 +50,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             if not content:
                 return
             message = await self._create_message(self.conversation_id, user.id, content)
+            await self._create_message_notifications(self.conversation_id, user.id, content)
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -71,3 +75,24 @@ class ConversationConsumer(AsyncWebsocketConsumer):
     def _create_message(self, conversation_id, user_id, content):
         message = Message.objects.create(conversation_id=conversation_id, sender_id=user_id, content=content)
         return MessageSerializer(message).data
+
+    @sync_to_async
+    def _create_message_notifications(self, conversation_id, sender_id, content):
+        from apps.learning.notifications import bulk_create_notifications
+        from apps.learning.models import Notification
+
+        participants = ConversationParticipant.objects.filter(
+            conversation_id=conversation_id,
+        ).exclude(user_id=sender_id).select_related("user")
+
+        sender = User.objects.filter(id=sender_id).first()
+        sender_name = sender.full_name if sender else "Someone"
+        truncated = content[:80] + ("..." if len(content) > 80 else "")
+
+        bulk_create_notifications(
+            users=[p.user for p in participants],
+            notification_type=Notification.Type.MESSAGE,
+            title=f"New message from {sender_name}",
+            body=truncated,
+            link="/messages",
+        )

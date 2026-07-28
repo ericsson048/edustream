@@ -11,7 +11,8 @@ export interface LiveSessionItem {
   title: string;
   scheduled_at: string;
   duration_minutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'ENDED';
+  status: 'SCHEDULED' | 'WAITING' | 'LIVE' | 'ENDED';
+  requires_permission?: boolean;
   enrolled_students?: number;
   room_name?: string;
 }
@@ -22,6 +23,7 @@ export interface LiveParticipantItem {
   user: string;
   user_name?: string;
   role: 'HOST' | 'STUDENT';
+  is_admitted?: boolean;
   is_mic_on?: boolean;
   is_camera_on?: boolean;
   is_screen_sharing?: boolean;
@@ -30,6 +32,15 @@ export interface LiveParticipantItem {
   last_reaction?: string;
   joined_at?: string;
   left_at?: string | null;
+}
+
+export interface LiveChatMessage {
+  id: string;
+  session: string;
+  user: string;
+  user_name?: string;
+  content: string;
+  created_at?: string;
 }
 
 export const liveService = {
@@ -43,19 +54,40 @@ export const liveService = {
     scheduled_at: string;
     duration_minutes: number;
     status?: LiveSessionItem['status'];
+    requires_permission?: boolean;
   }): Promise<LiveSessionItem> {
     const { data } = await apiClient.post<LiveSessionItem>('/live-sessions/', payload);
     return data;
   },
   async updateLiveSession(
     id: string,
-    payload: Partial<Pick<LiveSessionItem, 'title' | 'scheduled_at' | 'duration_minutes' | 'status'>>,
+    payload: Partial<Pick<LiveSessionItem, 'title' | 'scheduled_at' | 'duration_minutes' | 'status' | 'requires_permission'>>,
   ): Promise<LiveSessionItem> {
     const { data } = await apiClient.patch<LiveSessionItem>(`/live-sessions/${id}/`, payload);
     return data;
   },
+  async goLive(id: string): Promise<void> {
+    await apiClient.post(`/live-sessions/${id}/go-live/`);
+  },
+  async endLiveSession(id: string): Promise<void> {
+    await apiClient.post(`/live-sessions/${id}/end/`);
+  },
   async joinSession(id: string): Promise<LiveParticipantItem> {
     const { data } = await apiClient.post<LiveParticipantItem>(`/live-sessions/${id}/join/`);
+    return data;
+  },
+  async requestEntry(id: string): Promise<void> {
+    await apiClient.post(`/live-sessions/${id}/request-entry/`);
+  },
+  async grantEntry(id: string, userId: string): Promise<LiveParticipantItem> {
+    const { data } = await apiClient.post<LiveParticipantItem>(`/live-sessions/${id}/grant-entry/`, { user_id: userId });
+    return data;
+  },
+  async denyEntry(id: string, userId: string): Promise<void> {
+    await apiClient.post(`/live-sessions/${id}/deny-entry/`, { user_id: userId });
+  },
+  async pendingEntries(id: string): Promise<LiveParticipantItem[]> {
+    const { data } = await apiClient.get<LiveParticipantItem[]>(`/live-sessions/${id}/pending-entries/`);
     return data;
   },
   async listParticipants(sessionId: string): Promise<LiveParticipantItem[]> {
@@ -66,5 +98,21 @@ export const liveService = {
   },
   createSessionSocket(sessionId: string): WebSocket {
     return new WebSocket(buildWebSocketUrl(`/ws/live/${sessionId}/`));
+  },
+  async listChatMessages(sessionId: string): Promise<LiveChatMessage[]> {
+    const { data } = await apiClient.get<PaginatedResponse<LiveChatMessage>>(
+      `/live-chat-messages/?session=${sessionId}`,
+    );
+    return data.results ?? [];
+  },
+  async uploadRecording(sessionId: string, blob: Blob): Promise<{ url: string; file: string }> {
+    const formData = new FormData();
+    formData.append('file', blob, `recording-${sessionId}.webm`);
+    const { data } = await apiClient.post<{ url: string; file: string }>(
+      `/live-sessions/${sessionId}/upload-recording/`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return data;
   },
 };

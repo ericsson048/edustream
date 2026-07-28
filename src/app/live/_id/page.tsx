@@ -1,23 +1,27 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { Radio } from 'lucide-react';
+import { Radio, Users } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../../../contexts/ToastContext';
 import { liveService, type LiveParticipantItem, type LiveSessionItem } from '../../../services/liveService';
-import { getRtcConfiguration } from '../../../services/webrtc';
+import { getRtcConfiguration, fetchRtcConfiguration } from '../../../services/webrtc';
 import VideoGrid from './components/VideoGrid';
 import Toolbar from './components/Toolbar';
 import ChatPanel from './components/ChatPanel';
+import { useCompositeRecording } from './components/useCompositeRecording';
 
-type LiveChatMessage = { id: string; sender_name?: string; content: string; kind?: 'chat' | 'system' };
+type LiveChatMessage = { id: string; sender_id?: string; sender_name?: string; content: string; kind?: 'chat' | 'system' };
 type LiveSocketPayload = {
   kind?: string;
   content?: string;
   user_name?: string;
+  user_id?: string;
   reaction?: string;
   target_user_id?: string;
   participant?: LiveParticipantItem;
+  participants?: LiveParticipantItem[];
   description?: RTCSessionDescriptionInit;
   candidate?: RTCIceCandidateInit;
+  status?: string;
 };
 type SocketEvent = { payload?: LiveSocketPayload; sender_id?: string };
 type PeerStatus = 'idle' | 'connecting' | 'connected' | 'failed';
@@ -47,8 +51,6 @@ export default function LiveMeeting() {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const previewStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const offeredPeersRef = useRef<Set<string>>(new Set());
 
@@ -59,15 +61,27 @@ export default function LiveMeeting() {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'syncing'>('connecting');
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [peerStatuses, setPeerStatuses] = useState<Record<string, PeerStatus>>({});
   const [chatOpen, setChatOpen] = useState(false);
+  const [mediaReady, setMediaReady] = useState(false);
+  const mediaReadyRef = useRef(false);
+  const [pendingEntries, setPendingEntries] = useState<LiveParticipantItem[]>([]);
+  const [showEntriesPanel, setShowEntriesPanel] = useState(false);
+  const [waitingEntry, setWaitingEntry] = useState(false);
+  const [admitted, setAdmitted] = useState(true);
 
   const selfUserId = selfParticipant?.user || '';
+  const isHost = selfParticipant?.role === 'HOST';
+
+  const { isRecording, isUploading, startRecording, stopRecording, cleanup: cleanupRecording } = useCompositeRecording({
+    sessionId: id,
+    remoteStreams,
+    localStream: cameraStreamRef.current,
+  });
 
   useEffect(() => { selfUserIdRef.current = selfUserId; }, [selfUserId]);
 
@@ -207,11 +221,36 @@ export default function LiveMeeting() {
 
     async function load() {
       try {
+        await fetchRtcConfiguration();
         const sessions = await liveService.listLiveSessions();
-        setSession(sessions.find((item) => item.id === id) || null);
+        const found = sessions.find((item) => item.id === id) || null;
+        setSession(found);
+
+        if (!found || found.status === 'SCHEDULED' || found.status === 'ENDED') {
+          showToast('Session is not available.', 'error');
+          navigate('/schedule', { replace: true });
+          return;
+        }
+
         const joined = await liveService.joinSession(id);
         setSelfParticipant(joined);
-        setParticipants(await liveService.listParticipants(id));
+        setAdmitted(joined.is_admitted !== false);
+
+        const [participantList, chatHistory] = await Promise.all([
+          liveService.listParticipants(id),
+          liveService.listChatMessages(id),
+        ]);
+        setParticipants(participantList);
+        const historyMessages: LiveChatMessage[] = chatHistory.map((m) => ({ id: m.id, sender_id: m.user, sender_name: m.user_name, content: m.content, kind: 'chat' as const }));
+        setChatMessages((prev) => {
+          const seen = new Set(prev.map((m) => `${m.sender_id}:${m.content}`));
+          const unique = historyMessages.filter((m) => !seen.has(`${m.sender_id}:${m.content}`));
+          return [...unique, ...prev];
+        });
+
+        if (isHost && found.requires_permission) {
+          liveService.pendingEntries(id).then(setPendingEntries).catch(() => {});
+        }
       } catch {
         showToast('Unable to join live session.', 'error');
         navigate('/schedule', { replace: true });
@@ -240,13 +279,63 @@ export default function LiveMeeting() {
           const { payload, sender_id } = JSON.parse(event.data) as SocketEvent;
           if (!payload) return;
 
+          if (payload.kind === 'session_live') {
+            setSession((prev) => prev ? { ...prev, status: 'LIVE' } : prev);
+            showToast('The host started the session.', 'info');
+            return;
+          }
+
+          if (payload.kind === 'session_not_available') {
+            showToast('Session is not available.', 'error');
+            navigate('/schedule');
+            return;
+          }
+
+          if (payload.kind === 'session_ended') {
+            showToast('The host ended this session.', 'info');
+            navigate('/schedule');
+            return;
+          }
+
+          if (payload.kind === 'entry_requested' && payload.participant) {
+            if (isHost) {
+              setPendingEntries((prev) => upsertParticipant(prev, payload.participant!));
+              showToast(`${payload.participant.user_name || 'Someone'} wants to join.`, 'info');
+            } else if (payload.participant.user === selfUserIdRef.current) {
+              setWaitingEntry(true);
+              setAdmitted(false);
+            }
+            return;
+          }
+
+          if (payload.kind === 'entry_granted' && payload.participant) {
+            if (payload.participant.user === selfUserIdRef.current) {
+              setAdmitted(true);
+              setWaitingEntry(false);
+              showToast('You have been admitted.', 'success');
+            }
+            setPendingEntries((prev) => prev.filter((p) => p.user !== payload.participant?.user));
+            setParticipants((prev) => upsertParticipant(prev, payload.participant!));
+            return;
+          }
+
+          if (payload.kind === 'entry_denied' && payload.user_id) {
+            if (payload.user_id === selfUserIdRef.current) {
+              showToast('Your entry was denied.', 'error');
+              navigate('/schedule');
+              return;
+            }
+            setPendingEntries((prev) => prev.filter((p) => p.user !== payload.user_id));
+            return;
+          }
+
           if (payload.kind === 'participant_joined' && payload.participant) {
             setParticipants((prev) => upsertParticipant(prev, payload.participant!));
             setPeerStatuses((prev) => ({
               ...prev,
               [payload.participant!.user]: sender_id === selfUserIdRef.current ? 'idle' : (prev[payload.participant!.user] || 'connecting'),
             }));
-            if (sender_id && selfUserIdRef.current && sender_id !== selfUserIdRef.current && shouldInitiate(selfUserIdRef.current, sender_id)) {
+            if (sender_id && selfUserIdRef.current && sender_id !== selfUserIdRef.current && mediaReadyRef.current && shouldInitiate(selfUserIdRef.current, sender_id)) {
               createOfferFor(sender_id).catch(() => undefined);
             }
             return;
@@ -269,10 +358,21 @@ export default function LiveMeeting() {
           }
 
           if (payload.kind === 'chat_message' && payload.content) {
-            setChatMessages((prev) => [
-              ...prev,
-              { id: `${Date.now()}-${prev.length}`, sender_name: payload.user_name, content: payload.content, kind: 'chat' },
-            ]);
+            setChatMessages((prev) => {
+              const isDuplicate = prev.some(
+                (m) => m.content === payload.content && m.sender_id === payload.user_id && Date.now() - parseInt(m.id.split('-')[0] || '0', 10) < 2000,
+              );
+              if (isDuplicate) return prev;
+              return [
+                ...prev,
+                { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, sender_id: payload.user_id, sender_name: payload.user_name, content: payload.content, kind: 'chat' },
+              ];
+            });
+            return;
+          }
+
+          if (payload.kind === 'mute_all' && sender_id !== selfUserIdRef.current) {
+            setIsMuted(true);
             return;
           }
 
@@ -332,10 +432,31 @@ export default function LiveMeeting() {
   useEffect(() => {
     if (!id) return;
     const interval = window.setInterval(async () => {
-      try { setParticipants(await liveService.listParticipants(id)); } catch { /* noop */ }
+      try {
+        const fresh = await liveService.listParticipants(id);
+        const freshUserIds = new Set(fresh.map((p) => p.user));
+        setParticipants((prev) => {
+          let next = [...prev];
+          for (const p of fresh) next = upsertParticipant(next, p);
+          next = next.filter((p) => freshUserIds.has(p.user));
+          return next;
+        });
+      } catch { /* noop */ }
     }, 3000);
     return () => window.clearInterval(interval);
   }, [id]);
+
+  // Poll pending entries for host
+  useEffect(() => {
+    if (!id || !isHost || !session?.requires_permission) return;
+    const interval = window.setInterval(async () => {
+      try {
+        const pending = await liveService.pendingEntries(id);
+        setPendingEntries(pending);
+      } catch { /* noop */ }
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [id, isHost, session?.requires_permission]);
 
   // Media setup
   useEffect(() => {
@@ -348,6 +469,8 @@ export default function LiveMeeting() {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         cameraStreamRef.current = stream;
         previewStreamRef.current = stream;
+        mediaReadyRef.current = true;
+        setMediaReady(true);
         peersRef.current.forEach((_, uid) => { renegotiatePeer(uid).catch(() => undefined); });
       } catch {
         setMediaError('Allow camera and mic to broadcast your preview.');
@@ -357,7 +480,7 @@ export default function LiveMeeting() {
     return () => {
       cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+      cleanupRecording();
     };
   }, []);
 
@@ -404,14 +527,14 @@ export default function LiveMeeting() {
 
   // Ensure peers for all visible participants
   useEffect(() => {
-    if (!selfUserId || socketRef.current?.readyState !== WebSocket.OPEN) return;
+    if (!selfUserId || socketRef.current?.readyState !== WebSocket.OPEN || !mediaReady) return;
     visibleParticipants
       .filter((p) => p.user !== selfUserId)
       .forEach((p) => {
         ensurePeer(p.user);
         if (shouldInitiate(selfUserId, p.user)) createOfferFor(p.user).catch(() => undefined);
       });
-  }, [participants, selfUserId]);
+  }, [participants, selfUserId, mediaReady]);
 
   const sendChatMessage = (content: string) => {
     sendSocketPayload({ kind: 'chat_message', content });
@@ -452,33 +575,116 @@ export default function LiveMeeting() {
 
   const toggleRecording = () => {
     if (isRecording) {
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
-      setIsRecording(false);
-      return;
+      stopRecording();
+    } else {
+      if (typeof MediaRecorder === 'undefined') {
+        showToast('Recording is not available on this browser.', 'error');
+        return;
+      }
+      startRecording();
     }
-    const stream = previewStreamRef.current;
-    if (!stream || typeof MediaRecorder === 'undefined') {
-      showToast('Recording is not available on this browser.', 'error');
-      return;
+  };
+
+  const handleGoLive = async () => {
+    try {
+      await liveService.goLive(id);
+      setSession((prev) => prev ? { ...prev, status: 'LIVE' } : prev);
+      showToast('You are now live!', 'success');
+    } catch {
+      showToast('Failed to go live.', 'error');
     }
-    chunksRef.current = [];
-    const recorder = new MediaRecorder(stream);
-    recorderRef.current = recorder;
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-    recorder.onstop = () => {
-      if (!chunksRef.current.length) return;
-      const url = URL.createObjectURL(new Blob(chunksRef.current, { type: 'video/webm' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `edustream-live-${id}.webm`;
-      link.click();
-      URL.revokeObjectURL(url);
-    };
-    recorder.start();
-    setIsRecording(true);
+  };
+
+  const handleRequestEntry = async () => {
+    setWaitingEntry(true);
+    try {
+      await liveService.requestEntry(id);
+      showToast('Request sent. Waiting for host to admit you.', 'info');
+    } catch {
+      setWaitingEntry(false);
+      showToast('Failed to send request.', 'error');
+    }
+  };
+
+  const handleGrantEntry = async (userId: string) => {
+    try {
+      await liveService.grantEntry(id, userId);
+    } catch {
+      showToast('Failed to grant entry.', 'error');
+    }
+  };
+
+  const handleDenyEntry = async (userId: string) => {
+    try {
+      await liveService.denyEntry(id, userId);
+    } catch {
+      showToast('Failed to deny entry.', 'error');
+    }
   };
 
   const handleLeave = () => navigate('/schedule');
+
+  const handleEndSession = async () => {
+    try {
+      await liveService.endLiveSession(id);
+      showToast('Session ended.', 'success');
+      navigate('/schedule');
+    } catch {
+      showToast('Failed to end session.', 'error');
+    }
+  };
+
+  // WAITING state: not admitted yet
+  if (session && (session.status === 'WAITING' || session.status === 'LIVE') && !admitted && !isHost) {
+    return (
+      <div className="relative h-screen bg-slate-950 text-white overflow-hidden flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <Radio className="h-10 w-10 text-amber-400 animate-pulse" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">
+            {waitingEntry ? 'Waiting for admission...' : session.status === 'LIVE' ? 'Session is live' : 'Waiting for host to start...'}
+          </h2>
+          <p className="text-slate-400 text-sm mb-6">
+            {waitingEntry
+              ? 'The host will let you in shortly.'
+              : session.requires_permission
+                ? 'This session requires permission to enter.'
+                : 'Click below to request entry.'}
+          </p>
+          {!waitingEntry && (
+            <button onClick={handleRequestEntry} className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition-colors">
+              Request to Join
+            </button>
+          )}
+          <button onClick={handleLeave} className="block mx-auto mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors">
+            Leave
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // WAITING state: host needs to go live
+  if (session && session.status === 'WAITING' && isHost) {
+    return (
+      <div className="relative h-screen bg-slate-950 text-white overflow-hidden flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <Radio className="h-10 w-10 text-amber-400" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">Ready to go live?</h2>
+          <p className="text-slate-400 text-sm mb-6">Your session is waiting. Click below to start broadcasting.</p>
+          <button onClick={handleGoLive} className="px-8 py-4 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-lg transition-colors">
+            Go Live
+          </button>
+          <button onClick={handleLeave} className="block mx-auto mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors">
+            Leave
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-screen bg-slate-950 text-white overflow-hidden">
@@ -488,10 +694,25 @@ export default function LiveMeeting() {
           <h1 className="text-sm font-bold text-white">{session?.title || 'Live Session'}</h1>
           <span className="flex items-center gap-1.5 text-xs font-bold text-red-400">
             <Radio className="h-3 w-3" />
-            {session?.status || 'LIVE'}
+            LIVE
           </span>
+          {isRecording && (
+            <span className="flex items-center gap-1.5 text-xs font-bold text-red-400">
+              <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+              REC
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
+          {isHost && session?.requires_permission && pendingEntries.length > 0 && (
+            <button
+              onClick={() => setShowEntriesPanel((v) => !v)}
+              className="relative flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors"
+            >
+              <Users className="h-3.5 w-3.5" />
+              {pendingEntries.length} waiting
+            </button>
+          )}
           <span className="text-xs text-slate-400">{visibleParticipants.length} participant(s)</span>
           {connectionStatus !== 'connected' && (
             <span className="text-xs text-amber-400">
@@ -500,6 +721,28 @@ export default function LiveMeeting() {
           )}
         </div>
       </div>
+
+      {/* Pending entries panel */}
+      {showEntriesPanel && isHost && pendingEntries.length > 0 && (
+        <div className="absolute top-16 right-4 z-40 w-72 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-4">
+          <h3 className="text-sm font-bold mb-3">Entry Requests</h3>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {pendingEntries.map((p) => (
+              <div key={p.user} className="flex items-center justify-between bg-slate-800 rounded-lg p-2">
+                <span className="text-xs text-slate-300 truncate">{p.user_name || p.user.slice(0, 8)}</span>
+                <div className="flex gap-1">
+                  <button onClick={() => handleGrantEntry(p.user)} className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs text-white transition-colors">
+                    Allow
+                  </button>
+                  <button onClick={() => handleDenyEntry(p.user)} className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs text-white transition-colors">
+                    Deny
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Media error banner */}
       {mediaError && (
@@ -510,18 +753,45 @@ export default function LiveMeeting() {
         </div>
       )}
 
-      {/* Video grid */}
-      <div className="h-full pb-20">
-        <VideoGrid
-          participants={visibleParticipants}
-          remoteStreams={remoteStreams}
-          selfUserId={selfUserId}
-          previewStream={previewStreamRef.current}
-          isVideoOff={isVideoOff}
-          isScreenSharing={isScreenSharing}
-          peerStatuses={peerStatuses}
-          remoteAudioRefs={remoteAudioRefs}
-        />
+      {/* Recording upload indicator */}
+      {isUploading && (
+        <div className="absolute top-16 inset-x-0 z-30 flex justify-center">
+          <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-500/30 rounded-full px-4 py-2 text-xs text-blue-300">
+            Uploading recording...
+          </div>
+        </div>
+      )}
+
+      {/* Main content area */}
+      <div className="flex h-full">
+        {/* Video grid */}
+        <div className="flex-1 pb-20 overflow-hidden">
+          <VideoGrid
+            participants={visibleParticipants}
+            remoteStreams={remoteStreams}
+            selfUserId={selfUserId}
+            previewStream={previewStreamRef.current}
+            cameraStream={cameraStreamRef.current}
+            isVideoOff={isVideoOff}
+            isScreenSharing={isScreenSharing}
+            peerStatuses={peerStatuses}
+            remoteAudioRefs={remoteAudioRefs}
+          />
+        </div>
+
+        {/* Chat panel */}
+        {chatOpen && (
+          <div className="relative z-40 flex-shrink-0 h-full">
+            <ChatPanel
+              messages={chatMessages}
+              participants={visibleParticipants}
+              selfUserId={selfUserId}
+              peerStatuses={peerStatuses}
+              onSend={sendChatMessage}
+              onClose={() => setChatOpen(false)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Bottom toolbar */}
@@ -538,24 +808,12 @@ export default function LiveMeeting() {
         onToggleHand={() => setIsHandRaised((v) => !v)}
         onReaction={sendReaction}
         onLeave={handleLeave}
+        onEndSession={isHost ? handleEndSession : undefined}
+        onMuteAll={isHost ? () => sendSocketPayload({ kind: 'mute_all' }) : undefined}
         onToggleChat={() => setChatOpen((v) => !v)}
         chatOpen={chatOpen}
         participantCount={visibleParticipants.length}
       />
-
-      {/* Chat panel */}
-      {chatOpen && (
-        <div className="absolute inset-y-0 right-0 z-40">
-          <ChatPanel
-            messages={chatMessages}
-            participants={visibleParticipants}
-            selfUserId={selfUserId}
-            peerStatuses={peerStatuses}
-            onSend={sendChatMessage}
-            onClose={() => setChatOpen(false)}
-          />
-        </div>
-      )}
     </div>
   );
 }

@@ -180,7 +180,7 @@ export default function Certificate() {
                   </div>
 
                   <div className="mt-12 text-xs font-mono text-slate-400">
-                    Certificate ID: {certificate.certificate_code} ÔÇó Issued: {formatDate(certificate.issued_at)}
+                    Certificate ID: {certificate.certificate_code} · Issued: {formatDate(certificate.issued_at)}
                   </div>
                 </div>
               </div>

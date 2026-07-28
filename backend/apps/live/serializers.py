@@ -2,7 +2,7 @@ import uuid
 
 from rest_framework import serializers
 
-from .models import LiveParticipant, LiveSession
+from .models import LiveChatMessage, LiveParticipant, LiveSession
 
 
 class LiveParticipantSerializer(serializers.ModelSerializer):
@@ -16,6 +16,7 @@ class LiveParticipantSerializer(serializers.ModelSerializer):
             "user",
             "user_name",
             "role",
+            "is_admitted",
             "is_mic_on",
             "is_camera_on",
             "is_screen_sharing",
@@ -25,6 +26,15 @@ class LiveParticipantSerializer(serializers.ModelSerializer):
             "joined_at",
             "left_at",
         ]
+
+
+class LiveChatMessageSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source="user.full_name", read_only=True)
+
+    class Meta:
+        model = LiveChatMessage
+        fields = ["id", "session", "user", "user_name", "content", "created_at"]
+        read_only_fields = ["user"]
 
 
 class LiveSessionSerializer(serializers.ModelSerializer):
@@ -42,3 +52,7 @@ class LiveSessionSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data["room_name"] = f"live-{uuid.uuid4().hex[:10]}"
         return super().create(validated_data)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        return data

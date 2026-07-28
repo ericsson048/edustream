@@ -1,7 +1,7 @@
 import { apiClient } from './apiClient';
 import type { PaginatedResponse } from './common';
 
-export type NotificationType = 'COURSE_UPDATE' | 'ASSIGNMENT' | 'GRADE' | 'MESSAGE' | 'SKILL_UNLOCK' | 'SYSTEM';
+export type NotificationType = 'COURSE_UPDATE' | 'ASSIGNMENT' | 'GRADE' | 'MESSAGE' | 'LIVE_SESSION' | 'LIVE_REMINDER' | 'SKILL_UNLOCK' | 'SYSTEM';
 
 export interface Notification {
   id: string;

@@ -81,11 +81,11 @@ export default function CourseDetails() {
             <div className="flex-1">
                 <div className="flex items-center gap-2 text-blue-400 font-bold text-sm mb-4">
                   <span className="bg-blue-500/20 px-2.5 py-1 rounded-md">{course.category || 'General'}</span>
-                  <span>ÔÇó</span>
+                  <span>·</span>
                   <span>{course.level}</span>
                   {course.tags && course.tags.length > 0 && (
                     <>
-                      <span>ÔÇó</span>
+                      <span>·</span>
                       <div className="flex gap-1.5">
                         {course.tags.slice(0, 3).map((tag) => (
                           <span key={tag.id} className="bg-slate-700/30 px-2 py-0.5 rounded text-xs">{tag.name}</span>

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Users, X, Send, Crown, Mic, MicOff, MonitorUp, Hand } from 'lucide-react';
 import type { LiveParticipantItem } from '../../../../services/liveService';
 
-type LiveChatMessage = { id: string; sender_name?: string; content: string; kind?: 'chat' | 'system' };
+type LiveChatMessage = { id: string; sender_id?: string; sender_name?: string; content: string; kind?: 'chat' | 'system' };
 type PeerStatus = 'idle' | 'connecting' | 'connected' | 'failed';
 
 interface ChatPanelProps {
@@ -73,24 +73,31 @@ export default function ChatPanel({
             {messages.length === 0 && (
               <p className="text-center text-sm text-slate-500 mt-8">No messages yet</p>
             )}
-            {messages.map((message) => (
-              <div key={message.id} className={`${message.kind === 'system' ? 'text-center' : ''}`}>
-                {message.kind === 'system' ? (
-                  <p className="text-xs text-amber-400/80 bg-amber-500/10 rounded-full px-3 py-1 inline-block">
-                    {message.content}
-                  </p>
-                ) : (
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-400 mb-1">
-                      {message.sender_name || 'Participant'}
+            {messages.map((message) => {
+              const isSelfMessage = message.sender_id && message.sender_id === selfUserId;
+              return (
+                <div key={message.id} className={`${message.kind === 'system' ? 'text-center' : ''}`}>
+                  {message.kind === 'system' ? (
+                    <p className="text-xs text-amber-400/80 bg-amber-500/10 rounded-full px-3 py-1 inline-block">
+                      {message.content}
                     </p>
-                    <div className="bg-white/5 rounded-2xl rounded-tl-md px-3 py-2">
-                      <p className="text-sm text-slate-200">{message.content}</p>
+                  ) : (
+                    <div className={isSelfMessage ? 'flex flex-col items-end' : ''}>
+                      <p className="text-[11px] font-bold text-slate-400 mb-1">
+                        {isSelfMessage ? 'You' : (message.sender_name || 'Participant')}
+                      </p>
+                      <div className={`rounded-2xl px-3 py-2 max-w-[85%] ${
+                        isSelfMessage
+                          ? 'bg-blue-600/80 rounded-tr-md'
+                          : 'bg-white/5 rounded-tl-md'
+                      }`}>
+                        <p className="text-sm text-slate-200">{message.content}</p>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
             <div ref={messagesEndRef} />
           </div>
 

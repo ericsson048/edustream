@@ -12,6 +12,7 @@ interface AuthContextValue {
   logout: () => void;
   refreshMe: () => Promise<void>;
   updateMe: (payload: Partial<Pick<AuthUser, 'full_name' | 'email' | 'title' | 'bio' | 'location' | 'website' | 'avatar_url'>>) => Promise<AuthUser>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   hasRole: (roles: UserRole[]) => boolean;
 }
 
@@ -63,6 +64,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const me = await authService.updateMe(payload);
         setUser(me);
         return me;
+      },
+      changePassword: async (currentPassword: string, newPassword: string) => {
+        await authService.changePassword(currentPassword, newPassword);
       },
       hasRole: (roles: UserRole[]) => !!user && roles.includes(user.role),
     }),

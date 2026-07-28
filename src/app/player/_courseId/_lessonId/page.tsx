@@ -27,6 +27,7 @@ import {
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { aiService, type ConversationItem } from "../../../../services/aiService";
 import { courseService } from "../../../../services/courseService";
+import { liveService } from "../../../../services/liveService";
 import { getApiErrorMessage } from "../../../../services/apiClient";
 import {
   learningService,
@@ -875,7 +876,17 @@ export default function CoursePlayer() {
                 ) : null}
                 {activeLesson.lesson_type === "LIVE" ? (
                   <button
-                    onClick={() => showToast("Live session link coming soon.", "info")}
+                    onClick={async () => {
+                      try {
+                        const sessions = await liveService.listLiveSessions();
+                        const courseSessions = sessions.filter((s) => s.course === courseId);
+                        const liveSession = courseSessions.find((s) => s.status === 'LIVE') || courseSessions[0];
+                        if (liveSession) navigate(`/live/${liveSession.id}`);
+                        else showToast("No live session found for this course.", "info");
+                      } catch {
+                        showToast("Could not load live sessions.", "error");
+                      }
+                    }}
                     className="inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-rose-700"
                   >
                     <Radio className="h-4 w-4" />

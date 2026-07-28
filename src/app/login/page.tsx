@@ -1,5 +1,5 @@
 ﻿import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Info } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import React, { useState } from 'react';
 import { AxiosError } from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
@@ -8,8 +8,8 @@ import { useToast } from '../../contexts/ToastContext';
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('student@edustream.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -27,7 +27,7 @@ export default function Login() {
       if (error instanceof AxiosError) {
         if (error.response?.status === 401) {
           message = email.endsWith('@edustream.com')
-            ? 'Compte demo introuvable ou mot de passe incorrect. Verifie que les donnees demo ont ete chargees avec `python manage.py seed_demo_data`.'
+            ? 'Identifiants incorrects. Verifiez votre email et mot de passe.'
             : 'Email ou mot de passe incorrect.';
         } else if (!error.response) {
           message = 'Serveur backend inaccessible. Verifie que `python manage.py runserver` tourne bien sur le backend.';
@@ -132,7 +132,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-10 pr-10 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="ÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇó"
+                  placeholder="••••••••••"
                   required
                 />
                 <button 
@@ -165,31 +165,6 @@ export default function Login() {
               {isSubmitting ? 'Connexion...' : 'Sign In'}
             </button>
           </form>
-
-          {/* Test Accounts Info Box */}
-          <div className="mt-8 bg-blue-50 border border-blue-100 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-bold text-blue-900 mb-2">Demo Accounts</h3>
-                <div className="space-y-2 text-sm text-blue-800">
-                  <div className="flex justify-between items-center bg-white/60 px-3 py-2 rounded-lg border border-blue-100/50">
-                    <span className="font-medium">Learner</span>
-                    <code className="text-xs bg-white px-2 py-1 rounded shadow-sm">student@edustream.com</code>
-                  </div>
-                  <div className="flex justify-between items-center bg-white/60 px-3 py-2 rounded-lg border border-blue-100/50">
-                    <span className="font-medium">Instructor</span>
-                    <code className="text-xs bg-white px-2 py-1 rounded shadow-sm">instructor@edustream.com</code>
-                  </div>
-                  <div className="flex justify-between items-center bg-white/60 px-3 py-2 rounded-lg border border-blue-100/50">
-                    <span className="font-medium">Admin</span>
-                    <code className="text-xs bg-white px-2 py-1 rounded shadow-sm">admin@edustream.com</code>
-                  </div>
-                  <p className="text-xs text-blue-600 mt-2 italic">Password for all accounts: <strong>password123</strong></p>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <div className="mt-8">
             <div className="relative">
