@@ -248,6 +248,17 @@ class LessonViewSet(viewsets.ModelViewSet):
             module__course__enrollments__is_active=True,
         ).distinct()
 
+    def retrieve(self, request, *args, **kwargs):
+        lesson = self.get_object()
+        user = request.user
+        if user.role not in {"ADMIN", "INSTRUCTOR"}:
+            from apps.courses.models import is_lesson_accessible
+            accessible, reason = is_lesson_accessible(user.id, lesson)
+            if not accessible:
+                from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
+                raise DRFPermissionDenied(detail=reason or "Lesson is locked")
+        return super().retrieve(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         module = serializer.validated_data["module"]
         if not owns_learning_object(self.request.user, module):

@@ -77,10 +77,28 @@ class LessonSerializer(serializers.ModelSerializer):
     content_blocks = ContentBlockSerializer(many=True, read_only=True)
     comments = serializers.SerializerMethodField()
     video = serializers.SerializerMethodField()
+    is_locked = serializers.SerializerMethodField()
+    locked_reason = serializers.SerializerMethodField()
 
     class Meta:
         model = Lesson
         fields = "__all__"
+
+    def get_is_locked(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        from apps.courses.models import is_lesson_accessible
+        accessible, _ = is_lesson_accessible(request.user.id, obj)
+        return not accessible
+
+    def get_locked_reason(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return ""
+        from apps.courses.models import is_lesson_accessible
+        accessible, reason = is_lesson_accessible(request.user.id, obj)
+        return reason if not accessible else ""
 
     def get_video(self, obj):
         request = self.context.get("request")

@@ -172,6 +172,28 @@ class Module(models.Model):
     def __str__(self):
         return f"{self.course.title} / {self.title}"
 
+    def is_completed_by(self, user_id):
+        from django.db.models import Count, Q
+        published = self.lessons.filter(status=Lesson.Status.PUBLISHED)
+        total = published.count()
+        if total == 0:
+            return True
+        completed = published.filter(
+            progress_items__enrollment__student_id=user_id,
+            progress_items__is_completed=True,
+        ).count()
+        return completed >= total
+
+    def is_quiz_passed_by(self, user_id):
+        try:
+            quiz = self.module_quiz
+        except Exception:
+            return None
+        if quiz is None:
+            return None
+        from apps.learning.models import QuizAttempt
+        return QuizAttempt.objects.filter(quiz=quiz, student_id=user_id, passed=True).exists()
+
 
 class Lesson(models.Model):
     class Type(models.TextChoices):
@@ -339,3 +361,35 @@ class Certificate(models.Model):
 
     class Meta:
         unique_together = ("user", "course")
+
+
+def is_lesson_accessible(user_id, lesson):
+    from apps.learning.models import QuizAttempt
+
+    module = lesson.module
+    course = module.course
+    modules = list(course.modules.filter(is_published=True).order_by("order"))
+
+    # Check 1: prerequisite_modules — each prerequisite must be fully completed
+    prereq_ids = module.prerequisite_modules.values_list("id", flat=True)
+    if prereq_ids:
+        prereq_modules = [m for m in modules if m.id in prereq_ids]
+        for pm in prereq_modules:
+            if not pm.is_completed_by(user_id):
+                return (False, "Prerequisite module not completed")
+
+    # Check 2: chain gating — first module with require_quiz_pass_to_continue not passed
+    first_blocked_order = None
+    for m in modules:
+        if m.require_quiz_pass_to_continue:
+            passed = m.is_quiz_passed_by(user_id)
+            if passed is None:
+                continue
+            if not passed:
+                first_blocked_order = m.order
+                break
+
+    if first_blocked_order is not None and module.order > first_blocked_order:
+        return (False, "Module quiz must be passed first")
+
+    return (True, "")
