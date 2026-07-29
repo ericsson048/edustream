@@ -490,11 +490,15 @@ class RecommendedCoursesView(ListAPIView):
             if course.id in enrolled_ids:
                 continue
             reason = self._get_reason(course, user_skills)
+            if course.thumbnail_file:
+                thumbnail = request.build_absolute_uri(course.thumbnail_file.url) if request else course.thumbnail_file.url
+            else:
+                thumbnail = course.thumbnail_url or ""
             results.append({
                 "id": course.id,
                 "title": course.title,
                 "slug": course.slug,
-                "thumbnail_url": course.thumbnail_url or "",
+                "thumbnail_url": thumbnail,
                 "category_name": course.category.name if course.category else None,
                 "level": course.level,
                 "estimated_hours": course.estimated_hours,
