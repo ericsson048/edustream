@@ -397,6 +397,19 @@ export default function CoursePlayer() {
       (module) => module.id === targetLesson.moduleId,
     );
     if (!targetModule) return false;
+
+    // Check prerequisite_modules
+    const prereqIds = targetModule.prerequisite_modules || [];
+    if (prereqIds.length > 0) {
+      const completedLessonIds = new Set(progressItems.filter(p => p.is_completed).map(p => String(p.lesson)));
+      const allLessonsList = flattenLessons(course);
+      const allCompleted = prereqIds.every((prereqId: string) => {
+        const prereqModuleLessons = allLessonsList.filter(l => l.moduleId === prereqId);
+        return prereqModuleLessons.every(l => completedLessonIds.has(l.id));
+      });
+      if (!allCompleted) return true;
+    }
+
     return targetModule.order > blockedAfterModuleOrder;
   }
 

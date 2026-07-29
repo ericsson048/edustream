@@ -115,6 +115,8 @@ export interface CourseLesson {
   video_url: string;
   video?: string;
   video_file?: string | null;
+  is_locked?: boolean;
+  locked_reason?: string;
   transcript?: string;
   instructor_notes?: string;
   duration_seconds: number;
