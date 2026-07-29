@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bell, CheckCheck, ChevronLeft, ChevronRight, Loader2, GraduationCap, BookOpen, Shield } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
+import InstructorSidebar from '../../components/InstructorSidebar';
+import AdminSidebar from '../../components/AdminSidebar';
 import Header from '../../components/Header';
 import { useAuth } from '../../contexts/AuthContext';
 import { notificationService, type Notification, type NotificationType } from '../../services/notificationService';
@@ -83,9 +85,13 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
+  const activeRole = roleFilter || user?.role || 'STUDENT';
+
+  const SidebarComponent = activeRole === 'ADMIN' ? AdminSidebar : activeRole === 'INSTRUCTOR' ? InstructorSidebar : Sidebar;
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
-      <Sidebar />
+      <SidebarComponent />
       <main className="flex-1 ml-64">
         <Header />
         <div className="p-8 max-w-4xl mx-auto">
