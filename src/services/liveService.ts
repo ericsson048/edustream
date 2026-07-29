@@ -15,6 +15,7 @@ export interface LiveSessionItem {
   requires_permission?: boolean;
   enrolled_students?: number;
   room_name?: string;
+  stream_minutes_remaining?: number | null;
 }
 
 export interface LiveParticipantItem {

@@ -36,8 +36,20 @@ export interface Plan {
   audience: 'STUDENT' | 'INSTRUCTOR';
   has_unlimited_ai: boolean;
   has_unlimited_streams: boolean;
+  stream_minutes_monthly: number;
   ai_monthly_limit: number;
   is_active: boolean;
+}
+
+export interface UserSubscriptionInfo {
+  id: string;
+  plan: string;
+  plan_name: string;
+  status: string;
+  stream_minutes_used_this_month: number;
+  stream_minutes_remaining: number | null;
+  ai_prompts_used_this_month: number;
+  current_period_end: string;
 }
 
 export interface InstructorEarningsResponse {
@@ -70,6 +82,10 @@ export const billingService = {
   },
   async getInstructorEarnings(): Promise<InstructorEarningsResponse> {
     const { data } = await apiClient.get<InstructorEarningsResponse>('/billing/instructor/earnings/');
+    return data;
+  },
+  async getMySubscription(): Promise<UserSubscriptionInfo> {
+    const { data } = await apiClient.get<UserSubscriptionInfo>('/billing/subscription/');
     return data;
   },
 };

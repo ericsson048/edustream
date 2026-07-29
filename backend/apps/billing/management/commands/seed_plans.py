@@ -13,6 +13,7 @@ class Command(BaseCommand):
                 "price_monthly": 0,
                 "has_unlimited_ai": False,
                 "has_unlimited_streams": False,
+                "stream_minutes_monthly": 0,
                 "ai_monthly_limit": 20,
             },
             {
@@ -20,6 +21,7 @@ class Command(BaseCommand):
                 "price_monthly": 19.99,
                 "has_unlimited_ai": False,
                 "has_unlimited_streams": False,
+                "stream_minutes_monthly": 500,
                 "ai_monthly_limit": 200,
             },
             {
@@ -27,6 +29,7 @@ class Command(BaseCommand):
                 "price_monthly": 49.99,
                 "has_unlimited_ai": True,
                 "has_unlimited_streams": True,
+                "stream_minutes_monthly": 0,
                 "ai_monthly_limit": 0,
             },
         ]

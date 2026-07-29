@@ -2,6 +2,8 @@ import uuid
 
 from rest_framework import serializers
 
+from apps.billing.services import get_streaming_remaining
+
 from .models import LiveChatMessage, LiveParticipant, LiveSession
 
 
@@ -43,11 +45,15 @@ class LiveSessionSerializer(serializers.ModelSerializer):
     enrolled_students = serializers.IntegerField(source="course.enrollments.count", read_only=True)
     instructor_name = serializers.CharField(source="instructor.full_name", read_only=True)
     instructor_id = serializers.UUIDField(source="instructor.id", read_only=True)
+    stream_minutes_remaining = serializers.SerializerMethodField()
 
     class Meta:
         model = LiveSession
         fields = "__all__"
         read_only_fields = ["instructor", "room_name"]
+
+    def get_stream_minutes_remaining(self, obj):
+        return get_streaming_remaining(obj.instructor)
 
     def create(self, validated_data):
         validated_data["room_name"] = f"live-{uuid.uuid4().hex[:10]}"

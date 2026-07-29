@@ -16,6 +16,7 @@ class SubscriptionPlan(models.Model):
     audience = models.CharField(max_length=20, choices=[("STUDENT", "Student"), ("INSTRUCTOR", "Instructor")], default="STUDENT")
     has_unlimited_ai = models.BooleanField(default=False)
     has_unlimited_streams = models.BooleanField(default=False)
+    stream_minutes_monthly = models.PositiveIntegerField(default=0, help_text="0 = unlimited")
     ai_monthly_limit = models.PositiveIntegerField(default=20)
     is_active = models.BooleanField(default=True)
 
@@ -36,6 +37,7 @@ class UserSubscription(models.Model):
     current_period_start = models.DateTimeField()
     current_period_end = models.DateTimeField()
     ai_prompts_used_this_month = models.PositiveIntegerField(default=0)
+    stream_minutes_used_this_month = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
 

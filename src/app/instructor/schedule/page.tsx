@@ -1,13 +1,15 @@
 ﻿import InstructorSidebar from '../../../components/InstructorSidebar';
 import Header from '../../../components/Header';
-import { Calendar as CalendarIcon, Clock, Plus, Save, Video, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Plus, Save, Video, X, Hourglass } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { courseService } from '../../../services/courseService';
+import { billingService } from '../../../services/billingService';
 import { liveService, type LiveSessionItem } from '../../../services/liveService';
 import type { Course } from '../../../types/lms';
+import type { UserSubscriptionInfo } from '../../../services/billingService';
 
 type SessionForm = {
   course: string;
@@ -37,15 +39,18 @@ export default function InstructorSchedule() {
   const [form, setForm] = useState<SessionForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [subscription, setSubscription] = useState<UserSubscriptionInfo | null>(null);
 
   const refresh = async () => {
     if (!user?.id) return;
-    const [courseList, sessionList] = await Promise.all([
+    const [courseList, sessionList, subResult] = await Promise.all([
       courseService.listCourses({ instructor: user.id }),
       liveService.listLiveSessions(),
+      billingService.getMySubscription().catch(() => null),
     ]);
     setCourses(courseList);
     setSessions(sessionList);
+    setSubscription(subResult);
     setForm((current) => ({
       ...current,
       course: current.course || courseList[0]?.id || '',
@@ -139,7 +144,15 @@ export default function InstructorSchedule() {
 
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-6 border-b border-slate-200 bg-slate-50/50">
-              <h2 className="text-lg font-bold">Your Sessions</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">Your Sessions</h2>
+                {subscription && (
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <Hourglass className="w-4 h-4 text-blue-500" />
+                    <span>Streaming: <strong>{subscription.stream_minutes_remaining ?? '∞'}</strong> min left this month</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="divide-y divide-slate-100">
@@ -276,6 +289,13 @@ export default function InstructorSchedule() {
                 <div className="w-11 h-6 bg-slate-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </div>
             </label>
+
+            {subscription && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2">
+                <Hourglass className="w-3.5 h-3.5 text-blue-500" />
+                <span>Streaming minutes remaining this month: <strong>{subscription.stream_minutes_remaining ?? '∞'}</strong></span>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button onClick={submit} className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">

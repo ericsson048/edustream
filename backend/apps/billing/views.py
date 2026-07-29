@@ -46,6 +46,7 @@ class SubscribeView(APIView):
                 "current_period_start": now,
                 "current_period_end": now + timedelta(days=30),
                 "ai_prompts_used_this_month": 0,
+                "stream_minutes_used_this_month": 0,
             },
         )
         data = UserSubscriptionSerializer(subscription).data
@@ -242,3 +243,13 @@ class TransactionListView(APIView):
         else:
             data = TransactionSerializer(qs.filter(student=request.user)[:200], many=True).data
         return Response(data)
+
+
+class MySubscriptionView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        sub = getattr(request.user, "subscription", None)
+        if not sub:
+            return Response({"detail": "No subscription."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(UserSubscriptionSerializer(sub).data)

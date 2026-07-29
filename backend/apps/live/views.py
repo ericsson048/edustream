@@ -3,6 +3,7 @@ import uuid
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import models
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
@@ -11,7 +12,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
-from apps.billing.services import can_stream_live
+from apps.billing.services import can_stream_live, deduct_stream_minutes
 from apps.courses.models import Enrollment
 
 from .models import LiveChatMessage, LiveParticipant, LiveSession
@@ -34,15 +35,23 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ["course", "status"]
 
-    def _auto_end_stale_sessions(self):
+    def _notify_session_time_exceeded(self, session):
+        from apps.learning.models import Notification
+        from apps.learning.notifications import bulk_create_notifications
         now = timezone.now()
-        stale = LiveSession.objects.filter(status=LiveSession.Status.LIVE)
-        stale_ids = []
-        for s in stale:
-            if s.scheduled_at and now > s.scheduled_at + timezone.timedelta(minutes=s.duration_minutes):
-                stale_ids.append(s.id)
-        if stale_ids:
-            LiveSession.objects.filter(id__in=stale_ids).update(status=LiveSession.Status.ENDED)
+        if session.status != LiveSession.Status.LIVE:
+            return
+        if not session.scheduled_at:
+            return
+        if now <= session.scheduled_at + timezone.timedelta(minutes=session.duration_minutes):
+            return
+        bulk_create_notifications(
+            users=[session.instructor],
+            notification_type=Notification.Type.LIVE_SESSION,
+            title=f"Session time exceeded: {session.title}",
+            body=f"The session was scheduled for {session.duration_minutes} min. Do you want to end it or extend?",
+            link=f"/live/{session.id}",
+        )
 
     @action(detail=False, methods=["get"], url_path="ice-config")
     def ice_config(self, request):
@@ -56,8 +65,11 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         return Response({"iceServers": ice_servers})
 
     def list(self, request, *args, **kwargs):
-        self._auto_end_stale_sessions()
-        return super().list(request, *args, **kwargs)
+        qs = super().list(request, *args, **kwargs)
+        # Notify hosts of any overdue sessions
+        for s in LiveSession.objects.filter(status=LiveSession.Status.LIVE).select_related("instructor"):
+            self._notify_session_time_exceeded(s)
+        return qs
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -70,9 +82,12 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.role not in {"INSTRUCTOR", "ADMIN"}:
             raise PermissionDenied("Instructor role required.")
-        if not can_stream_live(self.request.user):
-            raise PermissionDenied("Unlimited streaming plan required.")
+        duration = serializer.validated_data.get("duration_minutes", 60)
+        ok, reason = can_stream_live(self.request.user, duration)
+        if not ok:
+            raise PermissionDenied(reason or "Streaming not available on your plan.")
         session = serializer.save(instructor=self.request.user)
+        deduct_stream_minutes(self.request.user, duration)
         self._notify_enrolled_students(session)
 
     def perform_update(self, serializer):
@@ -154,6 +169,19 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         session.save(update_fields=["status"])
         self._send_group(session.id, {"kind": "session_ended"}, request.user.id)
         return Response({"detail": "Session ended.", "status": session.status})
+
+    @action(detail=True, methods=["post"], url_path="extend")
+    def extend_session(self, request, pk=None):
+        session = self.get_object()
+        if not _is_host_or_cohost(request.user, session) and request.user.role != "ADMIN":
+            return Response({"detail": "Only the host or co-host can extend the session."}, status=status.HTTP_403_FORBIDDEN)
+        extra = int(request.data.get("minutes", 30))
+        if extra < 1 or extra > 120:
+            return Response({"detail": "Extension must be between 1 and 120 minutes."}, status=status.HTTP_400_BAD_REQUEST)
+        session.duration_minutes = models.F("duration_minutes") + extra
+        session.save(update_fields=["duration_minutes"])
+        session.refresh_from_db()
+        return Response({"detail": f"Session extended by {extra} min.", "duration_minutes": session.duration_minutes})
 
     @action(detail=True, methods=["post"], url_path="join")
     def join(self, request, pk=None):
