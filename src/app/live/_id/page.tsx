@@ -4,6 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../../../contexts/ToastContext';
 import { liveService, type LiveParticipantItem, type LiveSessionItem } from '../../../services/liveService';
 import { getRtcConfiguration, fetchRtcConfiguration } from '../../../services/webrtc';
+import { tokenStorage } from '../../../services/tokenStorage';
+import axios from 'axios';
 import VideoGrid from './components/VideoGrid';
 import Toolbar from './components/Toolbar';
 import ChatPanel from './components/ChatPanel';
@@ -445,7 +447,7 @@ export default function LiveMeeting() {
 
   // Poll participants
   useEffect(() => {
-    if (!id) return;
+    if (!id || !tokenStorage.getAccessToken()) return;
     const interval = window.setInterval(async () => {
       try {
         const fresh = await liveService.listParticipants(id);
@@ -456,19 +458,27 @@ export default function LiveMeeting() {
           next = next.filter((p) => freshUserIds.has(p.user));
           return next;
         });
-      } catch { /* noop */ }
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+          window.clearInterval(interval);
+        }
+      }
     }, 3000);
     return () => window.clearInterval(interval);
   }, [id]);
 
   // Poll pending entries for host
   useEffect(() => {
-    if (!id || !isHostOrCohost || !session?.requires_permission) return;
+    if (!id || !isHostOrCohost || !session?.requires_permission || !tokenStorage.getAccessToken()) return;
     const interval = window.setInterval(async () => {
       try {
         const pending = await liveService.pendingEntries(id);
         setPendingEntries(pending);
-      } catch { /* noop */ }
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+          window.clearInterval(interval);
+        }
+      }
     }, 5000);
     return () => window.clearInterval(interval);
   }, [id, isHostOrCohost, session?.requires_permission]);
