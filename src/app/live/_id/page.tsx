@@ -471,7 +471,7 @@ export default function LiveMeeting() {
       } catch { /* noop */ }
     }, 5000);
     return () => window.clearInterval(interval);
-  }, [id, isHost, session?.requires_permission]);
+  }, [id, isHostOrCohost, session?.requires_permission]);
 
   // Media setup
   useEffect(() => {
@@ -686,7 +686,7 @@ export default function LiveMeeting() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {isHost && session?.requires_permission && pendingEntries.length > 0 && (
+          {isHostOrCohost && session?.requires_permission && pendingEntries.length > 0 && (
             <button
               onClick={() => setShowEntriesPanel((v) => !v)}
               className="relative flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors"

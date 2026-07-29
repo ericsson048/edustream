@@ -14,7 +14,6 @@ type SessionForm = {
   title: string;
   scheduled_at: string;
   duration_minutes: number;
-  status: LiveSessionItem['status'];
   requires_permission: boolean;
 };
 
@@ -23,7 +22,6 @@ const emptyForm: SessionForm = {
   title: '',
   scheduled_at: '',
   duration_minutes: 60,
-  status: 'SCHEDULED',
   requires_permission: false,
 };
 
@@ -76,7 +74,6 @@ export default function InstructorSchedule() {
       title: session.title,
       scheduled_at: toDateTimeInput(session.scheduled_at),
       duration_minutes: session.duration_minutes,
-      status: session.status,
       requires_permission: session.requires_permission || false,
     });
     setIsModalOpen(true);
@@ -100,7 +97,6 @@ export default function InstructorSchedule() {
           title: form.title.trim(),
           scheduled_at: new Date(form.scheduled_at).toISOString(),
           duration_minutes: form.duration_minutes,
-          status: form.status,
           requires_permission: form.requires_permission,
         });
         showToast('Live session updated.', 'success');
@@ -110,7 +106,6 @@ export default function InstructorSchedule() {
           title: form.title.trim(),
           scheduled_at: new Date(form.scheduled_at).toISOString(),
           duration_minutes: form.duration_minutes,
-          status: form.status,
           requires_permission: form.requires_permission,
         });
         showToast('Live session scheduled.', 'success');
@@ -226,6 +221,7 @@ export default function InstructorSchedule() {
               </button>
             </div>
 
+            <label className="text-sm font-semibold text-slate-700">Course</label>
             <select
               value={form.course}
               onChange={(e) => setForm((current) => ({ ...current, course: e.target.value }))}
@@ -239,6 +235,7 @@ export default function InstructorSchedule() {
               ))}
             </select>
 
+            <label className="text-sm font-semibold text-slate-700">Title</label>
             <input
               value={form.title}
               onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))}
@@ -246,6 +243,7 @@ export default function InstructorSchedule() {
               className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"
             />
 
+            <label className="text-sm font-semibold text-slate-700">Schedule</label>
             <input
               type="datetime-local"
               value={form.scheduled_at}
@@ -253,25 +251,15 @@ export default function InstructorSchedule() {
               className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                type="number"
-                min="15"
-                step="15"
-                value={form.duration_minutes}
-                onChange={(e) => setForm((current) => ({ ...current, duration_minutes: Number(e.target.value) || 60 }))}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"
-              />
-              <select
-                value={form.status}
-                onChange={(e) => setForm((current) => ({ ...current, status: e.target.value as LiveSessionItem['status'] }))}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"
-              >
-                <option value="SCHEDULED">Scheduled</option>
-                <option value="LIVE">Live</option>
-                <option value="ENDED">Ended</option>
-              </select>
-            </div>
+            <label className="text-sm font-semibold text-slate-700">Duration (minutes)</label>
+            <input
+              type="number"
+              min="15"
+              step="15"
+              value={form.duration_minutes}
+              onChange={(e) => setForm((current) => ({ ...current, duration_minutes: Number(e.target.value) || 60 }))}
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"
+            />
 
             <label className="flex items-center justify-between p-3 bg-slate-50 rounded-xl cursor-pointer">
               <div>
