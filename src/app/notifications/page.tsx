@@ -1,9 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, CheckCheck, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Bell, CheckCheck, ChevronLeft, ChevronRight, Loader2, GraduationCap, BookOpen, Shield } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
 import Header from '../../components/Header';
+import { useAuth } from '../../contexts/AuthContext';
 import { notificationService, type Notification, type NotificationType } from '../../services/notificationService';
+
+type RoleTab = '' | 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+
+const roleTabs: { key: RoleTab; label: string; icon: typeof GraduationCap }[] = [
+  { key: '', label: 'notifications.allRoles', icon: Bell },
+  { key: 'STUDENT', label: 'notifications.roleStudent', icon: GraduationCap },
+  { key: 'INSTRUCTOR', label: 'notifications.roleInstructor', icon: BookOpen },
+  { key: 'ADMIN', label: 'notifications.roleAdmin', icon: Shield },
+];
+
+const roleTypeMap: Record<string, NotificationType[]> = {
+  STUDENT: ['ASSIGNMENT', 'GRADE', 'SKILL_UNLOCK', 'COURSE_UPDATE'],
+  INSTRUCTOR: ['LIVE_SESSION', 'LIVE_REMINDER', 'MESSAGE'],
+  ADMIN: ['SYSTEM'],
+};
 
 const typeConfig: Record<NotificationType, { icon: string; color: string; bg: string }> = {
   COURSE_UPDATE: { icon: '📚', color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
@@ -20,16 +36,21 @@ const PAGE_SIZE = 20;
 
 export default function NotificationsPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [roleFilter, setRoleFilter] = useState<RoleTab>('');
   const [typeFilter, setTypeFilter] = useState<string>('');
+
+  const visibleTypes = roleFilter ? (roleTypeMap[roleFilter] ?? []) : (Object.keys(typeConfig) as NotificationType[]);
 
   const fetch = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, unknown> = { page };
+      if (roleFilter) params.role = roleFilter;
       if (typeFilter) params.notification_type = typeFilter;
       const data = await notificationService.list(params as any);
       setNotifications(data.results ?? []);
@@ -39,9 +60,15 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, typeFilter]);
+  }, [page, roleFilter, typeFilter]);
 
   useEffect(() => { fetch(); }, [fetch]);
+
+  const handleRoleChange = (role: RoleTab) => {
+    setRoleFilter(role);
+    setTypeFilter('');
+    setPage(1);
+  };
 
   const handleMarkRead = async (n: Notification) => {
     if (n.is_read) return;
@@ -78,6 +105,25 @@ export default function NotificationsPage() {
             )}
           </div>
 
+          {/* Role tabs */}
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {roleTabs.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => handleRoleChange(key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+                  roleFilter === key
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {t(label)}
+              </button>
+            ))}
+          </div>
+
+          {/* Type filter tabs (scoped to selected role) */}
           <div className="flex gap-2 mb-6 flex-wrap">
             <button
               onClick={() => { setTypeFilter(''); setPage(1); }}
@@ -87,7 +133,7 @@ export default function NotificationsPage() {
             >
               {t('notifications.allTypes')}
             </button>
-            {(Object.keys(typeConfig) as NotificationType[]).map(type => (
+            {visibleTypes.map(type => (
               <button
                 key={type}
                 onClick={() => { setTypeFilter(type); setPage(1); }}

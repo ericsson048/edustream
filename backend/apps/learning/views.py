@@ -275,7 +275,24 @@ class NotificationViewSet(viewsets.ModelViewSet):
     filterset_fields = ["notification_type", "is_read"]
 
     def get_queryset(self):
-        return Notification.objects.filter(user=self.request.user)
+        qs = Notification.objects.filter(user=self.request.user)
+
+        role = self.request.query_params.get("role")
+        if role:
+            type_map = {
+                "STUDENT": ["ASSIGNMENT", "GRADE", "SKILL_UNLOCK", "COURSE_UPDATE"],
+                "INSTRUCTOR": ["LIVE_SESSION", "LIVE_REMINDER", "MESSAGE"],
+                "ADMIN": ["SYSTEM"],
+            }
+            types = type_map.get(role)
+            if types:
+                qs = qs.filter(notification_type__in=types)
+
+        recipient_role = self.request.query_params.get("recipient_role")
+        if recipient_role and self.request.user.role == "ADMIN":
+            qs = Notification.objects.filter(user__role=recipient_role)
+
+        return qs
 
     @action(detail=True, methods=["patch"])
     def mark_read(self, request, pk=None):

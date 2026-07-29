@@ -369,6 +369,10 @@
     "viewAll": "View all notifications",
     "empty": "No notifications yet.",
     "allTypes": "All types",
+    "allRoles": "All",
+    "roleStudent": "Student",
+    "roleInstructor": "Instructor",
+    "roleAdmin": "Admin",
     "page": "Page",
     "types": {
       "COURSE_UPDATE": "Course Updates",

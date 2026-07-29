@@ -71,6 +71,10 @@
     "viewAll": "Voir toutes les notifications",
     "empty": "Aucune notification pour le moment.",
     "allTypes": "Tous les types",
+    "allRoles": "Tous",
+    "roleStudent": "Étudiant",
+    "roleInstructor": "Tuteur",
+    "roleAdmin": "Admin",
     "page": "Page",
     "types": {
       "COURSE_UPDATE": "Mises à jour de cours",

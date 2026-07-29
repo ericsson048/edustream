@@ -15,7 +15,7 @@ export interface Notification {
 }
 
 export const notificationService = {
-  async list(params?: { page?: number; notification_type?: string; is_read?: boolean }): Promise<PaginatedResponse<Notification>> {
+  async list(params?: { page?: number; notification_type?: string; is_read?: boolean; role?: string; recipient_role?: string }): Promise<PaginatedResponse<Notification>> {
     const { data } = await apiClient.get<PaginatedResponse<Notification>>('/notifications/', { params });
     return data;
   },
