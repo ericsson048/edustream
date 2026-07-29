@@ -9,7 +9,6 @@ from apps.courses.models import Course
 class LiveSession(models.Model):
     class Status(models.TextChoices):
         SCHEDULED = "SCHEDULED", "Scheduled"
-        WAITING = "WAITING", "Waiting"
         LIVE = "LIVE", "Live"
         ENDED = "ENDED", "Ended"
 
@@ -29,6 +28,7 @@ class LiveSession(models.Model):
 class LiveParticipant(models.Model):
     class Role(models.TextChoices):
         HOST = "HOST", "Host"
+        CO_HOST = "CO_HOST", "Co-host"
         STUDENT = "STUDENT", "Student"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

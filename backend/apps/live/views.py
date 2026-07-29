@@ -20,6 +20,14 @@ from .serializers import LiveChatMessageSerializer, LiveParticipantSerializer, L
 User = get_user_model()
 
 
+def _is_host_or_cohost(user, session):
+    return LiveParticipant.objects.filter(
+        session=session, user=user,
+        role__in=[LiveParticipant.Role.HOST, LiveParticipant.Role.CO_HOST],
+        left_at__isnull=True,
+    ).exists()
+
+
 class LiveSessionViewSet(viewsets.ModelViewSet):
     queryset = LiveSession.objects.select_related("course", "instructor")
     serializer_class = LiveSessionSerializer
@@ -36,13 +44,6 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         if stale_ids:
             LiveSession.objects.filter(id__in=stale_ids).update(status=LiveSession.Status.ENDED)
 
-    def _auto_transition_to_waiting(self):
-        now = timezone.now()
-        LiveSession.objects.filter(
-            status=LiveSession.Status.SCHEDULED,
-            scheduled_at__lte=now,
-        ).update(status=LiveSession.Status.WAITING)
-
     @action(detail=False, methods=["get"], url_path="ice-config")
     def ice_config(self, request):
         stun_urls = getattr(settings, "WEBRTC_STUN_URLS", ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"])
@@ -55,7 +56,6 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         return Response({"iceServers": ice_servers})
 
     def list(self, request, *args, **kwargs):
-        self._auto_transition_to_waiting()
         self._auto_end_stale_sessions()
         return super().list(request, *args, **kwargs)
 
@@ -138,24 +138,11 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         except Exception:
             pass
 
-    @action(detail=True, methods=["post"], url_path="go-live")
-    def go_live(self, request, pk=None):
-        session = self.get_object()
-        if request.user != session.instructor and request.user.role != "ADMIN":
-            return Response({"detail": "Only the host can go live."}, status=status.HTTP_403_FORBIDDEN)
-        if session.status not in (LiveSession.Status.SCHEDULED, LiveSession.Status.WAITING):
-            return Response({"detail": f"Cannot go live from {session.status} status."}, status=status.HTTP_400_BAD_REQUEST)
-        session.status = LiveSession.Status.LIVE
-        session.save(update_fields=["status"])
-        self._notify_session_started(session)
-        self._send_group(session.id, {"kind": "session_live", "status": "LIVE"}, request.user.id)
-        return Response({"status": session.status})
-
     @action(detail=True, methods=["post"], url_path="end")
     def end_session(self, request, pk=None):
         session = self.get_object()
-        if request.user != session.instructor and request.user.role != "ADMIN":
-            return Response({"detail": "Only the host can end the session."}, status=status.HTTP_403_FORBIDDEN)
+        if not _is_host_or_cohost(request.user, session) and request.user.role != "ADMIN":
+            return Response({"detail": "Only the host or co-host can end the session."}, status=status.HTTP_403_FORBIDDEN)
         LiveParticipant.objects.filter(session=session, left_at__isnull=True).update(
             left_at=timezone.now(),
             is_screen_sharing=False,
@@ -175,18 +162,26 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         if request.user == session.instructor:
             role = LiveParticipant.Role.HOST
             is_admitted = True
+            if session.status == LiveSession.Status.SCHEDULED:
+                session.status = LiveSession.Status.LIVE
+                session.save(update_fields=["status"])
+                self._notify_session_started(session)
+                self._send_group(session.id, {"kind": "session_live", "status": "LIVE"}, request.user.id)
         else:
             is_enrolled = Enrollment.objects.filter(student=request.user, course=session.course, is_active=True).exists()
             if not is_enrolled:
                 return Response({"detail": "Enrollment required."}, status=status.HTTP_403_FORBIDDEN)
-            role = LiveParticipant.Role.STUDENT
-            is_admitted = not session.requires_permission
+
+            existing = LiveParticipant.objects.filter(session=session, user=request.user).first()
+            if existing and existing.role == LiveParticipant.Role.CO_HOST:
+                role = LiveParticipant.Role.CO_HOST
+                is_admitted = True
+            else:
+                role = LiveParticipant.Role.STUDENT
+                is_admitted = not session.requires_permission
 
         if session.status == LiveSession.Status.ENDED:
             return Response({"detail": "Session has ended."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if session.status == LiveSession.Status.SCHEDULED:
-            return Response({"detail": "Session has not started yet."}, status=status.HTTP_400_BAD_REQUEST)
 
         participant, created = LiveParticipant.objects.get_or_create(
             session=session,
@@ -196,7 +191,7 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         if not created:
             participant.role = role
             participant.left_at = None
-            if role == LiveParticipant.Role.HOST:
+            if role in (LiveParticipant.Role.HOST, LiveParticipant.Role.CO_HOST):
                 participant.is_admitted = True
             participant.save(update_fields=["role", "left_at", "is_admitted"])
 
@@ -207,8 +202,8 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="request-entry")
     def request_entry(self, request, pk=None):
         session = self.get_object()
-        if session.status not in (LiveSession.Status.LIVE, LiveSession.Status.WAITING):
-            return Response({"detail": "Session is not active."}, status=status.HTTP_400_BAD_REQUEST)
+        if session.status not in (LiveSession.Status.LIVE,):
+            return Response({"detail": "Session is not live."}, status=status.HTTP_400_BAD_REQUEST)
 
         participant = LiveParticipant.objects.filter(session=session, user=request.user).first()
         if not participant:
@@ -230,8 +225,8 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="grant-entry")
     def grant_entry(self, request, pk=None):
         session = self.get_object()
-        if request.user != session.instructor and request.user.role != "ADMIN":
-            return Response({"detail": "Only the host can grant entry."}, status=status.HTTP_403_FORBIDDEN)
+        if not _is_host_or_cohost(request.user, session) and request.user.role != "ADMIN":
+            return Response({"detail": "Only host or co-host can grant entry."}, status=status.HTTP_403_FORBIDDEN)
 
         user_id = request.data.get("user_id")
         if not user_id:
@@ -250,8 +245,8 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="deny-entry")
     def deny_entry(self, request, pk=None):
         session = self.get_object()
-        if request.user != session.instructor and request.user.role != "ADMIN":
-            return Response({"detail": "Only the host can deny entry."}, status=status.HTTP_403_FORBIDDEN)
+        if not _is_host_or_cohost(request.user, session) and request.user.role != "ADMIN":
+            return Response({"detail": "Only host or co-host can deny entry."}, status=status.HTTP_403_FORBIDDEN)
 
         user_id = request.data.get("user_id")
         if not user_id:
@@ -264,11 +259,62 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         }, request.user.id)
         return Response({"status": "denied"})
 
+    @action(detail=True, methods=["post"], url_path="send-to-waiting")
+    def send_to_waiting(self, request, pk=None):
+        session = self.get_object()
+        if not _is_host_or_cohost(request.user, session) and request.user.role != "ADMIN":
+            return Response({"detail": "Only host or co-host can send to waiting."}, status=status.HTTP_403_FORBIDDEN)
+
+        user_id = request.data.get("user_id")
+        if not user_id:
+            return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        participant = get_object_or_404(LiveParticipant, session=session, user_id=user_id)
+        if participant.role in (LiveParticipant.Role.HOST, LiveParticipant.Role.CO_HOST):
+            return Response({"detail": "Cannot send host or co-host to waiting."}, status=status.HTTP_400_BAD_REQUEST)
+
+        participant.is_admitted = False
+        participant.is_mic_on = False
+        participant.is_camera_on = False
+        participant.is_screen_sharing = False
+        participant.save(update_fields=["is_admitted", "is_mic_on", "is_camera_on", "is_screen_sharing"])
+
+        self._send_group(session.id, {
+            "kind": "sent_to_waiting",
+            "participant": LiveParticipantSerializer(participant).data,
+        }, request.user.id)
+        return Response(LiveParticipantSerializer(participant).data)
+
+    @action(detail=True, methods=["post"], url_path="add-cohost")
+    def add_cohost(self, request, pk=None):
+        session = self.get_object()
+        if request.user != session.instructor and request.user.role != "ADMIN":
+            return Response({"detail": "Only the host can add co-hosts."}, status=status.HTTP_403_FORBIDDEN)
+
+        user_id = request.data.get("user_id")
+        if not user_id:
+            return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        participant, created = LiveParticipant.objects.get_or_create(
+            session=session, user_id=user_id,
+            defaults={"role": LiveParticipant.Role.CO_HOST, "is_admitted": True},
+        )
+        if not created:
+            participant.role = LiveParticipant.Role.CO_HOST
+            participant.is_admitted = True
+            participant.save(update_fields=["role", "is_admitted"])
+
+        self._send_group(session.id, {
+            "kind": "cohost_added",
+            "participant": LiveParticipantSerializer(participant).data,
+        }, request.user.id)
+        return Response(LiveParticipantSerializer(participant).data)
+
     @action(detail=True, methods=["get"], url_path="pending-entries")
     def pending_entries(self, request, pk=None):
         session = self.get_object()
-        if request.user != session.instructor and request.user.role != "ADMIN":
-            return Response({"detail": "Only the host can view pending entries."}, status=status.HTTP_403_FORBIDDEN)
+        if not _is_host_or_cohost(request.user, session) and request.user.role != "ADMIN":
+            return Response({"detail": "Only host or co-host can view pending entries."}, status=status.HTTP_403_FORBIDDEN)
 
         pending = LiveParticipant.objects.filter(
             session=session, is_admitted=False, left_at__isnull=True,

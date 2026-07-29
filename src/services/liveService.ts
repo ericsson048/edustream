@@ -11,7 +11,7 @@ export interface LiveSessionItem {
   title: string;
   scheduled_at: string;
   duration_minutes: number;
-  status: 'SCHEDULED' | 'WAITING' | 'LIVE' | 'ENDED';
+  status: 'SCHEDULED' | 'LIVE' | 'ENDED';
   requires_permission?: boolean;
   enrolled_students?: number;
   room_name?: string;
@@ -22,7 +22,7 @@ export interface LiveParticipantItem {
   session: string;
   user: string;
   user_name?: string;
-  role: 'HOST' | 'STUDENT';
+  role: 'HOST' | 'CO_HOST' | 'STUDENT';
   is_admitted?: boolean;
   is_mic_on?: boolean;
   is_camera_on?: boolean;
@@ -85,6 +85,14 @@ export const liveService = {
   },
   async denyEntry(id: string, userId: string): Promise<void> {
     await apiClient.post(`/live-sessions/${id}/deny-entry/`, { user_id: userId });
+  },
+  async sendToWaiting(id: string, userId: string): Promise<LiveParticipantItem> {
+    const { data } = await apiClient.post<LiveParticipantItem>(`/live-sessions/${id}/send-to-waiting/`, { user_id: userId });
+    return data;
+  },
+  async addCohost(id: string, userId: string): Promise<LiveParticipantItem> {
+    const { data } = await apiClient.post<LiveParticipantItem>(`/live-sessions/${id}/add-cohost/`, { user_id: userId });
+    return data;
   },
   async pendingEntries(id: string): Promise<LiveParticipantItem[]> {
     const { data } = await apiClient.get<LiveParticipantItem[]>(`/live-sessions/${id}/pending-entries/`);

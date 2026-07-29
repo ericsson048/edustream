@@ -167,7 +167,7 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
             return
 
         if kind == "mute_all":
-            if user.id != await self._get_session_host_id(self.session_id):
+            if not await self._is_host_or_cohost(user.id, self.session_id):
                 return
             await self._mute_all_participants(self.session_id)
             await self.channel_layer.group_send(
@@ -268,14 +268,6 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
         LiveChatMessage.objects.create(user_id=user_id, session_id=session_id, content=content)
 
     @sync_to_async
-    def _get_session_host_id(self, session_id):
-        try:
-            session = LiveSession.objects.get(id=session_id)
-            return session.instructor_id
-        except LiveSession.DoesNotExist:
-            return None
-
-    @sync_to_async
     def _mute_all_participants(self, session_id):
         LiveParticipant.objects.filter(session_id=session_id, left_at__isnull=True).update(is_mic_on=False)
 
@@ -306,6 +298,15 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def _is_host(self, user_id, session_id):
         return LiveSession.objects.filter(id=session_id, instructor_id=user_id).exists()
+
+    @sync_to_async
+    def _is_host_or_cohost(self, user_id, session_id):
+        return LiveParticipant.objects.filter(
+            session_id=session_id,
+            user_id=user_id,
+            role__in=[LiveParticipant.Role.HOST, LiveParticipant.Role.CO_HOST],
+            left_at__isnull=True,
+        ).exists()
 
     @sync_to_async
     def _session_requires_permission(self, session_id):

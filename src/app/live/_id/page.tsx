@@ -76,6 +76,7 @@ export default function LiveMeeting() {
 
   const selfUserId = selfParticipant?.user || '';
   const isHost = selfParticipant?.role === 'HOST';
+  const isHostOrCohost = isHost || selfParticipant?.role === 'CO_HOST';
 
   const { isRecording, isUploading, startRecording, stopRecording, cleanup: cleanupRecording } = useCompositeRecording({
     sessionId: id,
@@ -226,7 +227,7 @@ export default function LiveMeeting() {
         const found = sessions.find((item) => item.id === id) || null;
         setSession(found);
 
-        if (!found || found.status === 'SCHEDULED' || found.status === 'ENDED') {
+        if (!found || found.status === 'ENDED') {
           showToast('Session is not available.', 'error');
           navigate('/schedule', { replace: true });
           return;
@@ -248,7 +249,7 @@ export default function LiveMeeting() {
           return [...unique, ...prev];
         });
 
-        if (isHost && found.requires_permission) {
+        if (isHostOrCohost && found.requires_permission) {
           liveService.pendingEntries(id).then(setPendingEntries).catch(() => {});
         }
       } catch {
@@ -298,7 +299,7 @@ export default function LiveMeeting() {
           }
 
           if (payload.kind === 'entry_requested' && payload.participant) {
-            if (isHost) {
+            if (isHostOrCohost) {
               setPendingEntries((prev) => upsertParticipant(prev, payload.participant!));
               showToast(`${payload.participant.user_name || 'Someone'} wants to join.`, 'info');
             } else if (payload.participant.user === selfUserIdRef.current) {
@@ -326,6 +327,20 @@ export default function LiveMeeting() {
               return;
             }
             setPendingEntries((prev) => prev.filter((p) => p.user !== payload.user_id));
+            return;
+          }
+
+          if (payload.kind === 'sent_to_waiting' && payload.participant) {
+            if (payload.participant.user === selfUserIdRef.current) {
+              setAdmitted(false);
+              showToast('You have been sent to the waiting room.', 'info');
+            }
+            setParticipants((prev) => prev.filter((p) => p.user !== payload.participant?.user));
+            return;
+          }
+
+          if (payload.kind === 'cohost_added' && payload.participant) {
+            setParticipants((prev) => upsertParticipant(prev, payload.participant!));
             return;
           }
 
@@ -448,7 +463,7 @@ export default function LiveMeeting() {
 
   // Poll pending entries for host
   useEffect(() => {
-    if (!id || !isHost || !session?.requires_permission) return;
+    if (!id || !isHostOrCohost || !session?.requires_permission) return;
     const interval = window.setInterval(async () => {
       try {
         const pending = await liveService.pendingEntries(id);
@@ -585,16 +600,6 @@ export default function LiveMeeting() {
     }
   };
 
-  const handleGoLive = async () => {
-    try {
-      await liveService.goLive(id);
-      setSession((prev) => prev ? { ...prev, status: 'LIVE' } : prev);
-      showToast('You are now live!', 'success');
-    } catch {
-      showToast('Failed to go live.', 'error');
-    }
-  };
-
   const handleRequestEntry = async () => {
     setWaitingEntry(true);
     try {
@@ -634,8 +639,8 @@ export default function LiveMeeting() {
     }
   };
 
-  // WAITING state: not admitted yet
-  if (session && (session.status === 'WAITING' || session.status === 'LIVE') && !admitted && !isHost) {
+  // Not admitted — waiting room
+  if (session && (session.status === 'LIVE' || session.status === 'SCHEDULED') && !admitted && !isHost) {
     return (
       <div className="relative h-screen bg-slate-950 text-white overflow-hidden flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-8">
@@ -643,41 +648,18 @@ export default function LiveMeeting() {
             <Radio className="h-10 w-10 text-amber-400 animate-pulse" />
           </div>
           <h2 className="text-xl font-bold mb-2">
-            {waitingEntry ? 'Waiting for admission...' : session.status === 'LIVE' ? 'Session is live' : 'Waiting for host to start...'}
+            {waitingEntry ? 'Waiting for admission...' : 'Session requires permission'}
           </h2>
           <p className="text-slate-400 text-sm mb-6">
             {waitingEntry
               ? 'The host will let you in shortly.'
-              : session.requires_permission
-                ? 'This session requires permission to enter.'
-                : 'Click below to request entry.'}
+              : 'Click below to request entry.'}
           </p>
           {!waitingEntry && (
             <button onClick={handleRequestEntry} className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition-colors">
               Request to Join
             </button>
           )}
-          <button onClick={handleLeave} className="block mx-auto mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors">
-            Leave
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // WAITING state: host needs to go live
-  if (session && session.status === 'WAITING' && isHost) {
-    return (
-      <div className="relative h-screen bg-slate-950 text-white overflow-hidden flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-500/20 flex items-center justify-center">
-            <Radio className="h-10 w-10 text-amber-400" />
-          </div>
-          <h2 className="text-xl font-bold mb-2">Ready to go live?</h2>
-          <p className="text-slate-400 text-sm mb-6">Your session is waiting. Click below to start broadcasting.</p>
-          <button onClick={handleGoLive} className="px-8 py-4 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-lg transition-colors">
-            Go Live
-          </button>
           <button onClick={handleLeave} className="block mx-auto mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors">
             Leave
           </button>
@@ -723,7 +705,7 @@ export default function LiveMeeting() {
       </div>
 
       {/* Pending entries panel */}
-      {showEntriesPanel && isHost && pendingEntries.length > 0 && (
+      {showEntriesPanel && isHostOrCohost && pendingEntries.length > 0 && (
         <div className="absolute top-16 right-4 z-40 w-72 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-4">
           <h3 className="text-sm font-bold mb-3">Entry Requests</h3>
           <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -808,8 +790,8 @@ export default function LiveMeeting() {
         onToggleHand={() => setIsHandRaised((v) => !v)}
         onReaction={sendReaction}
         onLeave={handleLeave}
-        onEndSession={isHost ? handleEndSession : undefined}
-        onMuteAll={isHost ? () => sendSocketPayload({ kind: 'mute_all' }) : undefined}
+        onEndSession={isHostOrCohost ? handleEndSession : undefined}
+        onMuteAll={isHostOrCohost ? () => sendSocketPayload({ kind: 'mute_all' }) : undefined}
         onToggleChat={() => setChatOpen((v) => !v)}
         chatOpen={chatOpen}
         participantCount={visibleParticipants.length}
