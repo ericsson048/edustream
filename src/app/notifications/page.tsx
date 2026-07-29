@@ -34,14 +34,14 @@ const typeConfig: Record<NotificationType, { icon: string; color: string; bg: st
 
 const PAGE_SIZE = 20;
 
-export default function NotificationsPage() {
+export default function NotificationsPage({ initialRole }: { initialRole?: string }) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [roleFilter, setRoleFilter] = useState<RoleTab>('');
+  const [roleFilter, setRoleFilter] = useState<RoleTab>((initialRole as RoleTab) || '');
   const [typeFilter, setTypeFilter] = useState<string>('');
 
   const visibleTypes = roleFilter ? (roleTypeMap[roleFilter] ?? []) : (Object.keys(typeConfig) as NotificationType[]);

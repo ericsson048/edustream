@@ -24,7 +24,7 @@ export default function Sidebar() {
     { name: t('sidebar.assignments'), icon: FileText, href: '/assignments' },
     { name: t('sidebar.grades'), icon: BarChart2, href: '/grades' },
     { name: t('sidebar.community'), icon: Users, href: '/community' },
-    { name: t('sidebar.notifications'), icon: Bell, href: '/notifications', badge: unreadCount },
+    { name: t('sidebar.notifications'), icon: Bell, href: `/${user?.role?.toLowerCase() || 'student'}/notifications`, badge: unreadCount },
     { name: t('sidebar.messages'), icon: MessageSquare, href: '/messages' },
   ];
 

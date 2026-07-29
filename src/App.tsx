@@ -187,6 +187,30 @@ export default function App() {
             }
           />
           <Route
+            path="/student/notifications"
+            element={
+              <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
+                <Notifications initialRole="STUDENT" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/notifications"
+            element={
+              <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
+                <Notifications initialRole="INSTRUCTOR" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/notifications"
+            element={
+              <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
+                <Notifications initialRole="ADMIN" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/focus"
             element={
               <ProtectedRoute roles={["STUDENT"]}>
