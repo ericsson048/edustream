@@ -472,6 +472,21 @@ class RecommendedCoursesView(ListAPIView):
             .select_related("category")
         )
 
+    def _get_insights(self, course, user_skills):
+        insights = []
+        common = set(course.skills.values_list("title", flat=True)) & user_skills
+        if common:
+            insights.append(f"✅ Matches your skills: {', '.join(list(common)[:2])}")
+        if course.avg_rating and course.avg_rating >= 4.5:
+            insights.append(f"⭐ Top rated ({round(course.avg_rating, 1)}/5)")
+        if course.enrolled_count >= 50:
+            insights.append(f"👥 {course.enrolled_count}+ students enrolled")
+        if course.level and user_skills:
+            insights.append(f"📈 {course.get_level_display()} level")
+        if course.estimated_hours:
+            insights.append(f"⏱ ~{course.estimated_hours}h to complete")
+        return insights
+
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         enrolled_ids = set()
@@ -506,6 +521,7 @@ class RecommendedCoursesView(ListAPIView):
                 "review_count": course.review_count,
                 "enrolled_count": course.enrolled_count,
                 "reason": reason,
+                "insights": self._get_insights(course, user_skills),
             })
         return Response(results[:10])
 

@@ -356,6 +356,13 @@ export default function DashboardPage() {
                         <div className="p-4">
                           <h4 className="font-bold text-sm dark:text-white mb-1">{course.title}</h4>
                           <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-2">{course.reason}</p>
+                          {course.insights?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {course.insights.map((insight, i) => (
+                                <span key={i} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">{insight}</span>
+                              ))}
+                            </div>
+                          )}
                           <div className="flex items-center gap-3 text-xs text-slate-500">
                             <span className="flex items-center gap-1"><Star className="w-3 h-3" />{course.average_rating.toFixed(1)}</span>
                             <span>{course.enrolled_count} enrolled</span>

@@ -84,6 +84,7 @@ export interface RecommendedCourseItem {
   review_count: number;
   enrolled_count: number;
   reason: string;
+  insights: string[];
 }
 
 export interface UserActivityItem {

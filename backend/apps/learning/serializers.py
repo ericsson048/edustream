@@ -156,3 +156,4 @@ class RecommendedCourseSerializer(serializers.Serializer):
     review_count = serializers.IntegerField()
     enrolled_count = serializers.IntegerField()
     reason = serializers.CharField()
+    insights = serializers.ListField(child=serializers.CharField(), allow_empty=True)
