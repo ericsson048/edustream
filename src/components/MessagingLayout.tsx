@@ -244,7 +244,7 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
       <Sidebar />
       <main className="flex-1 ml-64 flex flex-col h-screen">
         <Header />
-        <div className="flex-1 p-0 md:p-4 overflow-hidden">
+        <div className="flex-1 p-0 md:p-4 overflow-hidden bg-slate-100/50">
           <div className="bg-white md:rounded-2xl md:shadow-sm border border-slate-200 h-full flex overflow-hidden">
             {/* Left Panel */}
             <div className={clsx(

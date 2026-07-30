@@ -30,8 +30,13 @@ type PeerStatus = 'idle' | 'connecting' | 'connected' | 'failed';
 
 function upsertParticipant(list: LiveParticipantItem[], participant: LiveParticipantItem) {
   const index = list.findIndex((item) => item.user === participant.user);
-  if (index < 0) return [...list, participant];
   const next = [...list];
+  if (index < 0) {
+    return [...list, participant];
+  }
+  if (next[index].id !== participant.id) {
+    console.warn('[upsertParticipant] replacing participant', next[index].id, 'with', participant.id, 'for user', participant.user);
+  }
   next[index] = { ...next[index], ...participant };
   return next;
 }
@@ -451,6 +456,14 @@ export default function LiveMeeting() {
     const interval = window.setInterval(async () => {
       try {
         const fresh = await liveService.listParticipants(id);
+        const seen = new Map<string, number>();
+        fresh.forEach((p) => {
+          const count = (seen.get(p.user) || 0) + 1;
+          seen.set(p.user, count);
+        });
+        seen.forEach((count, user) => {
+          if (count > 1) console.warn('[poll] backend returned', count, 'participants with user', user);
+        });
         const freshUserIds = new Set(fresh.map((p) => p.user));
         setParticipants((prev) => {
           let next = [...prev];
