@@ -161,7 +161,7 @@ export default function InstructorSchedule() {
               {subscription && (
                 <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2 text-sm text-slate-600">
                   <Hourglass className="w-4 h-4 text-blue-500" />
-                  <span>Streaming: <strong>{subscription.stream_minutes_remaining ?? '∞'}</strong> min left this month</span>
+                  <span>Streaming: <strong>{subscription.stream_minutes_remaining !== null ? `${subscription.stream_minutes_remaining} min` : 'Unlimited'}</strong> left this month</span>
                 </div>
               )}
               <table className="w-full text-left">
@@ -308,7 +308,7 @@ export default function InstructorSchedule() {
             {subscription && (
               <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2">
                 <Hourglass className="w-3.5 h-3.5 text-blue-500" />
-                <span>Streaming minutes remaining this month: <strong>{subscription.stream_minutes_remaining ?? '∞'}</strong></span>
+                <span>Streaming minutes remaining this month: <strong>{subscription.stream_minutes_remaining !== null ? `${subscription.stream_minutes_remaining}` : 'Unlimited'}</strong></span>
               </div>
             )}
 
