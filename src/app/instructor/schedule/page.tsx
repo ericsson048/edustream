@@ -32,7 +32,7 @@ function toDateTimeInput(value: string) {
   return value ? new Date(value).toISOString().slice(0, 16) : '';
 }
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 export default function InstructorSchedule() {
   const { user } = useAuth();
@@ -66,7 +66,7 @@ export default function InstructorSchedule() {
   }, [showToast, user?.id]);
 
   const orderedSessions = useMemo(
-    () => [...sessions].sort((left, right) => new Date(left.scheduled_at).getTime() - new Date(right.scheduled_at).getTime()),
+    () => [...sessions].sort((left, right) => new Date(right.scheduled_at).getTime() - new Date(left.scheduled_at).getTime()),
     [sessions],
   );
 

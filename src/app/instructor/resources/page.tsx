@@ -23,7 +23,7 @@ export default function InstructorResources() {
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<LessonResource | null>(null);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 5;
 
   const load = async () => {
     if (!user?.id) return;
@@ -53,8 +53,12 @@ export default function InstructorResources() {
 
   const lessonMap = Object.fromEntries(lessons.map((l) => [l.id, l]));
 
-  const totalPages = Math.ceil(resources.length / PAGE_SIZE) || 1;
-  const paginatedResources = resources.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sortedResources = useMemo(
+    () => [...resources].sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()),
+    [resources],
+  );
+  const totalPages = Math.ceil(sortedResources.length / PAGE_SIZE) || 1;
+  const paginatedResources = sortedResources.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openNew = () => {
     setEditing(null);

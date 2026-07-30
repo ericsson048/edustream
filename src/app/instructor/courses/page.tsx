@@ -102,7 +102,7 @@ export default function InstructorCourses() {
   const [confirmDelete, setConfirmDelete] = useState<Course | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 5;
 
   const load = async () => {
     if (!user?.id) return;
@@ -126,8 +126,8 @@ export default function InstructorCourses() {
 
   const filteredCourses = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return courses;
-    return courses.filter((c) => c.title.toLowerCase().includes(q));
+    const list = q ? courses.filter((c) => c.title.toLowerCase().includes(q)) : courses;
+    return [...list].sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
   }, [courses, search]);
 
   const totalPages = Math.ceil(filteredCourses.length / PAGE_SIZE) || 1;
