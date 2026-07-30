@@ -1,6 +1,6 @@
 ﻿import InstructorSidebar from '../../../components/InstructorSidebar';
 import Header from '../../../components/Header';
-import { Calendar as CalendarIcon, Clock, Plus, Save, Video, X, Hourglass } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Save, Video, X, Hourglass } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -142,71 +142,86 @@ export default function InstructorSchedule() {
             </button>
           </div>
 
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-6 border-b border-slate-200 bg-slate-50/50">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold">Your Sessions</h2>
-                {subscription && (
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Hourglass className="w-4 h-4 text-blue-500" />
-                    <span>Streaming: <strong>{subscription.stream_minutes_remaining ?? '∞'}</strong> min left this month</span>
-                  </div>
-                )}
+          {orderedSessions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
+              <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-4">
+                <Video size={22} className="text-blue-500" />
               </div>
+              <p className="text-slate-700 font-medium">No live sessions yet</p>
+              <p className="text-slate-400 text-sm mt-1 mb-5">Schedule your first session to get started.</p>
+              <button
+                onClick={openCreateModal}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer text-sm font-medium"
+              >
+                <Plus size={16} /> New Session
+              </button>
             </div>
-
-            <div className="divide-y divide-slate-100">
-              {orderedSessions.length === 0 && (
-                <div className="p-6 text-sm text-slate-500">No live sessions yet.</div>
+          ) : (
+            <div className=" rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              {subscription && (
+                <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2 text-sm text-slate-600">
+                  <Hourglass className="w-4 h-4 text-blue-500" />
+                  <span>Streaming: <strong>{subscription.stream_minutes_remaining ?? '∞'}</strong> min left this month</span>
+                </div>
               )}
-
-              {orderedSessions.map((session) => (
-                <div key={session.id} className="p-6 hover:bg-slate-50 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${session.status === 'LIVE' ? 'bg-red-50 text-red-600' : session.status === 'ENDED' ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-600'}`}>
-                      <Video className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-3 mb-1">
-                        <h3 className="font-bold text-lg text-slate-900">{session.title}</h3>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${session.status === 'LIVE' ? 'bg-red-100 text-red-700' : session.status === 'ENDED' ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 tracking-wide">
+                  <tr>
+                    <th className="px-6 py-4">Title</th>
+                    <th className="px-6 py-4">Course</th>
+                    <th className="px-6 py-4">Date</th>
+                    <th className="px-6 py-4">Duration</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orderedSessions.map((session) => (
+                    <tr key={session.id} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-slate-900 text-sm">{session.title}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{session.course_title || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-700">
+                        <div className="flex items-center gap-1.5">
+                          <CalendarIcon className="w-4 h-4 text-slate-400 shrink-0" />
+                          {new Date(session.scheduled_at).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">{session.duration_minutes} min</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          session.status === 'LIVE' ? 'bg-red-100 text-red-700' :
+                          session.status === 'ENDED' ? 'bg-slate-100 text-slate-600' :
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                            session.status === 'LIVE' ? 'bg-red-500' :
+                            session.status === 'ENDED' ? 'bg-slate-400' :
+                            'bg-blue-500'
+                          }`} />
                           {session.status}
                         </span>
-                      </div>
-                      <p className="text-sm text-slate-500 mb-3">{session.course_title || 'Course'}</p>
-
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <CalendarIcon className="w-4 h-4 text-slate-400" />
-                          <span className="font-medium">{new Date(session.scheduled_at).toLocaleDateString()}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {(session.status === 'LIVE' || session.status === 'SCHEDULED') && (
+                            <Link to={`/live/${session.id}`} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors">
+                              Enter Room
+                            </Link>
+                          )}
+                          <button
+                            onClick={() => openEditModal(session)}
+                            className="px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                            Edit
+                          </button>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-4 h-4 text-slate-400" />
-                          <span className="font-medium">
-                            {new Date(session.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {session.duration_minutes} min
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 md:ml-auto">
-                    {(session.status === 'LIVE' || session.status === 'SCHEDULED') && (
-                      <Link to={`/live/${session.id}`} className="px-6 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-colors shadow-sm">
-                        Enter Room
-                      </Link>
-                    )}
-                    <button
-                      onClick={() => openEditModal(session)}
-                      className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm"
-                    >
-                      Edit Details
-                    </button>
-                  </div>
-                </div>
-              ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </section>
+          )}
         </div>
       </main>
 
