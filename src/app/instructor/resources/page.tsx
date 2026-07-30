@@ -1,4 +1,5 @@
 import InstructorSidebar from '../../../components/InstructorSidebar';
+import Pagination from '../../../components/Pagination';
 import Header from '../../../components/Header';
 import { Plus, Edit, Trash2, Link as LinkIcon, File as FileIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -21,6 +22,8 @@ export default function InstructorResources() {
   const [formFile, setFormFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<LessonResource | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const load = async () => {
     if (!user?.id) return;
@@ -49,6 +52,9 @@ export default function InstructorResources() {
   useEffect(() => { load() }, [user?.id]);
 
   const lessonMap = Object.fromEntries(lessons.map((l) => [l.id, l]));
+
+  const totalPages = Math.ceil(resources.length / PAGE_SIZE) || 1;
+  const paginatedResources = resources.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openNew = () => {
     setEditing(null);
@@ -133,7 +139,7 @@ export default function InstructorResources() {
                   </tr>
                 </thead>
                 <tbody>
-                  {resources.map((r) => {
+                  {paginatedResources.map((r) => {
                     const ls = lessonMap[r.lesson];
                     return (
                       <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
@@ -155,6 +161,7 @@ export default function InstructorResources() {
                   })}
                 </tbody>
               </table>
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </div>
           )}
         </div>

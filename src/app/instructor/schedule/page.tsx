@@ -1,4 +1,5 @@
 ﻿import InstructorSidebar from '../../../components/InstructorSidebar';
+import Pagination from '../../../components/Pagination';
 import Header from '../../../components/Header';
 import { Calendar as CalendarIcon, Plus, Save, Video, X, Hourglass } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -31,6 +32,8 @@ function toDateTimeInput(value: string) {
   return value ? new Date(value).toISOString().slice(0, 16) : '';
 }
 
+const PAGE_SIZE = 10;
+
 export default function InstructorSchedule() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -40,6 +43,7 @@ export default function InstructorSchedule() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [subscription, setSubscription] = useState<UserSubscriptionInfo | null>(null);
+  const [page, setPage] = useState(1);
 
   const refresh = async () => {
     if (!user?.id) return;
@@ -65,6 +69,9 @@ export default function InstructorSchedule() {
     () => [...sessions].sort((left, right) => new Date(left.scheduled_at).getTime() - new Date(right.scheduled_at).getTime()),
     [sessions],
   );
+
+  const totalPages = Math.ceil(orderedSessions.length / PAGE_SIZE) || 1;
+  const paginatedSessions = orderedSessions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openCreateModal = () => {
     setEditingId(null);
@@ -176,7 +183,7 @@ export default function InstructorSchedule() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orderedSessions.map((session) => (
+                  {paginatedSessions.map((session) => (
                     <tr key={session.id} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 font-semibold text-slate-900 text-sm">{session.title}</td>
                       <td className="px-6 py-4 text-sm text-slate-600">{session.course_title || '-'}</td>
@@ -220,6 +227,7 @@ export default function InstructorSchedule() {
                   ))}
                 </tbody>
               </table>
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </div>
           )}
         </div>

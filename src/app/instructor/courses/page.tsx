@@ -1,4 +1,5 @@
 import InstructorSidebar from "../../../components/InstructorSidebar";
+import Pagination from "../../../components/Pagination";
 import Header from "../../../components/Header";
 import {
   Edit,
@@ -100,6 +101,8 @@ export default function InstructorCourses() {
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Course | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const load = async () => {
     if (!user?.id) return;
@@ -126,6 +129,9 @@ export default function InstructorCourses() {
     if (!q) return courses;
     return courses.filter((c) => c.title.toLowerCase().includes(q));
   }, [courses, search]);
+
+  const totalPages = Math.ceil(filteredCourses.length / PAGE_SIZE) || 1;
+  const paginatedCourses = filteredCourses.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const stats = useMemo(
     () => ({
@@ -348,7 +354,7 @@ export default function InstructorCourses() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCourses.map((c) => (
+                  {paginatedCourses.map((c) => (
                     <tr
                       key={c.id}
                       className="border-t border-slate-100 hover:bg-slate-50/10 transition-colors group"
@@ -425,6 +431,7 @@ export default function InstructorCourses() {
                   ))}
                 </tbody>
               </table>
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </div>
           )}
         </div>
