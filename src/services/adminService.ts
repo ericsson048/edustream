@@ -55,15 +55,34 @@ export interface SupportTicket {
   updated_at: string;
 }
 
+export interface PlanItem {
+  id: string;
+  name: string;
+  price_monthly: string;
+  stripe_price_id: string;
+  features: string[];
+  badge: string;
+  audience: 'STUDENT' | 'INSTRUCTOR';
+  has_unlimited_ai: boolean;
+  has_unlimited_streams: boolean;
+  stream_minutes_monthly: number;
+  ai_monthly_limit: number;
+  is_active: boolean;
+}
+
 export interface PlatformSetting {
   key: string;
   value: string;
 }
 
 export const adminService = {
-  async listUsers(): Promise<AuthUser[]> {
-    const { data } = await apiClient.get<PaginatedResponse<AuthUser>>('/auth/users/');
+  async listUsers(params?: { search?: string; role?: string; is_active?: string }): Promise<AuthUser[]> {
+    const { data } = await apiClient.get<PaginatedResponse<AuthUser>>('/auth/users/', { params });
     return data.results ?? [];
+  },
+  async updateUser(id: string, payload: Partial<Pick<AuthUser, 'role' | 'is_active'>>): Promise<AuthUser> {
+    const { data } = await apiClient.patch<AuthUser>(`/auth/users/${id}/`, payload);
+    return data;
   },
   async listTransactions(): Promise<AdminTransaction[]> {
     const { data } = await apiClient.get<AdminTransaction[]>('/billing/transactions/');
@@ -85,6 +104,10 @@ export const adminService = {
     const { data } = await apiClient.patch<SupportTicket>(`/admin/support/tickets/${id}/`, payload);
     return data;
   },
+  async createSupportTicket(payload: { subject: string; message: string; priority: SupportTicket['priority'] }): Promise<SupportTicket> {
+    const { data } = await apiClient.post<SupportTicket>('/admin/support/tickets/', payload);
+    return data;
+  },
   async getPlatformSettings(): Promise<PlatformSetting[]> {
     const { data } = await apiClient.get<PlatformSetting[] | PaginatedResponse<PlatformSetting>>('/admin/settings/');
     return Array.isArray(data) ? data : data.results ?? [];
@@ -99,5 +122,26 @@ export const adminService = {
         apiClient.patch(`/admin/settings/${key}/`, { value }),
       ),
     );
+  },
+  async broadcastNotification(payload: { title: string; body: string; notification_type?: string; target_role?: string }): Promise<void> {
+    await apiClient.post('/admin/notifications/broadcast/', payload);
+  },
+  async listPlans(): Promise<PlanItem[]> {
+    const { data } = await apiClient.get<PlanItem[]>('/billing/admin/plans/');
+    return data;
+  },
+  async createPlan(payload: Partial<PlanItem>): Promise<PlanItem> {
+    const { data } = await apiClient.post<PlanItem>('/billing/admin/plans/', payload);
+    return data;
+  },
+  async updatePlan(id: string, payload: Partial<PlanItem>): Promise<PlanItem> {
+    const { data } = await apiClient.patch<PlanItem>(`/billing/admin/plans/${id}/`, payload);
+    return data;
+  },
+  async deletePlan(id: string): Promise<void> {
+    await apiClient.delete(`/billing/admin/plans/${id}/`);
+  },
+  async refundTransaction(id: string): Promise<void> {
+    await apiClient.post(`/billing/transactions/${id}/refund/`);
   },
 };

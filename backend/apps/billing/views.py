@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import timedelta
 
@@ -5,7 +6,7 @@ import stripe
 from django.conf import settings
 from django.db.models import Sum
 from django.utils import timezone
-from rest_framework import permissions, status
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -24,6 +25,35 @@ class PlanListView(APIView):
         return Response(SubscriptionPlanSerializer(plans, many=True).data)
 
 
+class AdminPlanListCreateView(generics.ListCreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = SubscriptionPlan.objects.all().order_by("price_monthly")
+    serializer_class = SubscriptionPlanSerializer
+
+    def get_queryset(self):
+        if self.request.user.role != "ADMIN":
+            return SubscriptionPlan.objects.none()
+        return super().get_queryset()
+
+    def perform_create(self, serializer):
+        if self.request.user.role != "ADMIN":
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Admin access required.")
+        serializer.save()
+
+
+class AdminPlanDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = SubscriptionPlan.objects.all()
+    serializer_class = SubscriptionPlanSerializer
+    lookup_field = "pk"
+
+    def get_queryset(self):
+        if self.request.user.role != "ADMIN":
+            return SubscriptionPlan.objects.none()
+        return super().get_queryset()
+
+
 class SubscribeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -36,6 +66,10 @@ class SubscribeView(APIView):
             plan = SubscriptionPlan.objects.get(id=plan_id, is_active=True)
         except SubscriptionPlan.DoesNotExist:
             return Response({"detail": "Invalid plan."}, status=status.HTTP_404_NOT_FOUND)
+
+        role_map = {"STUDENT": "STUDENT", "INSTRUCTOR": "INSTRUCTOR", "ADMIN": "INSTRUCTOR"}
+        if plan.audience != role_map.get(request.user.role, "STUDENT"):
+            return Response({"detail": "This plan is not available for your role."}, status=status.HTTP_403_FORBIDDEN)
 
         now = timezone.now()
         subscription, _ = UserSubscription.objects.update_or_create(
@@ -50,7 +84,7 @@ class SubscribeView(APIView):
             },
         )
         data = UserSubscriptionSerializer(subscription).data
-        data["checkout_url"] = f"https://checkout.stripe.com/pay/mock-{uuid.uuid4()}"
+        data["checkout_url"] = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/subscription/checkout?plan_id={plan.id}"
         return Response(data, status=status.HTTP_201_CREATED)
 
 
@@ -107,6 +141,11 @@ class CourseCheckoutView(APIView):
                 status=status.HTTP_201_CREATED,
             )
 
+        if not settings.ENABLE_MOCK_PAYMENTS:
+            return Response(
+                {"detail": "Payments are not configured on this server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         fee, instructor_earning = compute_split(course.price, course.platform_fee_percentage)
         tx = Transaction.objects.create(
             student=request.user,
@@ -122,7 +161,6 @@ class CourseCheckoutView(APIView):
         return Response(
             {
                 "transaction": TransactionSerializer(tx).data,
-                "checkout_url": f"https://checkout.stripe.com/pay/mock-{uuid.uuid4()}",
             },
             status=status.HTTP_201_CREATED,
         )
@@ -190,8 +228,32 @@ class StripeWebhookView(APIView):
     authentication_classes = []
 
     def post(self, request):
-        event_type = request.data.get("type")
-        user_id = request.data.get("user_id")
+        payload = request.body
+        sig_header = request.headers.get("Stripe-Signature", "")
+        if settings.STRIPE_WEBHOOK_SECRET:
+            try:
+                event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
+            except ValueError:
+                return Response({"detail": "Invalid payload."}, status=status.HTTP_400_BAD_REQUEST)
+            except stripe.error.SignatureVerificationError:
+                return Response({"detail": "Invalid signature."}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            if not settings.ENABLE_MOCK_PAYMENTS:
+                return Response(
+                    {"detail": "Stripe webhook is not configured."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            try:
+                event = json.loads(payload)
+            except (json.JSONDecodeError, TypeError):
+                return Response({"detail": "Invalid payload."}, status=status.HTTP_400_BAD_REQUEST)
+        if isinstance(event, dict):
+            event_data = event
+        else:
+            event_data = event.to_dict_recursive()
+
+        event_type = event_data.get("type")
+        user_id = event_data.get("user_id")
         if not event_type or not user_id:
             return Response({"detail": "type and user_id are required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -243,6 +305,25 @@ class TransactionListView(APIView):
         else:
             data = TransactionSerializer(qs.filter(student=request.user)[:200], many=True).data
         return Response(data)
+
+
+class TransactionRefundView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        if request.user.role != "ADMIN":
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            tx = Transaction.objects.get(pk=pk, status=Transaction.Status.COMPLETED)
+        except Transaction.DoesNotExist:
+            return Response({"detail": "Transaction not found or already refunded."}, status=status.HTTP_404_NOT_FOUND)
+
+        tx.status = Transaction.Status.REFUNDED
+        tx.save(update_fields=["status"])
+
+        Enrollment.objects.filter(student=tx.student, course=tx.course).update(is_active=False)
+
+        return Response({"detail": "Transaction refunded."})
 
 
 class MySubscriptionView(APIView):

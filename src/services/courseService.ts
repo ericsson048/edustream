@@ -19,6 +19,93 @@ export interface CertificateItem {
   issued_at: string;
 }
 
+export interface CourseStudent {
+  enrollment_id: string;
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  joined_at: string;
+  is_active: boolean;
+  completed_lessons: number;
+  total_lessons: number;
+  completion_percent: number;
+  course?: { id: string; title: string };
+}
+
+export interface StudentDetail {
+  student: {
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url: string;
+    title: string;
+    bio: string;
+    location: string;
+    website: string;
+    date_joined: string;
+    last_seen: string | null;
+    email_verified: boolean;
+    is_active: boolean;
+  };
+  stats: {
+    courses_enrolled: number;
+    courses_completed: number;
+    avg_completion: number;
+    avg_quiz: number | null;
+    certificates_count: number;
+    focus_minutes: number;
+    streak_days: number;
+    ai_messages: number;
+    notes_count: number;
+    transactions_count: number;
+  };
+  enrollments: Array<{
+    enrollment_id: string;
+    course: { id: string; title: string; thumbnail_url: string };
+    enrolled_at: string;
+    is_active: boolean;
+    completed_lessons: number;
+    total_lessons: number;
+    completion_percent: number;
+    quiz_average: number | null;
+    quiz_attempts: number;
+    quizzes_passed: number;
+    last_activity: string | null;
+    certificate: { id: string; certificate_code: string; issued_at: string } | null;
+    assignments: Array<{
+      assignment_id: string;
+      title: string;
+      points: number;
+      status: string;
+      grade: number | null;
+      feedback: string;
+      submitted_at: string;
+    }>;
+    lesson_progress: Array<{
+      lesson_id: string;
+      title: string;
+      lesson_type: string;
+      is_completed: boolean;
+      completion: number;
+      last_position_seconds: number;
+      updated_at: string;
+    }>;
+  }>;
+  recent_activity: Array<{
+    kind: string;
+    created_at: string;
+    course_title: string;
+    lesson_title: string;
+  }>;
+  transactions: Array<{
+    id: string;
+    course_title: string;
+    amount_paid: number;
+    status: string;
+    created_at: string;
+  }>;
+}
+
 export const courseService = {
   async listCategories(): Promise<CourseCategory[]> {
     const { data } = await apiClient.get<PaginatedResponse<CourseCategory>>('/categories/');
@@ -187,6 +274,25 @@ export const courseService = {
   ): Promise<Course> {
     const { data } = await apiClient.post<Course>(`/courses/${id}/import-outline/`, payload);
     return data;
+  },
+
+  async listCourseStudents(courseId: string): Promise<CourseStudent[]> {
+    const { data } = await apiClient.get<{ count: number; results: CourseStudent[] }>(`/courses/${courseId}/students/`);
+    return data.results ?? [];
+  },
+
+  async listAllStudents(): Promise<CourseStudent[]> {
+    const { data } = await apiClient.get<{ count: number; results: CourseStudent[] }>('/students-overview/');
+    return data.results ?? [];
+  },
+
+  async getStudentDetail(studentId: string): Promise<StudentDetail> {
+    const { data } = await apiClient.get<StudentDetail>(`/students/${studentId}/`);
+    return data;
+  },
+
+  async removeCourseStudent(courseId: string, enrollmentId: string): Promise<void> {
+    await apiClient.post(`/courses/${courseId}/students/remove/`, { enrollment_id: enrollmentId });
   },
 
   async createModule(payload: {

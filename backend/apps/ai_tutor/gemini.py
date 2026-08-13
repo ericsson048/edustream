@@ -88,7 +88,7 @@ Return only valid JSON with this shape:
     {{
       "title": "string",
       "content": "string",
-      "lesson_type": "VIDEO|TEXT|QUIZ|ASSIGNMENT|LIVE|DOWNLOAD",
+      "lesson_type": "VIDEO|TEXT|QUIZ|ASSIGNMENT|DEVOIR|LIVE|DOWNLOAD",
       "status": "DRAFT|PUBLISHED",
       "video_url": "string",
       "transcript": "string",
@@ -162,7 +162,7 @@ Return only valid JSON with this shape:
 {{
   "title": "string",
   "content": "string",
-  "lesson_type": "VIDEO|TEXT|QUIZ|ASSIGNMENT|LIVE|DOWNLOAD",
+  "lesson_type": "VIDEO|TEXT|QUIZ|ASSIGNMENT|DEVOIR|LIVE|DOWNLOAD",
   "status": "DRAFT|PUBLISHED",
   "video_url": "string",
   "transcript": "string",

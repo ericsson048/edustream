@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    BroadcastNotificationView,
     DashboardStatsView,
     PlatformSettingDetailView,
     PlatformSettingListView,
@@ -16,4 +17,5 @@ urlpatterns = [
     path("admin/support/tickets/<uuid:pk>/", SupportTicketDetailView.as_view(), name="admin-support-ticket-detail"),
     path("admin/settings/", PlatformSettingListView.as_view(), name="admin-settings"),
     path("admin/settings/<str:key>/", PlatformSettingDetailView.as_view(), name="admin-setting-detail"),
+    path("admin/notifications/broadcast/", BroadcastNotificationView.as_view(), name="admin-notifications-broadcast"),
 ]

@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Category, Course, Enrollment, Lesson, Module, Progress
+from .models import Category, Course, CourseReview, Enrollment, Lesson, LessonComment, Module, Progress
 
 User = get_user_model()
 
@@ -133,3 +133,94 @@ class CourseTests(APITestCase):
         )
         
         self.assertEqual(Progress.objects.filter(enrollment=enrollment, lesson=self.lesson, is_completed=True).count(), 1)
+
+
+class SecurityRegressionTests(APITestCase):
+    def setUp(self):
+        self.instructor = User.objects.create_user(
+            email="instructor@test.com",
+            full_name="Test Instructor",
+            password="password123",
+            role="INSTRUCTOR",
+        )
+        self.student = User.objects.create_user(
+            email="student@test.com",
+            full_name="Test Student",
+            password="password123",
+            role="STUDENT",
+        )
+        self.other_student = User.objects.create_user(
+            email="other@test.com",
+            full_name="Other Student",
+            password="password123",
+            role="STUDENT",
+        )
+        self.category = Category.objects.create(name="Web Dev", slug="web-dev")
+        self.course = Course.objects.create(
+            title="React",
+            description="Course",
+            category=self.category,
+            level="BEGINNER",
+            price=0,
+            is_published=True,
+            instructor=self.instructor,
+        )
+        self.module = Module.objects.create(course=self.course, title="M1", order=1)
+        self.lesson = Lesson.objects.create(module=self.module, title="L1", lesson_type="TEXT", status="PUBLISHED", order=1)
+
+    def test_review_cannot_be_edited_by_other_user(self):
+        review = CourseReview.objects.create(course=self.course, user=self.student, rating=5)
+        self.client.force_authenticate(user=self.other_student)
+        url = reverse("review-detail", args=[review.id])
+        response = self.client.patch(url, {"rating": 1})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_authenticate(user=self.student)
+        response = self.client.patch(url, {"rating": 1})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        review.refresh_from_db()
+        self.assertEqual(review.rating, 1)
+
+    def test_comment_cannot_be_deleted_by_other_user(self):
+        comment = LessonComment.objects.create(lesson=self.lesson, user=self.student, content="Hi")
+        self.client.force_authenticate(user=self.other_student)
+        url = reverse("lesson-comment-detail", args=[comment.id])
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_student_cannot_create_tag(self):
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(reverse("tag-list"), {"name": "trending"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_student_cannot_create_section(self):
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(reverse("section-list"), {"course": str(self.course.id), "title": "S", "order": 1})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_student_cannot_create_learning_path(self):
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(reverse("learning-path-list"), {"title": "Path"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_cannot_enroll_in_draft_course(self):
+        draft = Course.objects.create(
+            title="Draft", description="D", category=self.category, level="BEGINNER",
+            price=0, is_published=False, instructor=self.instructor,
+        )
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(reverse("enrollment-list"), {"course": str(draft.id)})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_cannot_enroll_in_paid_course_without_payment(self):
+        paid = Course.objects.create(
+            title="Paid", description="P", category=self.category, level="BEGINNER",
+            price=49.99, is_published=True, instructor=self.instructor,
+        )
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(reverse("enrollment-list"), {"course": str(paid.id)})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_can_enroll_in_free_published_course(self):
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(reverse("enrollment-list"), {"course": str(self.course.id)})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

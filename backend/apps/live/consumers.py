@@ -202,6 +202,8 @@ class LiveSessionConsumer(AsyncWebsocketConsumer):
         user = self.scope["user"]
         if user.id == session.instructor.id or getattr(user, "role", None) == "ADMIN":
             return True
+        if session.is_public:
+            return True
         return Enrollment.objects.filter(student_id=user_id, course=session.course, is_active=True).exists()
 
     @staticmethod

@@ -40,11 +40,12 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       const refreshResponse = await axios.post(`${baseURL}/auth/refresh/`, { refresh });
       const newAccess = refreshResponse.data?.access as string | undefined;
+      const newRefresh = refreshResponse.data?.refresh as string | undefined;
       if (!newAccess) {
         tokenStorage.clearTokens();
         return Promise.reject(error);
       }
-      tokenStorage.setTokens(newAccess, refresh);
+      tokenStorage.setTokens(newAccess, newRefresh || refresh);
       originalRequest.headers.Authorization = `Bearer ${newAccess}`;
       return apiClient(originalRequest);
     } catch (refreshError) {

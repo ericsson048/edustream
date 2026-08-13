@@ -110,7 +110,7 @@ export interface CourseLesson {
   module: string;
   title: string;
   content: string;
-  lesson_type?: 'VIDEO' | 'TEXT' | 'QUIZ' | 'ASSIGNMENT' | 'LIVE' | 'DOWNLOAD';
+  lesson_type?: 'VIDEO' | 'TEXT' | 'QUIZ' | 'ASSIGNMENT' | 'DEVOIR' | 'LIVE' | 'DOWNLOAD';
   status?: 'DRAFT' | 'PUBLISHED';
   video_url: string;
   video?: string;

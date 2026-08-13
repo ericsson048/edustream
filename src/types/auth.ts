@@ -5,6 +5,8 @@ export interface AuthUser {
   email: string;
   full_name: string;
   role: UserRole;
+  is_active?: boolean;
+  email_verified?: boolean;
   stripe_account_id?: string | null;
   stripe_customer_id?: string | null;
   avatar_url?: string;

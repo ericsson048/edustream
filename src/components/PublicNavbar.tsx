@@ -1,4 +1,5 @@
 import { GraduationCap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 type PublicNavbarProps = {
@@ -6,6 +7,7 @@ type PublicNavbarProps = {
 };
 
 export default function PublicNavbar({ active }: PublicNavbarProps) {
+  const { t } = useTranslation();
   const linkClassName = (isActive?: boolean) =>
     `transition-colors ${
       isActive
@@ -25,22 +27,22 @@ export default function PublicNavbar({ active }: PublicNavbarProps) {
 
         <div className="hidden md:flex items-center gap-8 font-medium text-sm">
           <a href="/#features" className={linkClassName()}>
-            Features
+            {t('publicNavbar.features')}
           </a>
           <Link to="/pricing" className={linkClassName(active === 'pricing')}>
-            Pricing
+            {t('publicNavbar.pricing')}
           </Link>
           <a href="/#instructors" className={linkClassName()}>
-            Teach with us
+            {t('publicNavbar.teachWithUs')}
           </a>
         </div>
 
         <div className="flex items-center gap-4">
           <Link to="/login" className="text-sm font-bold text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-            Log in
+            {t('publicNavbar.logIn')}
           </Link>
           <Link to="/register" className="text-sm font-bold bg-blue-600 text-white px-5 py-2.5 rounded-full hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40">
-            Get Started
+            {t('publicNavbar.getStarted')}
           </Link>
         </div>
       </div>

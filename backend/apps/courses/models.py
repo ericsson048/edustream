@@ -201,6 +201,7 @@ class Lesson(models.Model):
         TEXT = "TEXT", "Text"
         QUIZ = "QUIZ", "Quiz"
         ASSIGNMENT = "ASSIGNMENT", "Assignment"
+        DEVOIR = "DEVOIR", "Devoir"
         LIVE = "LIVE", "Live"
         DOWNLOAD = "DOWNLOAD", "Download"
 

@@ -1,11 +1,12 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Assignment, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, SkillEdge, SkillNode, SkillTree, Submission, UserActivity, UserSkill
+from .models import Assignment, Extension, FocusSession, Notification, Quiz, QuizAttempt, QuizQuestion, Skill, SkillEdge, SkillNode, SkillTree, Submission, UserActivity, UserSkill
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
     course_title = serializers.CharField(source="course.title", read_only=True)
+    attachment = serializers.FileField(write_only=True, required=False)
 
     class Meta:
         model = Assignment
@@ -18,11 +19,28 @@ class SubmissionSerializer(serializers.ModelSerializer):
     course_id = serializers.UUIDField(source="assignment.course_id", read_only=True)
     course_title = serializers.CharField(source="assignment.course.title", read_only=True)
     student_name = serializers.CharField(source="student.full_name", read_only=True)
+    is_late = serializers.SerializerMethodField()
+    due_date = serializers.DateTimeField(source="assignment.due_date", read_only=True)
+    points = serializers.IntegerField(source="assignment.points", read_only=True)
+    file = serializers.FileField(write_only=True, required=False)
 
     class Meta:
         model = Submission
         fields = "__all__"
-        read_only_fields = ["student", "grade", "feedback", "status"]
+        read_only_fields = ["student", "grade", "feedback", "status", "is_published"]
+
+    def get_is_late(self, obj):
+        return obj.is_late
+
+
+class ExtensionSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
+    assignment_title = serializers.CharField(source="assignment.title", read_only=True)
+
+    class Meta:
+        model = Extension
+        fields = "__all__"
+        read_only_fields = ["granted_by"]
 
 
 class QuizQuestionSerializer(serializers.ModelSerializer):

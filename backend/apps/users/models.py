@@ -25,6 +25,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     website = models.URLField(blank=True, default="")
     title = models.CharField(max_length=255, blank=True, default="", help_text="Professional headline (e.g. Senior Frontend Engineer & Educator)")
     is_active = models.BooleanField(default=True)
+    email_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
     last_seen = models.DateTimeField(blank=True, null=True)

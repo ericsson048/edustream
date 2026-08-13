@@ -46,6 +46,10 @@ class MessageViewSet(viewsets.ModelViewSet):
         return {"request": self.request}
 
     def perform_create(self, serializer):
+        conversation = serializer.validated_data["conversation"]
+        if not conversation.participants.filter(id=self.request.user.id).exists():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You are not a participant of this conversation.")
         serializer.save(sender=self.request.user)
 
 

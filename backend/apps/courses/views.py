@@ -11,7 +11,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from django.conf import settings
 
-from django.db.models import Avg
+from django.db.models import Avg, Count
 
 from .models import (
     Category,
@@ -33,6 +33,7 @@ from .models import (
     Tag,
 )
 from .permissions import (
+    IsAdminOrReadOnly,
     IsInstructorOrReadOnly,
     IsInstructorOwnerOrAdmin,
     IsOwnerOrReadOnly,
@@ -198,6 +199,51 @@ class CourseViewSet(viewsets.ModelViewSet):
         course.refresh_from_db()
         return Response(self.get_serializer(course).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["get"], url_path="students")
+    def students(self, request, pk=None):
+        course = self.get_object()
+        if not is_admin(request.user) and course.instructor_id != request.user.id:
+            return Response(
+                {"detail": "You cannot view this course's students."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        enrollments = (
+            Enrollment.objects.filter(course=course, is_active=True)
+            .select_related("student")
+            .prefetch_related("progress_items")
+            .order_by("-purchased_at")
+        )
+        total_lessons = Lesson.objects.filter(module__course=course).count()
+        rows = []
+        for enrollment in enrollments:
+            completed = enrollment.progress_items.filter(is_completed=True).count()
+            rows.append(
+                {
+                    "enrollment_id": enrollment.id,
+                    "student_id": enrollment.student_id,
+                    "student_name": enrollment.student.full_name,
+                    "student_email": enrollment.student.email,
+                    "joined_at": enrollment.purchased_at,
+                    "is_active": enrollment.is_active,
+                    "completed_lessons": completed,
+                    "total_lessons": total_lessons,
+                    "completion_percent": int(completed / total_lessons * 100) if total_lessons else 0,
+                }
+            )
+        return Response({"count": len(rows), "results": rows})
+
+    @action(detail=True, methods=["post"], url_path="students/remove")
+    def remove_student(self, request, pk=None):
+        course = self.get_object()
+        enrollment_id = request.data.get("enrollment_id")
+        if not enrollment_id:
+            return Response({"detail": "enrollment_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        enrollment = Enrollment.objects.filter(id=enrollment_id, course=course).first()
+        if not enrollment:
+            return Response({"detail": "Enrollment not found."}, status=status.HTTP_404_NOT_FOUND)
+        enrollment.delete()
+        return Response({"detail": "Student removed from the course."}, status=status.HTTP_200_OK)
+
 
 class ModuleViewSet(viewsets.ModelViewSet):
     queryset = Module.objects.select_related("course").all()
@@ -309,6 +355,19 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         return qs.filter(student=self.request.user)
 
     def perform_create(self, serializer):
+        course = serializer.validated_data["course"]
+        if not course.is_published:
+            raise PermissionDenied("This course is not available for enrollment.")
+
+        if course.price > 0:
+            from apps.billing.models import Transaction
+            has_paid = Transaction.objects.filter(
+                student=self.request.user,
+                course=course,
+                status=Transaction.Status.COMPLETED,
+            ).exists()
+            if not has_paid:
+                raise PermissionDenied("You must purchase this course before enrolling.")
         serializer.save(student=self.request.user)
 
 
@@ -405,17 +464,27 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 class TagViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsInstructorOrReadOnly]
     pagination_class = None
 
 
 class SectionViewSet(viewsets.ModelViewSet):
     queryset = Section.objects.select_related("course").all()
     serializer_class = SectionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsInstructorOwnerOrAdmin]
     filterset_fields = ["course"]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if is_admin(user) or user.role == "INSTRUCTOR":
+            return qs
+        return qs.filter(course__is_published=True)
+
     def perform_create(self, serializer):
+        course = serializer.validated_data["course"]
+        if not owns_learning_object(self.request.user, course):
+            raise PermissionDenied("You cannot modify this course.")
         serializer.save()
 
 
@@ -438,7 +507,7 @@ class ContentBlockViewSet(viewsets.ModelViewSet):
 
 class CourseReviewViewSet(viewsets.ModelViewSet):
     serializer_class = CourseReviewSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
     filterset_fields = ["course"]
 
     def get_queryset(self):
@@ -450,7 +519,7 @@ class CourseReviewViewSet(viewsets.ModelViewSet):
 
 class LessonCommentViewSet(viewsets.ModelViewSet):
     serializer_class = LessonCommentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
     filterset_fields = ["lesson"]
 
     def get_queryset(self):
@@ -478,22 +547,324 @@ class CourseVersionViewSet(viewsets.ReadOnlyModelViewSet):
 class LearningPathViewSet(viewsets.ModelViewSet):
     queryset = LearningPath.objects.prefetch_related("path_courses__course").all()
     serializer_class = LearningPathSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAdminOrReadOnly]
     filterset_fields = ["is_active"]
     search_fields = ["title", "description"]
+
+
+class CourseStudentsOverviewView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role not in {"INSTRUCTOR", "ADMIN"}:
+            raise PermissionDenied("Instructor access required.")
+
+        courses = Course.objects.all() if is_admin(user) else Course.objects.filter(instructor=user)
+        course_ids = list(courses.values_list("id", flat=True))
+        if not course_ids:
+            return Response({"count": 0, "results": []})
+
+        enrollments = (
+            Enrollment.objects.filter(course_id__in=course_ids, is_active=True)
+            .select_related("student", "course")
+            .prefetch_related("progress_items")
+            .order_by("-purchased_at")
+        )
+        lessons_per_course = {
+            row["module__course_id"]: row["count"]
+            for row in Lesson.objects.filter(module__course_id__in=course_ids)
+            .values("module__course_id")
+            .annotate(count=Count("id"))
+        }
+
+        rows = []
+        for enrollment in enrollments:
+            total_lessons = lessons_per_course.get(enrollment.course_id, 0)
+            completed = enrollment.progress_items.filter(is_completed=True).count()
+            rows.append(
+                {
+                    "enrollment_id": enrollment.id,
+                    "student_id": enrollment.student_id,
+                    "student_name": enrollment.student.full_name,
+                    "student_email": enrollment.student.email,
+                    "joined_at": enrollment.purchased_at,
+                    "is_active": enrollment.is_active,
+                    "completed_lessons": completed,
+                    "total_lessons": total_lessons,
+                    "completion_percent": int(completed / total_lessons * 100) if total_lessons else 0,
+                    "course": {
+                        "id": enrollment.course_id,
+                        "title": enrollment.course.title,
+                    },
+                }
+            )
+        return Response({"count": len(rows), "results": rows})
+
+
+class CourseStudentDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk):
+        user = request.user
+        if user.role not in {"INSTRUCTOR", "ADMIN"}:
+            raise PermissionDenied("Instructor access required.")
+
+        from django.contrib.auth import get_user_model
+        from django.db.models import Avg as AvgAgg
+        from django.db.models import Q, Sum
+        from apps.ai_tutor.models import AITutorMessage
+        from apps.billing.models import Transaction
+        from apps.learning.models import FocusSession, QuizAttempt, Submission, UserActivity
+        from apps.users.models import User as UserModel
+
+        try:
+            student = UserModel.objects.get(pk=pk, role="STUDENT")
+        except UserModel.DoesNotExist:
+            raise PermissionDenied("Student not found.")
+
+        courses = Course.objects.all() if is_admin(user) else Course.objects.filter(instructor=user)
+        course_ids = list(courses.values_list("id", flat=True))
+        if not course_ids:
+            return Response(self._build_payload(student, [], {}, {}))
+
+        course_id_strs = [str(c) for c in course_ids]
+
+        enrollments = (
+            Enrollment.objects.filter(student=student, course_id__in=course_ids)
+            .select_related("course")
+            .prefetch_related("progress_items", "progress_items__lesson")
+            .order_by("-purchased_at")
+        )
+        lessons_per_course = {
+            row["module__course_id"]: row["count"]
+            for row in Lesson.objects.filter(module__course_id__in=course_ids)
+            .values("module__course_id")
+            .annotate(count=Count("id"))
+        }
+
+        certificates = {
+            cert.course_id: cert
+            for cert in Certificate.objects.filter(user=student, course_id__in=course_ids)
+        }
+
+        submissions = (
+            Submission.objects.filter(student=student, assignment__course_id__in=course_ids)
+            .select_related("assignment")
+            .order_by("-submitted_at")
+        )
+        submissions_by_course = {}
+        for sub in submissions:
+            submissions_by_course.setdefault(sub.assignment.course_id, []).append(sub)
+
+        enrollment_rows = []
+        for enrollment in enrollments:
+            course = enrollment.course
+            total_lessons = lessons_per_course.get(course.id, 0)
+            progress_items = list(enrollment.progress_items.select_related("lesson"))
+            completed = sum(1 for p in progress_items if p.is_completed)
+            quiz_agg = QuizAttempt.objects.filter(student=student).filter(
+                Q(quiz__module__course=course) | Q(quiz__lesson__module__course=course)
+            ).aggregate(avg=AvgAgg("score"), count=Count("id"), passed=Count("id", filter=Q(passed=True)))
+            last_activity = UserActivity.objects.filter(
+                user=student,
+                metadata__course_id=str(course.id),
+            ).values_list("created_at", flat=True).first()
+            cert = certificates.get(course.id)
+            enrollment_rows.append(
+                {
+                    "enrollment_id": enrollment.id,
+                    "course": {
+                        "id": course.id,
+                        "title": course.title,
+                        "thumbnail_url": course.thumbnail_file.url if course.thumbnail_file else (course.thumbnail_url or ""),
+                    },
+                    "enrolled_at": enrollment.purchased_at,
+                    "is_active": enrollment.is_active,
+                    "completed_lessons": completed,
+                    "total_lessons": total_lessons,
+                    "completion_percent": int(completed / total_lessons * 100) if total_lessons else 0,
+                    "quiz_average": float(quiz_agg["avg"]) if quiz_agg["avg"] is not None else None,
+                    "quiz_attempts": quiz_agg["count"],
+                    "quizzes_passed": quiz_agg["passed"],
+                    "last_activity": last_activity,
+                    "certificate": {
+                        "id": cert.id,
+                        "certificate_code": cert.certificate_code,
+                        "issued_at": cert.issued_at,
+                    }
+                    if cert
+                    else None,
+                    "assignments": [
+                        {
+                            "assignment_id": sub.assignment_id,
+                            "title": sub.assignment.title,
+                            "points": sub.assignment.points,
+                            "status": sub.status,
+                            "grade": float(sub.grade) if sub.grade is not None else None,
+                            "feedback": sub.feedback or "",
+                            "submitted_at": sub.submitted_at,
+                        }
+                        for sub in submissions_by_course.get(course.id, [])
+                    ],
+                    "lesson_progress": [
+                        {
+                            "lesson_id": p.lesson_id,
+                            "title": p.lesson.title,
+                            "lesson_type": p.lesson.lesson_type,
+                            "is_completed": p.is_completed,
+                            "completion": float(p.completion),
+                            "last_position_seconds": p.last_position_seconds,
+                            "updated_at": p.updated_at,
+                        }
+                        for p in progress_items
+                    ],
+                }
+            )
+
+        recent_activity = self._recent_activity(student, course_id_strs)
+
+        transactions = (
+            Transaction.objects.filter(student=student, course_id__in=course_ids)
+            .select_related("course")
+            .order_by("-created_at")
+        )
+
+        focus_minutes = (
+            FocusSession.objects.filter(user=student, mode="WORK")
+            .aggregate(total=Sum("duration_seconds"))["total"] or 0
+        ) // 60
+
+        return Response(
+            self._build_payload(
+                student,
+                enrollment_rows,
+                {
+                    "courses_enrolled": len(enrollment_rows),
+                    "courses_completed": sum(1 for e in enrollment_rows if e["total_lessons"] and e["completed_lessons"] >= e["total_lessons"]),
+                    "avg_completion": round(
+                        sum(e["completion_percent"] for e in enrollment_rows) / len(enrollment_rows)
+                    ) if enrollment_rows else 0,
+                    "avg_quiz": round(
+                        sum(e["quiz_average"] for e in enrollment_rows if e["quiz_average"] is not None)
+                        / sum(1 for e in enrollment_rows if e["quiz_average"] is not None)
+                    ) if any(e["quiz_average"] is not None for e in enrollment_rows) else None,
+                    "certificates_count": len(certificates),
+                    "focus_minutes": focus_minutes,
+                    "streak_days": self._streak_days(student),
+                    "ai_messages": AITutorMessage.objects.filter(user=student).count(),
+                    "notes_count": Note.objects.filter(
+                        user=student, lesson__module__course_id__in=course_ids
+                    ).count(),
+                    "transactions_count": transactions.count(),
+                },
+                {
+                    "recent_activity": recent_activity,
+                    "transactions": [
+                        {
+                            "id": tx.id,
+                            "course_title": tx.course.title,
+                            "amount_paid": float(tx.amount_paid),
+                            "status": tx.status,
+                            "created_at": tx.created_at,
+                        }
+                        for tx in transactions
+                    ],
+                },
+            )
+        )
+
+    def _recent_activity(self, student, course_id_strs):
+        from apps.learning.models import UserActivity
+        from apps.courses.models import Lesson, Course
+
+        activities = UserActivity.objects.filter(
+            user=student, metadata__course_id__in=course_id_strs
+        )[:20]
+        lesson_ids = {
+            str(a.metadata.get("lesson_id"))
+            for a in activities
+            if a.metadata.get("lesson_id")
+        }
+        lesson_titles = {
+            str(l.id): l.title
+            for l in Lesson.objects.filter(id__in=[i for i in lesson_ids if i])
+        }
+        course_titles = {
+            str(c.id): c.title for c in Course.objects.filter(id__in=course_id_strs)
+        }
+        return [
+            {
+                "kind": a.kind,
+                "created_at": a.created_at,
+                "course_title": course_titles.get(str(a.metadata.get("course_id")), ""),
+                "lesson_title": lesson_titles.get(str(a.metadata.get("lesson_id")), ""),
+            }
+            for a in activities
+        ]
+
+    def _streak_days(self, student):
+        from datetime import datetime, timedelta
+        from django.utils import timezone
+        from apps.learning.models import UserActivity
+
+        streak = 0
+        check = timezone.now().date()
+        while True:
+            start = timezone.make_aware(datetime.combine(check, datetime.min.time()))
+            if UserActivity.objects.filter(user=student, created_at__gte=start).exists():
+                streak += 1
+                check -= timedelta(days=1)
+            else:
+                break
+        return streak
+
+    def _build_payload(self, student, enrollment_rows, stats, extra):
+        return {
+            "student": {
+                "id": student.id,
+                "full_name": student.full_name,
+                "email": student.email,
+                "avatar_url": student.avatar_url or "",
+                "title": student.title or "",
+                "bio": student.bio or "",
+                "location": student.location or "",
+                "website": student.website or "",
+                "date_joined": student.date_joined,
+                "last_seen": student.last_seen,
+                "email_verified": student.email_verified,
+                "is_active": student.is_active,
+            },
+            "stats": stats,
+            "enrollments": enrollment_rows,
+            **extra,
+        }
 
 
 class UploadImageView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".pdf", ".mp4", ".webm"}
+    MAX_SIZE_MB = 50
 
     def post(self, request):
         file = request.FILES.get("file")
         if not file:
             return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-        import uuid, os
-        ext = os.path.splitext(file.name)[1]
+        import os
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext not in self.ALLOWED_EXTENSIONS:
+            return Response(
+                {"error": f"File type '{ext}' is not allowed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if file.size > self.MAX_SIZE_MB * 1024 * 1024:
+            return Response(
+                {"error": f"File must be smaller than {self.MAX_SIZE_MB}MB."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         filename = f"uploads/{uuid.uuid4()}{ext}"
         path = os.path.join(settings.MEDIA_ROOT, filename)
         os.makedirs(os.path.dirname(path), exist_ok=True)

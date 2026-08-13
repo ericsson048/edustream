@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { Radio, Users } from 'lucide-react';
+import { Radio, Share2, Users } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../../../contexts/ToastContext';
 import { liveService, type LiveParticipantItem, type LiveSessionItem } from '../../../services/liveService';
@@ -652,6 +652,16 @@ export default function LiveMeeting() {
 
   const handleLeave = () => navigate('/schedule');
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/live/${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Stream link copied to clipboard.', 'success');
+    } catch {
+      showToast('Could not copy the link.', 'error');
+    }
+  };
+
   const handleEndSession = async () => {
     try {
       await liveService.endLiveSession(id);
@@ -709,6 +719,13 @@ export default function LiveMeeting() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white transition-colors"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Share
+          </button>
           {isHostOrCohost && session?.requires_permission && pendingEntries.length > 0 && (
             <button
               onClick={() => setShowEntriesPanel((v) => !v)}

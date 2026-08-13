@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { messagingService, type ConversationItem, type MessageItem, type ContactItem } from '../services/messagingService';
 import { apiClient } from '../services/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import Header from './Header';
+import Pagination from './Pagination';
 import { Search, Send, Paperclip, MoreVertical, ChevronLeft, MessageCircle, Users, MessageSquare, Check, CheckCheck } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -47,10 +48,10 @@ function SkeletonConversations() {
     <div className="space-y-0">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
-          <div className="w-10 h-10 rounded-full bg-slate-200 shrink-0" />
+          <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
           <div className="flex-1 space-y-2">
-            <div className="h-3 bg-slate-200 rounded w-3/4" />
-            <div className="h-2.5 bg-slate-100 rounded w-1/2" />
+            <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+            <div className="h-2.5 bg-slate-100 dark:bg-slate-700 rounded w-1/2" />
           </div>
         </div>
       ))}
@@ -70,7 +71,7 @@ function SkeletonMessages() {
     <div className="space-y-3 px-4 py-4">
       {bubbles.map((b, i) => (
         <div key={i} className={clsx('flex', b.align)}>
-          <div className={clsx(b.width, 'h-10 bg-slate-200 rounded-2xl animate-pulse')} />
+          <div className={clsx(b.width, 'h-10 bg-slate-200 dark:bg-slate-700 rounded-2xl animate-pulse')} />
         </div>
       ))}
     </div>
@@ -93,6 +94,7 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [search, setSearch] = useState('');
+  const [convPage, setConvPage] = useState(1);
   const [showMobileList, setShowMobileList] = useState(true);
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -157,9 +159,22 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
     if (isNearBottom) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const filteredConvs = conversations.filter((c) =>
+  const sortedConvs = useMemo(
+    () => [...conversations].sort((a, b) => {
+      const aTime = a.latest_message?.created_at || a.created_at || '';
+      const bTime = b.latest_message?.created_at || b.created_at || '';
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    }),
+    [conversations],
+  );
+
+  const filteredConvs = sortedConvs.filter((c) =>
     c.name?.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const CONV_PAGE_SIZE = 8;
+  const convTotalPages = Math.ceil(filteredConvs.length / CONV_PAGE_SIZE) || 1;
+  const paginatedConvs = filteredConvs.slice((convPage - 1) * CONV_PAGE_SIZE, convPage * CONV_PAGE_SIZE);
 
   const filteredContacts = contacts.filter((c) =>
     c.full_name.toLowerCase().includes(search.toLowerCase()),
@@ -208,6 +223,10 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
   }
 
   useEffect(() => {
+    setConvPage(1);
+  }, [search]);
+
+  useEffect(() => {
     if (tab === 'contacts' && contacts.length === 0 && !loadingContacts) {
       handleLoadContacts();
     }
@@ -240,26 +259,26 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
       <Sidebar />
       <main className="flex-1 ml-64 flex flex-col h-screen">
         <Header />
-        <div className="flex-1 p-0 md:p-4 overflow-hidden bg-slate-100/50">
-          <div className="bg-white md:rounded-2xl md:shadow-sm border border-slate-200 h-full flex overflow-hidden">
+        <div className="flex-1 p-0 md:p-4 overflow-hidden bg-slate-100/50 dark:bg-slate-900/50">
+          <div className="bg-white dark:bg-slate-900 md:rounded-2xl md:shadow-sm border border-slate-200 dark:border-slate-800 h-full flex overflow-hidden">
             {/* Left Panel */}
             <div className={clsx(
-              'w-full md:w-80 md:border-r border-slate-200 flex flex-col md:flex',
+              'w-full md:w-80 md:border-r border-slate-200 dark:border-slate-800 flex flex-col md:flex',
               showMobileList ? 'flex' : 'hidden',
             )}>
               {/* Tabs */}
-              <div className="flex border-b border-slate-200 shrink-0">
+              <div className="flex border-b border-slate-200 dark:border-slate-800 shrink-0">
                 <button
                   onClick={() => setTab('conversations')}
                   className={clsx(
                     'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-colors',
                     tab === 'conversations'
-                      ? 'text-blue-600 border-b-2 border-blue-600'
-                      : 'text-slate-400 hover:text-slate-600',
+                      ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300',
                   )}
                 >
                   <MessageSquare className="w-4 h-4" />
@@ -270,8 +289,8 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                   className={clsx(
                     'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-colors',
                     tab === 'contacts'
-                      ? 'text-blue-600 border-b-2 border-blue-600'
-                      : 'text-slate-400 hover:text-slate-600',
+                      ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300',
                   )}
                 >
                   <Users className="w-4 h-4" />
@@ -280,14 +299,14 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
               </div>
 
               {/* Search */}
-              <div className="p-3 border-b border-slate-200 bg-white">
+              <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder={tab === 'contacts' ? 'Search contacts...' : 'Search conversations...'}
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 dark:text-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors"
                   />
                 </div>
               </div>
@@ -299,14 +318,14 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                     <SkeletonConversations />
                   ) : filteredConvs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center mt-16 px-4">
-                      <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                        <MessageCircle className="w-6 h-6 text-slate-300" />
+                      <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
+                        <MessageCircle className="w-6 h-6 text-slate-300 dark:text-slate-600" />
                       </div>
-                      <p className="text-sm font-medium text-slate-500">No conversations yet</p>
-                      <p className="text-xs text-slate-400 mt-1 text-center">Go to Contacts tab to start one</p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No conversations yet</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 text-center">Go to Contacts tab to start one</p>
                     </div>
                   ) : (
-                    filteredConvs.map((conv) => {
+                    paginatedConvs.map((conv) => {
                       const contact = convMapRef.current.get(conv.name);
                       const isUnread = conv.latest_message && conv.latest_message.sender_name !== user?.full_name;
                       return (
@@ -314,8 +333,8 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                           key={conv.id}
                           onClick={() => handleSelectConversation(conv)}
                           className={clsx(
-                            'w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 hover:bg-slate-50 transition-colors text-left group',
-                            active?.id === conv.id && 'bg-blue-50/60 hover:bg-blue-50/60',
+                            'w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors text-left group',
+                            active?.id === conv.id && 'bg-blue-50/60 dark:bg-blue-900/20 hover:bg-blue-50/60 dark:hover:bg-blue-900/20',
                           )}
                         >
                           <div className="relative shrink-0">
@@ -323,19 +342,19 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                               {conv.name.charAt(0).toUpperCase()}
                             </div>
                             {contact?.is_online && (
-                              <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+                              <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-0.5">
-                              <p className={clsx('text-sm truncate', isUnread ? 'font-bold text-slate-900' : 'font-medium text-slate-800')}>{conv.name}</p>
+                              <p className={clsx('text-sm truncate', isUnread ? 'font-bold text-slate-900 dark:text-slate-100' : 'font-medium text-slate-800 dark:text-slate-200')}>{conv.name}</p>
                               {conv.latest_message && (
-                                <span className="text-[11px] text-slate-400 ml-2 shrink-0">{formatTime(conv.latest_message.created_at)}</span>
+                                <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-2 shrink-0">{formatTime(conv.latest_message.created_at)}</span>
                               )}
                             </div>
                             <div className="flex items-center gap-1.5">
-                              {isUnread && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />}
-                              <p className={clsx('text-xs truncate', isUnread ? 'text-slate-700 font-medium' : 'text-slate-400')}>
+                              {isUnread && <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0" />}
+                              <p className={clsx('text-xs truncate', isUnread ? 'text-slate-700 dark:text-slate-300 font-medium' : 'text-slate-400 dark:text-slate-500')}>
                                 {conv.latest_message?.content || 'No messages yet'}
                               </p>
                             </div>
@@ -343,6 +362,11 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                         </button>
                       );
                     })
+                  )}
+                  {convTotalPages > 1 && (
+                    <div className="border-t border-slate-200 dark:border-slate-800">
+                      <Pagination page={convPage} totalPages={convTotalPages} onPageChange={setConvPage} />
+                    </div>
                   )}
                 </div>
               )}
@@ -354,18 +378,18 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                     <SkeletonConversations />
                   ) : filteredContacts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center mt-16 px-4">
-                      <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                        <Users className="w-6 h-6 text-slate-300" />
+                      <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
+                        <Users className="w-6 h-6 text-slate-300 dark:text-slate-600" />
                       </div>
-                      <p className="text-sm font-medium text-slate-500">No contacts yet</p>
-                      <p className="text-xs text-slate-400 mt-1 text-center">Enroll in courses to see your contacts</p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No contacts yet</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 text-center">Enroll in courses to see your contacts</p>
                     </div>
                   ) : (
                     filteredContacts.map((contact) => (
                       <button
                         key={contact.id}
                         onClick={() => handleContactClick(contact)}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 hover:bg-slate-50 transition-colors text-left group"
+                        className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors text-left group"
                       >
                         <div className="relative shrink-0">
                           <div className={clsx('w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm', getAvatarColor(contact.full_name))}>
@@ -377,24 +401,24 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-bold text-slate-900 truncate">{contact.full_name}</p>
+                            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{contact.full_name}</p>
                             <span className={clsx(
                               'text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
-                              contact.role === 'INSTRUCTOR' ? 'text-purple-600 bg-purple-50' :
-                              contact.role === 'STUDENT' ? 'text-green-600 bg-green-50' :
-                              'text-blue-600 bg-blue-50',
+                              contact.role === 'INSTRUCTOR' ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30' :
+                              contact.role === 'STUDENT' ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30' :
+                              'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30',
                             )}>
                               {roleLabel[contact.role] || contact.role}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 truncate mt-0.5">{formatLastSeen(contact.last_seen)}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{formatLastSeen(contact.last_seen)}</p>
                           {contact.course_names.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                               {contact.course_names.slice(0, 2).map((name) => (
-                                <span key={name} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[120px]">{name}</span>
+                                <span key={name} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded truncate max-w-[120px]">{name}</span>
                               ))}
                               {contact.course_names.length > 2 && (
-                                <span className="text-[10px] text-slate-400">+{contact.course_names.length - 2}</span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500">+{contact.course_names.length - 2}</span>
                               )}
                             </div>
                           )}
@@ -413,41 +437,41 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
             )}>
               {active ? (
                 <>
-                  <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white shrink-0">
-                    <button onClick={handleBack} className="md:hidden p-1 -ml-1 rounded-lg hover:bg-slate-100 transition-colors">
-                      <ChevronLeft className="w-5 h-5 text-slate-600" />
+                  <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+                    <button onClick={handleBack} className="md:hidden p-1 -ml-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                     </button>
                     <div className="relative shrink-0">
                       <div className={clsx('w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm', getAvatarColor(active.name))}>
                         {active.name.charAt(0).toUpperCase()}
                       </div>
                       {activeContact?.is_online && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{active.name}</p>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{active.name}</p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">
                         {activeContact
                           ? (activeContact.is_online ? 'Online' : formatLastSeen(activeContact.last_seen))
                           : (active.is_group ? 'Group conversation' : 'Direct conversation')}
                       </p>
                     </div>
-                    <button className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
-                      <MoreVertical className="w-5 h-5 text-slate-500" />
+                    <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                     </button>
                   </div>
 
-                  <div ref={chatContainerRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-slate-100/50">
+                  <div ref={chatContainerRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 dark:from-slate-800/30 to-slate-100/50 dark:to-slate-900/30">
                     {loadingMsgs ? (
                       <SkeletonMessages />
                     ) : messages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full">
-                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
-                          <MessageCircle className="w-7 h-7 text-slate-300" />
+                        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm mb-4">
+                          <MessageCircle className="w-7 h-7 text-slate-300 dark:text-slate-600" />
                         </div>
-                        <p className="text-sm font-medium text-slate-500">No messages yet</p>
-                        <p className="text-xs text-slate-400 mt-1">Send a message to start the conversation</p>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No messages yet</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Send a message to start the conversation</p>
                       </div>
                     ) : (
                       <div className="px-4 py-4 space-y-1">
@@ -471,14 +495,14 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                                 'max-w-[75%] px-3.5 py-2 shadow-sm',
                                 own
                                   ? 'bg-blue-600 text-white rounded-2xl rounded-br-md'
-                                  : 'bg-white text-slate-800 rounded-2xl rounded-bl-md border border-slate-100',
+                                  : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-2xl rounded-bl-md border border-slate-100 dark:border-slate-700',
                               )}>
                                 {!own && showAvatar && msg.sender_name && (
-                                  <p className="text-[11px] font-bold text-blue-600 mb-0.5">{msg.sender_name}</p>
+                                  <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mb-0.5">{msg.sender_name}</p>
                                 )}
                                 <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
                                 <div className={clsx('flex items-center justify-end gap-1 mt-1', own ? '' : '')}>
-                                  <p className={clsx('text-[10px]', own ? 'text-blue-200' : 'text-slate-400')}>{formatTime(msg.created_at)}</p>
+                                  <p className={clsx('text-[10px]', own ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500')}>{formatTime(msg.created_at)}</p>
                                   {own && (
                                     msg.is_read
                                       ? <CheckCheck className="w-3.5 h-3.5 text-blue-200" />
@@ -494,9 +518,9 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                     )}
                   </div>
 
-                  <div className="px-4 py-3 border-t border-slate-200 bg-white shrink-0">
+                  <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
                     <div className="flex items-center gap-2">
-                      <button className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                      <button className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                         <Paperclip className="w-5 h-5" />
                       </button>
                       <div className="flex-1 relative">
@@ -507,7 +531,7 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                           }}
                           placeholder="Type a message..."
-                          className="w-full px-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
+                          className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 dark:text-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-colors"
                         />
                       </div>
                       <button
@@ -521,13 +545,13 @@ export default function MessagingLayout({ Sidebar }: { Sidebar: ComponentType })
                   </div>
                 </>
               ) : (
-                <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-slate-50 to-slate-100/50">
+                <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-slate-50 dark:from-slate-800/30 to-slate-100/50 dark:to-slate-900/30">
                   <div className="text-center">
-                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
-                      <MessageCircle className="w-9 h-9 text-slate-300" />
+                    <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
+                      <MessageCircle className="w-9 h-9 text-slate-300 dark:text-slate-600" />
                     </div>
-                    <p className="text-xl font-bold text-slate-600">Your Messages</p>
-                    <p className="text-sm text-slate-400 mt-1.5 max-w-xs mx-auto">Select a conversation or contact to start chatting</p>
+                    <p className="text-xl font-bold text-slate-600 dark:text-slate-300">Your Messages</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500 mt-1.5 max-w-xs mx-auto">Select a conversation or contact to start chatting</p>
                   </div>
                 </div>
               )}

@@ -10,10 +10,13 @@ import Pricing from "./app/pricing/page";
 import Login from "./app/login/page";
 import Register from "./app/register/page";
 import ForgotPassword from "./app/forgot-password/page";
+import ResetPassword from "./app/reset-password/page";
+import VerifyEmail from "./app/verify-email/page";
 const Dashboard = lazy(() => import("./app/dashboard/page"));
 import Catalog from "./app/catalog/page";
 import CourseDetails from "./app/course/_id/page";
 import Checkout from "./app/checkout/_id/page";
+import SubscriptionCheckout from "./app/subscription/checkout/page";
 import MyCourses from "./app/courses/page";
 import CoursePlayer from "./app/player/_courseId/_lessonId/page";
 import Quiz from "./app/quiz/_id/page";
@@ -45,12 +48,17 @@ import AdminSettings from "./app/admin/settings/page";
 import AdminReports from "./app/admin/reports/page";
 import AdminSupport from "./app/admin/support/page";
 import AdminTransactions from "./app/admin/transactions/page";
+import AdminPlans from "./app/admin/plans/page";
+import UserDetail from "./app/admin/users/[id]/page";
 
 // Instructor Pages
 import InstructorDashboard from "./app/instructor/page";
 import ManageAssignments from "./app/instructor/assignments/page";
 import InstructorCourses from "./app/instructor/courses/page";
 import CourseDetail from "./app/instructor/courses/_id/page";
+import CourseStudents from "./app/instructor/courses/_id/students/page";
+import Students from "./app/instructor/students/page";
+import StudentDetail from "./app/instructor/students/_id/page";
 import LessonContentEditor from "./app/instructor/courses/_id/lessons/_lessonId/content/page";
 import InstructorResources from "./app/instructor/resources/page";
 import InstructorAnalytics from "./app/instructor/analytics/page";
@@ -128,6 +136,8 @@ export default function App() {
             }
           />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:userId/:token" element={<ResetPassword />} />
+          <Route path="/verify-email/:userId/:token" element={<VerifyEmail />} />
           <Route
             path="/dashboard"
             element={
@@ -159,6 +169,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["STUDENT"]}>
                 <Checkout />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/subscription/checkout"
+            element={
+              <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
+                <SubscriptionCheckout />
               </ProtectedRoute>
             }
           />
@@ -455,6 +473,30 @@ export default function App() {
             }
           />
           <Route
+            path="/instructor/courses/:id/students"
+            element={
+              <ProtectedRoute roles={["INSTRUCTOR"]}>
+                <CourseStudents />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/students"
+            element={
+              <ProtectedRoute roles={["INSTRUCTOR"]}>
+                <Students />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/students/:id"
+            element={
+              <ProtectedRoute roles={["INSTRUCTOR"]}>
+                <StudentDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/instructor/courses/:courseId/lessons/:lessonId/content"
             element={
               <ProtectedRoute roles={["INSTRUCTOR"]}>
@@ -483,6 +525,22 @@ export default function App() {
             element={
               <ProtectedRoute roles={["INSTRUCTOR"]}>
                 <InstructorSchedule />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/plans"
+            element={
+              <ProtectedRoute roles={["ADMIN"]}>
+                <AdminPlans />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users/:id"
+            element={
+              <ProtectedRoute roles={["ADMIN"]}>
+                <UserDetail />
               </ProtectedRoute>
             }
           />

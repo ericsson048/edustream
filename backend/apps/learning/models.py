@@ -21,6 +21,10 @@ class Assignment(models.Model):
     due_date = models.DateTimeField()
     points = models.PositiveIntegerField(default=100)
     type = models.CharField(max_length=20, choices=Type.choices, default=Type.PROJECT)
+    allowed_extensions = models.JSONField(default=list, blank=True)
+    max_file_size_mb = models.PositiveIntegerField(default=50)
+    instructions_url = models.URLField(blank=True)
+    instructions_name = models.CharField(max_length=255, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assignments_created")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -36,11 +40,42 @@ class Submission(models.Model):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="submissions")
     content_text = models.TextField(blank=True)
     file_url = models.URLField(blank=True)
+    file_name = models.CharField(max_length=255, blank=True)
+    file_size = models.PositiveIntegerField(blank=True, null=True)
     grade = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     feedback = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUBMITTED)
+    is_published = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("assignment", "student")
+
+    def effective_deadline(self):
+        extension = self.assignment.extensions.filter(student=self.student).first()
+        return extension.new_deadline if extension else self.assignment.due_date
+
+    @property
+    def is_late(self):
+        if self.submitted_at is None:
+            return False
+        return self.submitted_at > self.effective_deadline()
+
+
+class Extension(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name="extensions")
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="extensions")
+    new_deadline = models.DateTimeField()
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="extensions_granted",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ("assignment", "student")

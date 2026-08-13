@@ -14,6 +14,7 @@ from .serializers import AITutorConversationSerializer, AITutorMessageSerializer
 
 class TutorChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "ai"
 
     def post(self, request):
         prompt = request.data.get("prompt", "").strip()
@@ -50,6 +51,7 @@ class TutorChatView(APIView):
 
 class InstructorCourseGenerationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "ai"
 
     def post(self, request):
         if request.user.role not in {"INSTRUCTOR", "ADMIN"}:
@@ -183,6 +185,7 @@ class InstructorCourseGenerationView(APIView):
 
 class InstructorModuleGenerationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "ai"
 
     def post(self, request):
         if request.user.role not in {"INSTRUCTOR", "ADMIN"}:
@@ -219,6 +222,7 @@ class InstructorModuleGenerationView(APIView):
 
 class InstructorLessonGenerationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "ai"
 
     def post(self, request):
         if request.user.role not in {"INSTRUCTOR", "ADMIN"}:
@@ -245,7 +249,7 @@ class InstructorLessonGenerationView(APIView):
             '{\n'
             '  "title": "string",\n'
             '  "content": "string (markdown, at least 500 characters)",\n'
-            '  "lesson_type": "VIDEO|TEXT|QUIZ|ASSIGNMENT|LIVE|DOWNLOAD",\n'
+            '  "lesson_type": "VIDEO|TEXT|QUIZ|ASSIGNMENT|DEVOIR|LIVE|DOWNLOAD",\n'
             '  "status": "DRAFT|PUBLISHED",\n'
             '  "video_url": "string (empty string if none)",\n'
             '  "transcript": "string (empty string if none)",\n'
@@ -326,6 +330,7 @@ class InstructorLessonGenerationView(APIView):
 
 class TutorReasoningChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "ai"
 
     def post(self, request):
         prompt = request.data.get("prompt", "").strip()

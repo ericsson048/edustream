@@ -70,6 +70,10 @@ export const billingService = {
     const { data } = await apiClient.get<Plan[]>('/billing/plans/');
     return data;
   },
+  async subscribe(planId: string): Promise<UserSubscriptionInfo & { checkout_url?: string }> {
+    const { data } = await apiClient.post<UserSubscriptionInfo & { checkout_url?: string }>('/billing/subscribe/', { plan_id: planId });
+    return data;
+  },
   async checkoutCourse(courseId: string): Promise<CheckoutResponse> {
     const { data } = await apiClient.post<CheckoutResponse>(`/billing/checkout/${courseId}/`);
     return data;

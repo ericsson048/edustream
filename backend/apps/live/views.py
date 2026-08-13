@@ -73,22 +73,24 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.role == "ADMIN":
+        user = self.request.user
+        if user.role == "ADMIN":
             return qs
-        if self.request.user.role == "INSTRUCTOR":
-            return qs.filter(instructor=self.request.user)
-        return qs.filter(course__enrollments__student=self.request.user).distinct()
+        if user.role == "INSTRUCTOR":
+            return qs.filter(instructor=user)
+        return qs.filter(
+            models.Q(course__enrollments__student=user) | models.Q(instructor=user) | models.Q(is_public=True)
+        ).distinct()
 
     def perform_create(self, serializer):
-        if self.request.user.role not in {"INSTRUCTOR", "ADMIN"}:
-            raise PermissionDenied("Instructor role required.")
         duration = serializer.validated_data.get("duration_minutes", 60)
         ok, reason = can_stream_live(self.request.user, duration)
         if not ok:
             raise PermissionDenied(reason or "Streaming not available on your plan.")
         session = serializer.save(instructor=self.request.user)
         deduct_stream_minutes(self.request.user, duration)
-        self._notify_enrolled_students(session)
+        if session.course:
+            self._notify_enrolled_students(session)
 
     def perform_update(self, serializer):
         old_status = serializer.instance.status
@@ -99,6 +101,9 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
     def _notify_session_started(self, session):
         from apps.learning.notifications import bulk_create_notifications
         from apps.learning.models import Notification
+
+        if not session.course:
+            return
 
         students = User.objects.filter(
             enrollments__course=session.course,
@@ -116,6 +121,9 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         from apps.courses.models import Enrollment
         from apps.learning.notifications import bulk_create_notifications
         from apps.learning.models import Notification
+
+        if not session.course:
+            return
 
         students = User.objects.filter(
             enrollments__course=session.course,
@@ -197,8 +205,10 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
                 self._send_group(session.id, {"kind": "session_live", "status": "LIVE"}, request.user.id)
         else:
             is_enrolled = Enrollment.objects.filter(student=request.user, course=session.course, is_active=True).exists()
-            if not is_enrolled:
+            if session.course and not session.is_public and not is_enrolled:
                 return Response({"detail": "Enrollment required."}, status=status.HTTP_403_FORBIDDEN)
+            if not session.course and not session.is_public:
+                return Response({"detail": "This session is private."}, status=status.HTTP_403_FORBIDDEN)
 
             existing = LiveParticipant.objects.filter(session=session, user=request.user).first()
             if existing and existing.role == LiveParticipant.Role.CO_HOST:
@@ -236,8 +246,10 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         participant = LiveParticipant.objects.filter(session=session, user=request.user).first()
         if not participant:
             is_enrolled = Enrollment.objects.filter(student=request.user, course=session.course, is_active=True).exists()
-            if not is_enrolled:
+            if session.course and not session.is_public and not is_enrolled:
                 return Response({"detail": "Enrollment required."}, status=status.HTTP_403_FORBIDDEN)
+            if not session.course and not session.is_public:
+                return Response({"detail": "This session is private."}, status=status.HTTP_403_FORBIDDEN)
             participant = LiveParticipant.objects.create(
                 session=session, user=request.user, role=LiveParticipant.Role.STUDENT, is_admitted=False,
             )
@@ -379,8 +391,9 @@ class LiveParticipantViewSet(viewsets.ReadOnlyModelViewSet):
         session_id = self.request.query_params.get("session")
         session = get_object_or_404(LiveSession, id=session_id)
         if self.request.user != session.instructor and self.request.user.role != "ADMIN":
-            if not Enrollment.objects.filter(student=self.request.user, course=session.course, is_active=True).exists():
-                return LiveParticipant.objects.none()
+            if not session.is_public:
+                if not Enrollment.objects.filter(student=self.request.user, course=session.course, is_active=True).exists():
+                    return LiveParticipant.objects.none()
         return LiveParticipant.objects.filter(session=session, left_at__isnull=True).select_related("user")
 
 
@@ -394,8 +407,9 @@ class LiveChatMessageViewSet(viewsets.ModelViewSet):
             return LiveChatMessage.objects.none()
         session = get_object_or_404(LiveSession, id=session_id)
         if self.request.user != session.instructor and self.request.user.role != "ADMIN":
-            if not Enrollment.objects.filter(student=self.request.user, course=session.course, is_active=True).exists():
-                return LiveChatMessage.objects.none()
+            if not session.is_public:
+                if not Enrollment.objects.filter(student=self.request.user, course=session.course, is_active=True).exists():
+                    return LiveChatMessage.objects.none()
         return LiveChatMessage.objects.filter(session=session).select_related("user")[:100]
 
     def perform_create(self, serializer):

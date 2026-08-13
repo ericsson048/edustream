@@ -46,6 +46,8 @@ import type {
 } from "../../../../types/lms";
 import { useToast } from "../../../../contexts/ToastContext";
 
+const isAssignmentLesson = (type?: string) => type === "ASSIGNMENT" || type === "DEVOIR";
+
 interface Usage {
   prompt_tokens: number;
   completion_tokens: number;
@@ -878,7 +880,7 @@ export default function CoursePlayer() {
                       : "Take Quiz"}
                   </Link>
                 ) : null}
-                {activeLesson.lesson_type === "ASSIGNMENT" ? (
+                {isAssignmentLesson(activeLesson.lesson_type) ? (
                   <Link
                     to="/assignments"
                     className="inline-flex items-center gap-2 rounded-2xl bg-amber-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-amber-700"
@@ -906,7 +908,7 @@ export default function CoursePlayer() {
                     Join Live
                   </button>
                 ) : null}
-                {!["QUIZ", "ASSIGNMENT", "LIVE"].includes(activeLesson.lesson_type || "") && (
+                {!["QUIZ", "ASSIGNMENT", "DEVOIR", "LIVE"].includes(activeLesson.lesson_type || "") && (
                   activeProgress?.is_completed ? (
                     <span className="inline-flex items-center gap-2 rounded-2xl bg-emerald-100 px-5 py-3 text-sm font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                       <CheckCircle className="h-4 w-4" />
@@ -1035,7 +1037,7 @@ export default function CoursePlayer() {
                         ? "border-indigo-200 bg-indigo-50"
                         : activeLesson.lesson_type === "QUIZ"
                           ? "border-violet-200 bg-violet-50"
-                          : activeLesson.lesson_type === "ASSIGNMENT"
+                          : isAssignmentLesson(activeLesson.lesson_type)
                             ? "border-amber-200 bg-amber-50"
                             : activeLesson.lesson_type === "LIVE"
                               ? "border-rose-200 bg-rose-50"
@@ -1050,7 +1052,7 @@ export default function CoursePlayer() {
                         {activeLesson.lesson_type === "VIDEO" && <PlayCircle className="h-5 w-5 text-indigo-600" />}
                         {activeLesson.lesson_type === "TEXT" && <FileText className="h-5 w-5 text-slate-600" />}
                         {activeLesson.lesson_type === "QUIZ" && <HelpCircle className="h-5 w-5 text-violet-600" />}
-                        {activeLesson.lesson_type === "ASSIGNMENT" && <PenLine className="h-5 w-5 text-amber-600" />}
+                        {isAssignmentLesson(activeLesson.lesson_type) && <PenLine className="h-5 w-5 text-amber-600" />}
                         {activeLesson.lesson_type === "LIVE" && <Radio className="h-5 w-5 text-rose-600" />}
                         {activeLesson.lesson_type === "DOWNLOAD" && <Download className="h-5 w-5 text-emerald-600" />}
                         {activeLesson.lesson_type === "VIDEO"
@@ -1059,9 +1061,9 @@ export default function CoursePlayer() {
                             ? "Text"
                             : activeLesson.lesson_type === "QUIZ"
                               ? "Quiz"
-                              : activeLesson.lesson_type === "ASSIGNMENT"
-                                ? "Assignment"
-                                : activeLesson.lesson_type === "LIVE"
+                            : isAssignmentLesson(activeLesson.lesson_type)
+                              ? "Assignment"
+                              : activeLesson.lesson_type === "LIVE"
                                   ? "Live"
                                   : activeLesson.lesson_type === "DOWNLOAD"
                                     ? "Download"
@@ -1090,21 +1092,21 @@ export default function CoursePlayer() {
                     </div>
                   </div>
 
-                  {["TEXT", "VIDEO", "QUIZ", "ASSIGNMENT", "DOWNLOAD"].includes(activeLesson.lesson_type || "") && (
+                  {["TEXT", "VIDEO", "QUIZ", "ASSIGNMENT", "DEVOIR", "DOWNLOAD"].includes(activeLesson.lesson_type || "") && (
                     <div className="rounded-[28px] border border-slate-200 bg-white p-6 lg:p-8 dark:border-slate-800 dark:bg-slate-950">
                       <div className="mb-5 flex items-center justify-between gap-4">
                         <div>
                           <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-400">
                             {activeLesson.lesson_type === "QUIZ"
                               ? "Instructions"
-                              : activeLesson.lesson_type === "ASSIGNMENT"
+                              : isAssignmentLesson(activeLesson.lesson_type)
                                 ? "Consigne"
                                 : "Overview"}
                           </p>
                           <h4 className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
                             {activeLesson.lesson_type === "QUIZ"
                               ? "Quiz instructions"
-                              : activeLesson.lesson_type === "ASSIGNMENT"
+                              : isAssignmentLesson(activeLesson.lesson_type)
                                 ? "Assignment details"
                                 : "Lesson content"}
                           </h4>
@@ -1124,7 +1126,7 @@ export default function CoursePlayer() {
                     </div>
                   )}
 
-                  {["TEXT", "VIDEO", "QUIZ", "ASSIGNMENT"].includes(activeLesson.lesson_type || "") && activeLesson.transcript ? (
+                  {["TEXT", "VIDEO", "QUIZ", "ASSIGNMENT", "DEVOIR"].includes(activeLesson.lesson_type || "") && activeLesson.transcript ? (
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950">
                       <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Transcript</p>
                       <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 whitespace-pre-line">{activeLesson.transcript}</p>

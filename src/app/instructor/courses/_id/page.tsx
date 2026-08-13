@@ -17,6 +17,7 @@ import {
   Download,
   GripVertical,
   EyeOff,
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -83,6 +84,11 @@ const lessonTypeMeta: Record<
     icon: ClipboardList,
     style: "bg-amber-50 text-amber-600",
   },
+  DEVOIR: {
+    label: "Devoir",
+    icon: ClipboardList,
+    style: "bg-amber-50 text-amber-600",
+  },
   LIVE: { label: "Live", icon: Radio, style: "bg-rose-50 text-rose-600" },
   DOWNLOAD: {
     label: "Téléchargement",
@@ -97,6 +103,7 @@ export default function CourseDetail() {
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
+  const [studentCount, setStudentCount] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dialogVisible, setDialogVisible] = useState(false);
   const [editingModule, setEditingModule] = useState<CourseModule | null>(null);
@@ -135,6 +142,7 @@ export default function CourseDetail() {
     try {
       const data = await courseService.getCourse(id);
       setCourse(data);
+      courseService.listCourseStudents(id).then((list) => setStudentCount(list.length)).catch(() => {});
     } catch {
       showToast("Impossible de charger le cours.", "error");
     } finally {
@@ -565,6 +573,18 @@ export default function CourseDetail() {
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Link
+                    to={`/instructor/courses/${id}/students`}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm cursor-pointer transition-colors"
+                  >
+                    <Users size={16} />
+                    Étudiants
+                    {studentCount !== null && (
+                      <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">
+                        {studentCount}
+                      </span>
+                    )}
+                  </Link>
+                  <Link
                     to={`/course/${id}`}
                     target="_blank"
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm cursor-pointer transition-colors"
@@ -912,16 +932,17 @@ export default function CourseDetail() {
                     <option value="VIDEO">Vidéo</option>
                     <option value="QUIZ">Quiz</option>
                     <option value="ASSIGNMENT">Devoir</option>
+                    <option value="DEVOIR">Devoir</option>
                     <option value="LIVE">Live</option>
                     <option value="DOWNLOAD">Téléchargement</option>
                   </select>
                 </div>
               </div>
 
-              {["TEXT", "VIDEO", "QUIZ", "ASSIGNMENT"].includes(lessonForm.lesson_type) && (
+              {["TEXT", "VIDEO", "QUIZ", "ASSIGNMENT", "DEVOIR"].includes(lessonForm.lesson_type) && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Contenu {lessonForm.lesson_type === "QUIZ" ? "(instructions)" : lessonForm.lesson_type === "ASSIGNMENT" ? "(consigne)" : "(Markdown)"}
+                    Contenu {lessonForm.lesson_type === "QUIZ" ? "(instructions)" : ["ASSIGNMENT", "DEVOIR"].includes(lessonForm.lesson_type) ? "(consigne)" : "(Markdown)"}
                   </label>
                   <textarea
                     value={lessonForm.content}
@@ -1127,7 +1148,7 @@ export default function CourseDetail() {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow resize-none"
                   />
                 </div>
-                {["TEXT", "VIDEO", "QUIZ", "ASSIGNMENT"].includes(lessonForm.lesson_type) && (
+                {["TEXT", "VIDEO", "QUIZ", "ASSIGNMENT", "DEVOIR"].includes(lessonForm.lesson_type) && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">
                       Transcription

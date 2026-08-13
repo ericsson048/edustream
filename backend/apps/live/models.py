@@ -13,13 +13,14 @@ class LiveSession(models.Model):
         ENDED = "ENDED", "Ended"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="live_sessions")
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="live_sessions", null=True, blank=True)
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="live_sessions_hosted")
     title = models.CharField(max_length=255)
     scheduled_at = models.DateTimeField()
     duration_minutes = models.PositiveIntegerField(default=60)
     room_name = models.CharField(max_length=120, unique=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.SCHEDULED)
+    is_public = models.BooleanField(default=False, help_text="Anyone with the link can join without enrollment.")
     requires_permission = models.BooleanField(default=False)
     recording_file = models.FileField(upload_to="recordings/", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

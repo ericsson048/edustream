@@ -2,7 +2,7 @@ import InstructorSidebar from '../../../components/InstructorSidebar';
 import Pagination from '../../../components/Pagination';
 import Header from '../../../components/Header';
 import { Plus, Edit, Trash2, Link as LinkIcon, File as FileIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState,useMemo } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { courseService } from '../../../services/courseService';

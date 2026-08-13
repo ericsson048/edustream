@@ -41,8 +41,8 @@ class LiveChatMessageSerializer(serializers.ModelSerializer):
 
 class LiveSessionSerializer(serializers.ModelSerializer):
     participants = LiveParticipantSerializer(many=True, read_only=True)
-    course_title = serializers.CharField(source="course.title", read_only=True)
-    enrolled_students = serializers.IntegerField(source="course.enrollments.count", read_only=True)
+    course_title = serializers.SerializerMethodField()
+    enrolled_students = serializers.SerializerMethodField()
     instructor_name = serializers.CharField(source="instructor.full_name", read_only=True)
     instructor_id = serializers.UUIDField(source="instructor.id", read_only=True)
     stream_minutes_remaining = serializers.SerializerMethodField()
@@ -51,6 +51,12 @@ class LiveSessionSerializer(serializers.ModelSerializer):
         model = LiveSession
         fields = "__all__"
         read_only_fields = ["instructor", "room_name"]
+
+    def get_course_title(self, obj):
+        return obj.course.title if obj.course else None
+
+    def get_enrolled_students(self, obj):
+        return obj.course.enrollments.count() if obj.course else 0
 
     def get_stream_minutes_remaining(self, obj):
         return get_streaming_remaining(obj.instructor)

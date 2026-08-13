@@ -1,38 +1,56 @@
 ﻿import Sidebar from '../../components/Sidebar';
 import Header from '../../components/Header';
 import Pagination from '../../components/Pagination';
+import SubmissionDetailModal from '../../components/SubmissionDetailModal';
+import { LoadingState, EmptyState, ErrorState } from '../../components/states';
 import { useEffect, useMemo, useState } from 'react';
 import { learningService, type SubmissionItem } from '../../services/learningService';
 import { useToast } from '../../contexts/ToastContext';
+import { Eye, FileText } from 'lucide-react';
 
 const PAGE_SIZE = 5;
 
 export default function Grades() {
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
   const [page, setPage] = useState(1);
+  const [detail, setDetail] = useState<SubmissionItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const { showToast } = useToast();
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError(false);
     learningService
       .listSubmissions()
       .then((data) => {
         setSubmissions(data);
         setPage(1);
       })
-      .catch(() => showToast('Impossible de charger les notes.', 'error'));
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
   }, [showToast]);
 
   const sorted = useMemo(
-    () => [...submissions].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()),
+    () =>
+      [...submissions]
+        .filter((s) => s.is_published)
+        .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()),
     [submissions],
   );
 
   const average = useMemo(() => {
-    const graded = submissions.filter((s) => s.grade !== null && s.grade !== undefined);
+    const graded = submissions.filter((s) => s.is_published && s.grade !== null && s.grade !== undefined);
     if (!graded.length) return 0;
     const total = graded.reduce((sum, s) => sum + Number(s.grade), 0);
     return Math.round((total / graded.length) * 100) / 100;
   }, [submissions]);
+
+  const hasUnpublished = submissions.some((s) => s.grade != null && !s.is_published);
 
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -50,10 +68,19 @@ export default function Grades() {
             </div>
           </div>
 
-          {sorted.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
-              <p className="text-slate-700 font-medium">No submissions yet</p>
-            </div>
+          {loading ? (
+            <LoadingState rows={4} />
+          ) : error ? (
+            <ErrorState
+              title="Impossible de charger les notes"
+              description="Vérifiez votre connexion puis réessayez."
+              onRetry={load}
+            />
+          ) : sorted.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title={hasUnpublished ? 'Vos notes ne sont pas encore publiées.' : 'Aucune note publiée pour le moment.'}
+            />
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <table className="w-full text-left">
@@ -63,6 +90,7 @@ export default function Grades() {
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4">Grade</th>
                     <th className="px-6 py-4">Submitted At</th>
+                    <th className="px-6 py-4"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -75,6 +103,14 @@ export default function Grades() {
                       <td className="px-6 py-4 text-sm text-slate-600">{s.status}</td>
                       <td className="px-6 py-4 text-sm font-medium text-slate-700">{s.grade ?? '-'}</td>
                       <td className="px-6 py-4 text-sm text-slate-500">{new Date(s.submitted_at).toLocaleDateString()}</td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => setDetail(s)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer bg-transparent border-none"
+                        >
+                          <Eye size={13} /> Voir
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -84,7 +120,7 @@ export default function Grades() {
           )}
         </div>
       </main>
+      {detail && <SubmissionDetailModal submission={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }
-

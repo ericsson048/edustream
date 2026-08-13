@@ -37,6 +37,22 @@ export const authService = {
     await apiClient.post('/auth/forgot-password/', { email });
   },
 
+  async resetPassword(userId: string, token: string, newPassword: string): Promise<void> {
+    await apiClient.post('/auth/reset-password/', {
+      user_id: userId,
+      token,
+      new_password: newPassword,
+    });
+  },
+
+  async verifyEmail(userId: string, token: string): Promise<void> {
+    await apiClient.post('/auth/verify-email/', { user_id: userId, token });
+  },
+
+  async resendVerification(): Promise<void> {
+    await apiClient.post('/auth/resend-verification/', {});
+  },
+
   async getPublicStats(): Promise<{ total_courses: number; total_instructors: number; total_students: number; total_payouts: number }> {
     const { data } = await apiClient.get('/auth/public/stats/');
     return data;

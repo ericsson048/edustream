@@ -58,4 +58,15 @@ class IsOwnerOrReadOnly(BasePermission):
             return obj.user == request.user
         if hasattr(obj, "student"):
             return obj.student == request.user
+        if hasattr(obj, "author"):
+            return obj.author == request.user
+        if hasattr(obj, "created_by"):
+            return obj.created_by == request.user
         return False
+
+
+class IsAdminOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return is_admin(request.user)

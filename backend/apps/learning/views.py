@@ -1,19 +1,25 @@
+import os
+import uuid as uuidlib
 from collections import Counter
 from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.ai_tutor.models import AITutorMessage
+from apps.users.models import User
 
 from .models import (
     Assignment,
+    Extension,
     FocusSession,
     Notification,
     PushDevice,
@@ -30,6 +36,7 @@ from .models import (
 )
 from .serializers import (
     AssignmentSerializer,
+    ExtensionSerializer,
     FocusSessionSerializer,
     NotificationSerializer,
     QuizAttemptSerializer,
@@ -47,6 +54,31 @@ from .serializers import (
 )
 from apps.courses.models import Course, Enrollment, Progress, CourseReview
 from apps.courses.permissions import is_admin, is_instructor_or_admin, owns_learning_object
+
+
+def _media_url(request, rel_path):
+    return request.build_absolute_uri(f"{settings.MEDIA_URL}{rel_path}")
+
+
+def _save_upload(file, subdir):
+    ext = os.path.splitext(file.name)[1].lower()
+    filename = f"uploads/{subdir}/{uuidlib.uuid4()}{ext}"
+    path = os.path.join(settings.MEDIA_ROOT, filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb+") as dest:
+        for chunk in file.chunks():
+            dest.write(chunk)
+    return filename
+
+
+def _create_notification(user, notification_type, title, body, link=""):
+    return Notification.objects.create(
+        user=user,
+        notification_type=notification_type,
+        title=title,
+        body=body,
+        link=link,
+    )
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):
@@ -67,7 +99,105 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         course = serializer.validated_data["course"]
         if not owns_learning_object(self.request.user, course):
             raise PermissionDenied("You cannot modify this course.")
-        serializer.save(created_by=self.request.user)
+        file = serializer.validated_data.pop("attachment", None)
+        extra = {}
+        if file:
+            extra = {
+                "instructions_url": _media_url(self.request, _save_upload(file, "assignments")),
+                "instructions_name": file.name,
+            }
+        assignment = serializer.save(created_by=self.request.user, **extra)
+        enrolled = (
+            Enrollment.objects.filter(course=course, is_active=True)
+            .select_related("student")
+            .values_list("student_id", flat=True)
+        )
+        for student_id in enrolled:
+            _create_notification(
+                User.objects.get(id=student_id),
+                "ASSIGNMENT",
+                f"Nouveau devoir : {assignment.title}",
+                f"Cours : {course.title}",
+                link=f"/assignments/{assignment.id}",
+            )
+
+    def perform_update(self, serializer):
+        file = serializer.validated_data.pop("attachment", None)
+        extra = {}
+        if file:
+            extra = {
+                "instructions_url": _media_url(self.request, _save_upload(file, "assignments")),
+                "instructions_name": file.name,
+            }
+        serializer.save(**extra)
+
+    @action(detail=True, methods=["post"])
+    def publish_grades(self, request, pk=None):
+        assignment = self.get_object()
+        if not is_instructor_or_admin(request.user) or not owns_learning_object(request.user, assignment):
+            raise PermissionDenied("Instructor access required.")
+        updated = assignment.submissions.filter(status="GRADED").update(is_published=True)
+        return Response({"published": updated})
+
+    @action(detail=True, methods=["post"])
+    def extend(self, request, pk=None):
+        assignment = self.get_object()
+        if not is_instructor_or_admin(request.user) or not owns_learning_object(request.user, assignment):
+            raise PermissionDenied("Instructor access required.")
+        student_id = request.data.get("student_id")
+        new_deadline = request.data.get("new_deadline")
+        if not student_id or not new_deadline:
+            return Response(
+                {"detail": "student_id and new_deadline are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            student = User.objects.get(id=student_id)
+        except (User.DoesNotExist, ValueError):
+            return Response({"detail": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+        extension, _ = Extension.objects.update_or_create(
+            assignment=assignment,
+            student=student,
+            defaults={"new_deadline": new_deadline, "granted_by": request.user},
+        )
+        return Response(ExtensionSerializer(extension).data)
+
+    @action(detail=True, methods=["get"])
+    def stats(self, request, pk=None):
+        assignment = self.get_object()
+        submissions = assignment.submissions.all()
+        graded = [s for s in submissions if s.grade is not None]
+        enrolled_ids = set(
+            Enrollment.objects.filter(course=assignment.course, is_active=True).values_list("student_id", flat=True)
+        )
+        submitted_ids = set(submissions.values_list("student_id", flat=True))
+        missing = User.objects.filter(id__in=enrolled_ids - submitted_ids)
+        average = sum(s.grade for s in graded) / len(graded) if graded else None
+        average_percent = round(float(average) / assignment.points * 100, 1) if average is not None and assignment.points else None
+        distribution = {}
+        for bucket_start in range(0, 100, 10):
+            distribution[f"{bucket_start}-{bucket_start + 9}"] = 0
+        distribution["90-100"] = 0
+        for s in graded:
+            if not assignment.points:
+                continue
+            percent = float(s.grade) / assignment.points * 100
+            bucket_start = min(int(percent) // 10 * 10, 90)
+            bucket = f"{bucket_start}-{bucket_start + 9}" if bucket_start < 90 else "90-100"
+            distribution[bucket] = distribution.get(bucket, 0) + 1
+        return Response({
+            "total_enrolled": len(enrolled_ids),
+            "submitted_count": submissions.count(),
+            "graded_count": len(graded),
+            "missing_count": len(missing),
+            "missing_students": [
+                {"id": u.id, "full_name": u.full_name, "email": u.email} for u in missing
+            ],
+            "late_count": sum(1 for s in submissions if s.is_late),
+            "average_grade": float(average) if average is not None else None,
+            "average_percent": average_percent,
+            "distribution": distribution,
+        })
 
 
 class SubmissionViewSet(viewsets.ModelViewSet):
@@ -87,7 +217,48 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         assignment = serializer.validated_data["assignment"]
         if not Enrollment.objects.filter(student=self.request.user, course=assignment.course, is_active=True).exists():
             raise PermissionDenied("Enrollment required.")
-        serializer.save(student=self.request.user)
+        file = serializer.validated_data.pop("file", None)
+        kwargs = {}
+        if file:
+            ext = os.path.splitext(file.name)[1].lower()
+            allowed = assignment.allowed_extensions or None
+            if allowed and ext not in allowed:
+                raise ValidationError({"file": f"File type '{ext}' is not allowed."})
+            if file.size > assignment.max_file_size_mb * 1024 * 1024:
+                raise ValidationError({"file": f"File must be smaller than {assignment.max_file_size_mb}MB."})
+            kwargs = {
+                "file_url": _media_url(self.request, _save_upload(file, "submissions")),
+                "file_name": file.name,
+                "file_size": file.size,
+            }
+        serializer.save(student=self.request.user, **kwargs)
+
+    def perform_update(self, serializer):
+        submission = self.get_object()
+        if submission.is_published:
+            raise PermissionDenied("Cette soumission a déjà été publiée.")
+        file = serializer.validated_data.pop("file", None)
+        kwargs = {}
+        if file:
+            assignment = serializer.validated_data.get("assignment") or submission.assignment
+            ext = os.path.splitext(file.name)[1].lower()
+            allowed = assignment.allowed_extensions or None
+            if allowed and ext not in allowed:
+                raise ValidationError({"file": f"File type '{ext}' is not allowed."})
+            if file.size > assignment.max_file_size_mb * 1024 * 1024:
+                raise ValidationError({"file": f"File must be smaller than {assignment.max_file_size_mb}MB."})
+            kwargs = {
+                "file_url": _media_url(self.request, _save_upload(file, "submissions")),
+                "file_name": file.name,
+                "file_size": file.size,
+            }
+        serializer.save(**kwargs)
+        if submission.status == Submission.Status.GRADED:
+            submission.status = Submission.Status.SUBMITTED
+            submission.grade = None
+            submission.feedback = ""
+            submission.is_published = False
+            submission.save(update_fields=["status", "grade", "feedback", "is_published", "updated_at"])
 
     @action(detail=True, methods=["post"], url_path="grade")
     def grade(self, request, pk=None):
@@ -95,14 +266,40 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         if not is_instructor_or_admin(request.user) or not owns_learning_object(request.user, submission.assignment):
             raise PermissionDenied("Instructor access required.")
 
-        grade = request.data.get("grade")
-        if grade in (None, ""):
+        grade_raw = request.data.get("grade")
+        if grade_raw in (None, ""):
             return Response({"detail": "grade is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            grade = Decimal(str(grade_raw))
+        except InvalidOperation:
+            return Response({"detail": "grade must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+        if grade < 0 or grade > submission.assignment.points:
+            return Response(
+                {"detail": f"grade must be between 0 and {submission.assignment.points}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         submission.grade = grade
         submission.feedback = request.data.get("feedback", "")
         submission.status = request.data.get("status", Submission.Status.GRADED)
         submission.save(update_fields=["grade", "feedback", "status", "updated_at"])
+
+        _create_notification(
+            submission.student,
+            "GRADE",
+            f"Devoir noté : {submission.assignment.title}",
+            f"Votre note est {grade}/{submission.assignment.points}.",
+            link="/grades",
+        )
+        return Response(self.get_serializer(submission).data)
+
+    @action(detail=True, methods=["post"])
+    def publish(self, request, pk=None):
+        submission = self.get_object()
+        if not is_instructor_or_admin(request.user) or not owns_learning_object(request.user, submission.assignment):
+            raise PermissionDenied("Instructor access required.")
+        submission.is_published = True
+        submission.save(update_fields=["is_published"])
         return Response(self.get_serializer(submission).data)
 
 

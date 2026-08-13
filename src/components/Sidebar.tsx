@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import UpgradeModal from './UpgradeModal';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -13,6 +15,7 @@ export default function Sidebar() {
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const links = [
     { name: t('sidebar.dashboard'), icon: LayoutDashboard, href: '/dashboard' },
@@ -67,7 +70,7 @@ export default function Sidebar() {
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 mb-4">
           <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">{t('sidebar.proPlan')}</p>
           <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">Get unlimited access to all premium features.</p>
-          <button className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
+          <button onClick={() => setShowUpgrade(true)} className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
             {t('sidebar.upgrade')}
           </button>
         </div>
@@ -98,6 +101,7 @@ export default function Sidebar() {
           Logout
         </button>
       </div>
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </aside>
   );
 }

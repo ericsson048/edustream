@@ -53,6 +53,7 @@ def deduct_stream_minutes(user, minutes):
         return
     sub.stream_minutes_used_this_month = models.F("stream_minutes_used_this_month") + minutes
     sub.save(update_fields=["stream_minutes_used_this_month"])
+    sub.refresh_from_db(fields=["stream_minutes_used_this_month"])
 
 
 def get_streaming_remaining(user):

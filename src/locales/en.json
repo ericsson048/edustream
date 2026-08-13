@@ -1,7 +1,10 @@
 {
   "header": {
     "search": "Search courses, assignments...",
-    "language": "Language"
+    "language": "Language",
+    "toggleTheme": "Toggle Theme",
+    "messages": "Messages",
+    "semester": "Fall Semester 2024"
   },
   "sidebar": {
     "dashboard": "Dashboard",
@@ -14,6 +17,13 @@
     "messages": "Messages",
     "proPlan": "Pro Plan",
     "upgrade": "Upgrade"
+  },
+  "publicNavbar": {
+    "features": "Features",
+    "pricing": "Pricing",
+    "teachWithUs": "Teach with us",
+    "logIn": "Log in",
+    "getStarted": "Get Started"
   },
   "dashboard": {
     "welcome": "Welcome back, {{name}}!",
@@ -39,6 +49,10 @@
     "noEnrollments": "You are not enrolled in any published course yet.",
     "studyActivity": "Study Activity",
     "last7Days": "Last 7 days",
+    "activityBreakdown": "Activity Breakdown",
+    "byType": "By Type",
+    "hours": "hours",
+    "activities": "Activities",
     "recommendedForYou": "Recommended for You",
     "browseAll": "Browse All",
     "recentActivity": "Recent Activity",
@@ -95,6 +109,16 @@
   "pricing": {
     "title": "Simple, transparent pricing",
     "subtitle": "Whether you're here to learn new skills or share your expertise with the world, we have a plan that fits your needs.",
+    "noPlans": "No plans available yet.",
+    "loadingPlans": "Loading plans...",
+    "choosePlan": "Choose Plan",
+    "unlimitedAiTutor": "Unlimited AI Tutor",
+    "unlimitedLiveStreaming": "Unlimited live streaming",
+    "aiPromptsPerMonth": "{{count}} AI prompts / month",
+    "streamMinutes": "{{count}} stream minutes / month",
+    "subscribeSuccess": "You are now on the {{plan}} plan.",
+    "subscribeFailed": "Failed to subscribe.",
+    "loadPlansFailed": "Failed to load plans.",
     "forStudents": "For Students",
     "forStudentsDesc": "No monthly subscription. Each instructor sets their own price \u2014 free or paid. You only pay once per course, nothing else.",
     "freeCourses": "Free Courses",
@@ -181,7 +205,28 @@
     "sending": "Sending...",
     "tryAnotherEmail": "Try another email",
     "backToLogin": "Back to Login",
-    "resetFailed": "Failed to send reset email. Please try again."
+    "resetFailed": "Failed to send reset email. Please try again.",
+    "chooseNewPassword": "Choose a new password",
+    "newPasswordPlaceholder": "At least 8 characters",
+    "confirmPasswordPlaceholder": "Repeat your password",
+    "resetting": "Resetting...",
+    "resetPasswordFailed": "Failed to reset password. The link may be invalid or expired.",
+    "goToLogin": "Go to Login",
+    "emailVerification": "Email verification",
+    "verifyingEmail": "Verifying your email address...",
+    "emailVerified": "Email verified",
+    "emailVerifiedDesc": "Your email has been verified. You can now sign in.",
+    "emailVerificationFailed": "We could not verify your email",
+    "invalidVerificationLink": "Invalid or missing verification link.",
+    "emailVerificationExpired": "This verification link is invalid or has expired.",
+    "invalidResetLink": "Invalid or missing reset link.",
+    "studentsLearningAlt": "Students learning",
+    "classroomAlt": "Classroom",
+    "yourPasswordResetSuccess": "Your password has been reset. You can now log in.",
+    "enterNewPassword": "Enter a new password for your account.",
+    "confirmPassword": "Confirm Password",
+    "passwordsDoNotMatch": "Passwords do not match.",
+    "passwordMinLength": "Password must be at least 8 characters."
   },
   "catalog": {
     "title": "Course Catalog",

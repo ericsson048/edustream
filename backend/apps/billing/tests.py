@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -74,6 +75,7 @@ class BillingTests(APITestCase):
         self.assertTrue(UserSubscription.objects.filter(user=self.student, plan=self.pro_plan).exists())
 
     @patch("stripe.checkout.Session.create")
+    @override_settings(ENABLE_MOCK_PAYMENTS=True)
     def test_course_checkout_split(self, mock_session_create):
         # Mock Stripe session return
         mock_session = MagicMock()
@@ -102,6 +104,7 @@ class BillingTests(APITestCase):
             self.assertEqual(tx.platform_fee, 30.00)
             self.assertEqual(tx.instructor_earning, 70.00)
 
+    @override_settings(ENABLE_MOCK_PAYMENTS=True)
     def test_stripe_webhook_invoice_failed(self):
         # Setup initial subscription
         now = timezone.now()
@@ -122,6 +125,7 @@ class BillingTests(APITestCase):
         sub.refresh_from_db()
         self.assertEqual(sub.status, UserSubscription.Status.PAST_DUE)
 
+    @override_settings(ENABLE_MOCK_PAYMENTS=True)
     def test_stripe_webhook_subscription_canceled(self):
         now = timezone.now()
         sub = UserSubscription.objects.create(
@@ -141,6 +145,7 @@ class BillingTests(APITestCase):
         sub.refresh_from_db()
         self.assertEqual(sub.status, UserSubscription.Status.CANCELED)
 
+    @override_settings(ENABLE_MOCK_PAYMENTS=True)
     def test_stripe_webhook_invoice_paid(self):
         now = timezone.now()
         sub = UserSubscription.objects.create(
@@ -180,3 +185,22 @@ class BillingTests(APITestCase):
         self.assertEqual(response.data["summary"]["total_revenue"], 100.00)
         self.assertEqual(response.data["summary"]["total_platform_fee"], 30.00)
         self.assertEqual(len(response.data["transactions"]), 1)
+
+    def test_non_admin_cannot_create_plan(self):
+        self.client.force_authenticate(user=self.student)
+        url = reverse("admin-billing-plans")
+        response = self.client.post(url, {"name": "Hacked Plan", "price_monthly": 0})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_create_plan(self):
+        admin = User.objects.create_user(
+            email="admin@test.com", full_name="Admin", password="password123", role="ADMIN"
+        )
+        self.client.force_authenticate(user=admin)
+        url = reverse("admin-billing-plans")
+        response = self.client.post(
+            url,
+            {"name": "Enterprise", "price_monthly": 49.99, "audience": "STUDENT", "is_active": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(SubscriptionPlan.objects.filter(name="Enterprise").exists())

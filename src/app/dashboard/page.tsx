@@ -1,7 +1,8 @@
 ﻿import Sidebar from '../../components/Sidebar';
 import Header from '../../components/Header';
 import { PlayCircle, CheckCircle, Star, ArrowRight, CalendarClock, Flame, TrendingUp, BookOpen, Zap, Sparkles, Target, Loader2, Clock3, Trophy, MessageSquare, FileText, BrainCircuit } from 'lucide-react';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { courseService } from '../../services/courseService';
@@ -10,6 +11,8 @@ import { liveService, type LiveSessionItem } from '../../services/liveService';
 import type { Course, Enrollment, ProgressItem } from '../../types/lms';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
+import { baseChartTheme, chartThemeColors } from '../../lib/chartTheme';
 import { useTranslation } from 'react-i18next';
 
 type CourseWithMetrics = {
@@ -72,6 +75,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [coursesMap, setCoursesMap] = useState<Record<string, Course>>({});
   const [progressItems, setProgressItems] = useState<ProgressItem[]>([]);
@@ -105,7 +109,7 @@ export default function DashboardPage() {
         setLiveSessions(sessionList);
         setStats(userStats);
         setRecommended(recCourses);
-        setActivities(activityList.slice(0, 10));
+        setActivities(activityList);
 
         const progressList = (
           await Promise.all(enrollmentList.map((enrollment) => courseService.listProgress({ enrollment: enrollment.id })))
@@ -139,7 +143,7 @@ export default function DashboardPage() {
 
   const coursesInProgress = enrolledCourses.filter((item) => item.progressPercent > 0 && item.progressPercent < 100).length;
   const completedCourses = enrolledCourses.filter((item) => item.totalLessons > 0 && item.progressPercent >= 100).length;
-  const gradedSubmissions = submissions.filter((item) => item.grade != null);
+  const gradedSubmissions = submissions.filter((item) => item.grade != null && item.is_published);
   const averageScore = gradedSubmissions.length
     ? Math.round(gradedSubmissions.reduce((sum, item) => sum + Number(item.grade), 0) / gradedSubmissions.length)
     : 0;
@@ -155,6 +159,82 @@ export default function DashboardPage() {
   const totalTrackedLessons = enrolledCourses.reduce((sum, item) => sum + item.totalLessons, 0);
   const goalPercent = totalTrackedLessons ? Math.round((totalCompletedLessons / totalTrackedLessons) * 100) : 0;
   const activityData = getWeeklyActivity(progressItems);
+
+  const maxBarHours = Math.max(...activityData.map((item) => item.hours), 0);
+
+  const activityChartOptions = useMemo<Highcharts.Options>(() => {
+    const colors = chartThemeColors(theme);
+    const base = baseChartTheme(theme);
+    return {
+      ...base,
+      chart: { ...base.chart, type: 'column', height: 256 },
+      xAxis: {
+        categories: activityData.map((item) => item.name),
+        crosshair: true,
+        lineColor: colors.gridLine,
+        tickColor: colors.gridLine,
+        labels: { style: { color: colors.axisLabel } },
+      },
+      yAxis: {
+        min: 0,
+        title: { text: undefined },
+        lineColor: colors.gridLine,
+        tickColor: colors.gridLine,
+        gridLineColor: colors.gridLine,
+        labels: { style: { color: colors.axisLabel } },
+      },
+      plotOptions: {
+        column: {
+          borderRadius: 6,
+          pointPadding: 0.15,
+          groupPadding: 0.1,
+        },
+      },
+      series: [
+        {
+          type: 'column',
+          name: t('dashboard.hours'),
+          data: activityData.map((item) => ({
+            name: item.name,
+            y: item.hours,
+            color: item.hours === maxBarHours ? '#2563eb' : '#334155',
+          })),
+        },
+      ],
+    };
+  }, [activityData, maxBarHours, t, theme]);
+
+  const activityDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    activities.forEach((act) => {
+      counts[act.kind] = (counts[act.kind] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([kind, count]) => ({
+        name: t(`dashboard.${ACTIVITY_LABELS[kind] || kind}`),
+        y: count,
+      }))
+      .sort((left, right) => right.y - left.y);
+  }, [activities, t]);
+
+  const activityTypeChartOptions = useMemo<Highcharts.Options>(() => {
+    const base = baseChartTheme(theme);
+    return {
+      ...base,
+      chart: { ...base.chart, type: 'pie', height: 256 },
+      tooltip: { ...base.tooltip, pointFormat: '{point.y} ({point.percentage:.1f}%)' },
+      plotOptions: {
+        pie: {
+          allowPointSelect: true,
+          cursor: 'pointer',
+          innerSize: '60%',
+          dataLabels: { enabled: false },
+          showInLegend: true,
+        },
+      },
+      series: [{ type: 'pie', name: t('dashboard.activities'), data: activityDistribution }],
+    };
+  }, [activityDistribution, t, theme]);
 
   const statCards = [
     { label: t('dashboard.coursesInProgress'), value: stats ? String(stats.courses_in_progress) : String(coursesInProgress), icon: PlayCircle, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', badge: `${enrolledCourses.length} ${t('dashboard.enrolled')}` },
@@ -316,17 +396,10 @@ export default function DashboardPage() {
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400 rounded-lg py-1 px-2 bg-slate-50 dark:bg-slate-800">{t('dashboard.last7Days')}</span>
                 </div>
                 <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={activityData} barSize={40}>
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 500 }} dy={10} />
-                      <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#1e293b', color: '#fff' }} />
-                      <Bar dataKey="hours" radius={[6, 6, 6, 6]}>
-                        {activityData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.hours === Math.max(...activityData.map((item) => item.hours), 0) ? '#2563eb' : '#334155'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <HighchartsReact
+                    highcharts={Highcharts}
+                    options={activityChartOptions}
+                  />
                 </div>
               </div>
 
@@ -379,7 +452,7 @@ export default function DashboardPage() {
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                   <h3 className="text-lg font-bold mb-6 dark:text-white">{t('dashboard.recentActivity')}</h3>
                   <div className="space-y-4">
-                    {activities.map((act) => {
+                    {activities.slice(0, 10).map((act) => {
                       const Icon = ACTIVITY_ICONS[act.kind] || MessageSquare;
                       return (
                         <div key={act.id} className="flex items-start gap-3">
@@ -433,6 +506,21 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
+
+              {activityDistribution.length > 0 && (
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-bold dark:text-white">{t('dashboard.activityBreakdown')}</h3>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 rounded-lg py-1 px-2 bg-slate-50 dark:bg-slate-800">{t('dashboard.byType')}</span>
+                  </div>
+                  <div className="h-64 w-full">
+                    <HighchartsReact
+                      highcharts={Highcharts}
+                      options={activityTypeChartOptions}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-6">

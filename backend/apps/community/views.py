@@ -7,6 +7,7 @@ from rest_framework.response import Response
 
 from .models import Discussion, DiscussionComment, StudyGroup, StudyGroupMessage
 from .serializers import DiscussionCommentSerializer, DiscussionSerializer, StudyGroupMessageSerializer, StudyGroupSerializer
+from apps.courses.permissions import IsOwnerOrReadOnly
 
 
 def broadcast(group_name, event):
@@ -25,7 +26,7 @@ def broadcast(group_name, event):
 class DiscussionViewSet(viewsets.ModelViewSet):
     queryset = Discussion.objects.select_related("author", "course").prefetch_related("comments")
     serializer_class = DiscussionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
     filterset_fields = ["course", "category"]
     search_fields = ["title", "content", "tags"]
 
@@ -43,7 +44,7 @@ class DiscussionViewSet(viewsets.ModelViewSet):
 class DiscussionCommentViewSet(viewsets.ModelViewSet):
     queryset = DiscussionComment.objects.select_related("discussion", "author")
     serializer_class = DiscussionCommentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
     filterset_fields = ["discussion"]
 
     def perform_create(self, serializer):
@@ -60,7 +61,7 @@ class DiscussionCommentViewSet(viewsets.ModelViewSet):
 class StudyGroupViewSet(viewsets.ModelViewSet):
     queryset = StudyGroup.objects.prefetch_related("members").all()
     serializer_class = StudyGroupSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
     search_fields = ["name", "description"]
 
     def perform_create(self, serializer):

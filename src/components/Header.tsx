@@ -29,7 +29,7 @@ export default function Header({ title, subtitle }: { title?: string; subtitle?:
         <button 
           onClick={toggleTheme}
           className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-          title="Toggle Theme"
+          title={t('header.toggleTheme')}
         >
           {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
@@ -42,14 +42,14 @@ export default function Header({ title, subtitle }: { title?: string; subtitle?:
           {i18n.language}
         </button>
         <NotificationDropdown />
-        <button className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+        <button className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title={t('header.messages')}>
           <MessageSquare className="w-5 h-5" />
         </button>
         
         <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-2"></div>
         
         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-          <span className="text-sm font-semibold hidden md:block">Fall Semester 2024</span>
+          <span className="text-sm font-semibold hidden md:block">{t('header.semester')}</span>
           <Calendar className="w-4 h-4 text-slate-400" />
         </div>
       </div>

@@ -152,3 +152,25 @@ class PlatformSettingDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = PlatformSettingSerializer
     lookup_field = "key"
     lookup_url_kwarg = "key"
+
+
+class BroadcastNotificationView(APIView):
+    permission_classes = [AdminPermission]
+
+    def post(self, request):
+        from apps.learning.notifications import bulk_create_notifications
+
+        title = request.data.get("title", "")
+        body = request.data.get("body", "")
+        notification_type = request.data.get("notification_type", "SYSTEM")
+        target_role = request.data.get("target_role")
+
+        users = User.objects.filter(is_active=True)
+        if target_role:
+            users = users.filter(role=target_role)
+
+        if not title or not body:
+            return Response({"detail": "title and body are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        bulk_create_notifications(users, notification_type, title, body)
+        return Response({"detail": f"Notification sent to {users.count()} users."})

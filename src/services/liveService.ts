@@ -4,14 +4,15 @@ import { buildWebSocketUrl } from './realtime';
 
 export interface LiveSessionItem {
   id: string;
-  course: string;
-  course_title?: string;
+  course: string | null;
+  course_title?: string | null;
   instructor_id?: string;
   instructor_name?: string;
   title: string;
   scheduled_at: string;
   duration_minutes: number;
   status: 'SCHEDULED' | 'LIVE' | 'ENDED';
+  is_public?: boolean;
   requires_permission?: boolean;
   enrolled_students?: number;
   room_name?: string;
@@ -50,11 +51,12 @@ export const liveService = {
     return data.results ?? [];
   },
   async createLiveSession(payload: {
-    course: string;
+    course?: string | null;
     title: string;
     scheduled_at: string;
     duration_minutes: number;
     status?: LiveSessionItem['status'];
+    is_public?: boolean;
     requires_permission?: boolean;
   }): Promise<LiveSessionItem> {
     const { data } = await apiClient.post<LiveSessionItem>('/live-sessions/', payload);

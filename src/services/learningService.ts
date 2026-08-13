@@ -10,6 +10,10 @@ export interface AssignmentItem {
   due_date: string;
   points: number;
   type: string;
+  allowed_extensions: string[];
+  max_file_size_mb: number;
+  instructions_url?: string;
+  instructions_name?: string;
 }
 
 export interface SubmissionItem {
@@ -26,6 +30,24 @@ export interface SubmissionItem {
   feedback?: string;
   content_text?: string;
   file_url?: string;
+  file_name?: string;
+  file_size?: number;
+  is_published: boolean;
+  is_late?: boolean;
+  due_date?: string;
+  points?: number;
+}
+
+export interface AssignmentStats {
+  total_enrolled: number;
+  submitted_count: number;
+  graded_count: number;
+  missing_count: number;
+  missing_students: Array<{ id: string; full_name: string; email: string }>;
+  late_count: number;
+  average_grade: number | null;
+  average_percent: number | null;
+  distribution: Record<string, number>;
 }
 
 export interface QuizItem {
@@ -112,12 +134,47 @@ export const learningService = {
     const { data } = await apiClient.get<PaginatedResponse<SubmissionItem>>('/submissions/');
     return data.results ?? [];
   },
+  async getSubmission(id: string): Promise<SubmissionItem> {
+    const { data } = await apiClient.get<SubmissionItem>(`/submissions/${id}/`);
+    return data;
+  },
+  async listSubmissionsByAssignment(assignmentId: string): Promise<SubmissionItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<SubmissionItem>>(
+      `/submissions/?assignment=${assignmentId}`,
+    );
+    return data.results ?? [];
+  },
+  async updateSubmission(
+    id: string,
+    payload: {
+      content_text?: string;
+      file_url?: string;
+      file?: File;
+    },
+  ): Promise<SubmissionItem> {
+    const body = new FormData();
+    if (payload.content_text !== undefined) body.append('content_text', payload.content_text);
+    if (payload.file_url !== undefined) body.append('file_url', payload.file_url);
+    if (payload.file) body.append('file', payload.file);
+    const { data } = await apiClient.patch<SubmissionItem>(`/submissions/${id}/`, body, {
+      headers: { 'Content-Type': undefined },
+    });
+    return data;
+  },
   async createSubmission(payload: {
     assignment: string;
     content_text?: string;
     file_url?: string;
+    file?: File;
   }): Promise<SubmissionItem> {
-    const { data } = await apiClient.post<SubmissionItem>('/submissions/', payload);
+    const body = new FormData();
+    body.append('assignment', payload.assignment);
+    if (payload.content_text) body.append('content_text', payload.content_text);
+    if (payload.file_url) body.append('file_url', payload.file_url);
+    if (payload.file) body.append('file', payload.file);
+    const { data } = await apiClient.post<SubmissionItem>('/submissions/', body, {
+      headers: { 'Content-Type': undefined },
+    });
     return data;
   },
   async gradeSubmission(
@@ -131,6 +188,25 @@ export const learningService = {
     const { data } = await apiClient.post<SubmissionItem>(`/submissions/${id}/grade/`, payload);
     return data;
   },
+  async publishSubmission(id: string): Promise<SubmissionItem> {
+    const { data } = await apiClient.post<SubmissionItem>(`/submissions/${id}/publish/`);
+    return data;
+  },
+  async getAssignmentStats(id: string): Promise<AssignmentStats> {
+    const { data } = await apiClient.get<AssignmentStats>(`/assignments/${id}/stats/`);
+    return data;
+  },
+  async publishAssignmentGrades(id: string): Promise<{ published: number }> {
+    const { data } = await apiClient.post<{ published: number }>(`/assignments/${id}/publish_grades/`);
+    return data;
+  },
+  async extendDeadline(assignmentId: string, studentId: string, newDeadline: string): Promise<unknown> {
+    const { data } = await apiClient.post(`/assignments/${assignmentId}/extend/`, {
+      student_id: studentId,
+      new_deadline: newDeadline,
+    });
+    return data;
+  },
   async createAssignment(payload: {
     course: string;
     title: string;
@@ -138,8 +214,29 @@ export const learningService = {
     due_date: string;
     points: number;
     type: string;
+    allowed_extensions?: string[];
+    max_file_size_mb?: number;
+    instructions_url?: string;
+    instructions_name?: string;
+    attachment?: File;
   }): Promise<AssignmentItem> {
-    const { data } = await apiClient.post<AssignmentItem>('/assignments/', payload);
+    const body = new FormData();
+    body.append('course', payload.course);
+    body.append('title', payload.title);
+    body.append('description', payload.description);
+    body.append('due_date', payload.due_date);
+    body.append('points', String(payload.points));
+    body.append('type', payload.type);
+    if (payload.allowed_extensions?.length) {
+      body.append('allowed_extensions', JSON.stringify(payload.allowed_extensions));
+    }
+    if (payload.max_file_size_mb) body.append('max_file_size_mb', String(payload.max_file_size_mb));
+    if (payload.instructions_url) body.append('instructions_url', payload.instructions_url);
+    if (payload.instructions_name) body.append('instructions_name', payload.instructions_name);
+    if (payload.attachment) body.append('attachment', payload.attachment);
+    const { data } = await apiClient.post<AssignmentItem>('/assignments/', body, {
+      headers: { 'Content-Type': undefined },
+    });
     return data;
   },
   async updateAssignment(

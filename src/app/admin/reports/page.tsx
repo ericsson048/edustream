@@ -18,53 +18,53 @@ export default function AdminReports() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
       <AdminSidebar />
       <main className="flex-1 ml-64">
         <Header />
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8 flex justify-between items-end">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Financial Reports</h1>
-              <p className="text-slate-500 mt-1">Platform revenue and instructor payouts.</p>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Financial Reports</h1>
+              <p className="text-slate-500 dark:text-slate-400 mt-1">Platform revenue and instructor payouts.</p>
             </div>
           </div>
 
           {loading ? (
-            <div className="grid place-items-center h-64 text-slate-500">Loading reports...</div>
+            <div className="grid place-items-center h-64 text-slate-500 dark:text-slate-400">Loading reports...</div>
           ) : !report ? (
-            <div className="grid place-items-center h-64 text-red-600">Failed to load reports.</div>
+            <div className="grid place-items-center h-64 text-red-600 dark:text-red-400">Failed to load reports.</div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-4 mb-2">
-                    <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center"><DollarSign className="w-5 h-5" /></div>
-                    <h3 className="text-slate-500 font-medium">Total Revenue</h3>
+                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg flex items-center justify-center"><DollarSign className="w-5 h-5" /></div>
+                    <h3 className="text-slate-500 dark:text-slate-400 font-medium">Total Revenue</h3>
                   </div>
-                  <p className="text-3xl font-bold text-slate-900">${report.summary.total_revenue.toLocaleString()}</p>
-                  <p className="text-sm text-green-600 font-medium mt-2 flex items-center gap-1"><TrendingUp className="w-4 h-4" /> Margin: {report.summary.margin}%</p>
+                  <p className="text-3xl font-bold text-slate-900 dark:text-white">${report.summary.total_revenue.toLocaleString()}</p>
+                  <p className="text-sm text-green-600 dark:text-green-400 font-medium mt-2 flex items-center gap-1"><TrendingUp className="w-4 h-4" /> Margin: {report.summary.margin}%</p>
                 </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-4 mb-2">
-                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center"><Users className="w-5 h-5" /></div>
-                    <h3 className="text-slate-500 font-medium">Instructor Payouts</h3>
+                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center"><Users className="w-5 h-5" /></div>
+                    <h3 className="text-slate-500 dark:text-slate-400 font-medium">Instructor Payouts</h3>
                   </div>
-                  <p className="text-3xl font-bold text-slate-900">${report.summary.total_payouts.toLocaleString()}</p>
-                  <p className="text-sm text-slate-500 mt-2">Pending: ${report.summary.pending_payouts.toLocaleString()}</p>
+                  <p className="text-3xl font-bold text-slate-900 dark:text-white">${report.summary.total_payouts.toLocaleString()}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Pending: ${report.summary.pending_payouts.toLocaleString()}</p>
                 </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-4 mb-2">
-                    <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center"><TrendingUp className="w-5 h-5" /></div>
-                    <h3 className="text-slate-500 font-medium">Platform Profit</h3>
+                    <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center"><TrendingUp className="w-5 h-5" /></div>
+                    <h3 className="text-slate-500 dark:text-slate-400 font-medium">Platform Profit</h3>
                   </div>
-                  <p className="text-3xl font-bold text-slate-900">${report.summary.platform_profit.toLocaleString()}</p>
-                  <p className="text-sm text-slate-500 mt-2">Margin: {report.summary.margin}%</p>
+                  <p className="text-3xl font-bold text-slate-900 dark:text-white">${report.summary.platform_profit.toLocaleString()}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Margin: {report.summary.margin}%</p>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
-                <h2 className="text-lg font-bold mb-6">Revenue vs Payouts (YTD)</h2>
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 mb-8">
+                <h2 className="text-lg font-bold mb-6 dark:text-white">Revenue vs Payouts (YTD)</h2>
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={report.monthly}>
@@ -78,9 +78,9 @@ export default function AdminReports() {
                           <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:opacity-20" />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', className: 'dark:fill-slate-400' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', className: 'dark:fill-slate-400' }} />
                       <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                       <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" name="Gross Revenue" />
                       <Area type="monotone" dataKey="payouts" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorPay)" name="Instructor Payouts" />

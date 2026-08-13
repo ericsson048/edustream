@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Sparkles,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import PublicNavbar from "../components/PublicNavbar";
 import { authService } from "../services/authService";
 import { courseService } from "../services/courseService";
@@ -62,6 +63,7 @@ function CountUp({
 }
 
 export default function Welcome() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState({
     total_courses: 0,
     total_instructors: 0,
@@ -112,7 +114,7 @@ export default function Welcome() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium text-sm mb-8 border border-blue-100 dark:border-blue-800/50"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Now with Unlimited AI Tutor & Live Streams</span>
+            <span>{t('welcome.badge')}</span>
           </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
@@ -120,9 +122,9 @@ export default function Welcome() {
             transition={{ delay: 0.35, duration: 0.7 }}
             className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 leading-[1.1]"
           >
-            Master any skill with <br className="hidden md:block" />
+            {t('welcome.heroTitle')} <br className="hidden md:block" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
-              AI-Powered Learning
+              {t('welcome.heroTitleHighlight')}
             </span>
           </motion.h1>
           <motion.p
@@ -131,9 +133,7 @@ export default function Welcome() {
             transition={{ delay: 0.5, duration: 0.6 }}
             className="text-lg md:text-xl text-slate-600 dark:text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed"
           >
-            EduStream is the next-generation LMS. Get personalized help from our
-            AI Tutor, write code in our Live IDE, and join interactive WebRTC
-            live classes.
+            {t('welcome.heroDesc')}
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -145,14 +145,14 @@ export default function Welcome() {
               to="/register"
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20 hover:scale-105"
             >
-              Start Learning for Free
+              {t('welcome.startLearning')}
               <ArrowRight className="w-5 h-5" />
             </Link>
             <Link
               to="/pricing"
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 px-8 py-4 rounded-full font-bold text-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
             >
-              View Plans
+              {t('welcome.viewPlans')}
             </Link>
           </motion.div>
 
@@ -168,21 +168,21 @@ export default function Welcome() {
                 color: "text-blue-500",
                 value: stats.total_students,
                 suffix: "+",
-                label: "Learners",
+                label: t('welcome.learners'),
               },
               {
                 icon: BookOpen,
                 color: "text-indigo-500",
                 value: stats.total_courses,
                 suffix: "+",
-                label: "Courses",
+                label: t('welcome.courses'),
               },
               {
                 icon: GraduationCap,
                 color: "text-emerald-500",
                 value: stats.total_instructors,
                 suffix: "+",
-                label: "Instructors",
+                label: t('welcome.instructors'),
               },
               {
                 icon: DollarSign,
@@ -190,7 +190,7 @@ export default function Welcome() {
                 value: stats.total_payouts / 1000,
                 suffix: "K+",
                 decimals: 1,
-                label: "Paid to Instructors",
+                label: t('welcome.paidToInstructors'),
                 prefix: "$",
               },
             ].map((item, i) => {
@@ -240,10 +240,10 @@ export default function Welcome() {
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Everything you need to succeed
+              {t('welcome.featuresTitle')}
             </h2>
             <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-              We've combined the best tools into one seamless platform.
+              {t('welcome.featuresDesc')}
             </p>
           </motion.div>
 
@@ -252,20 +252,20 @@ export default function Welcome() {
               {
                 icon: BrainCircuit,
                 color: "blue",
-                title: "Contextual AI Tutor",
-                desc: "Stuck on a concept? Our Gemini-powered AI knows exactly which video and timestamp you're watching to give you perfect, contextual answers.",
+                title: t('welcome.featureAiTutor'),
+                desc: t('welcome.featureAiTutorDesc'),
               },
               {
                 icon: Video,
                 color: "indigo",
-                title: "WebRTC Live Streams",
-                desc: "Join interactive, ultra-low latency live classes. Ask questions in real-time, share your screen, and collaborate with peers seamlessly.",
+                title: t('welcome.featureLiveStreams'),
+                desc: t('welcome.featureLiveStreamsDesc'),
               },
               {
                 icon: Code2,
                 color: "emerald",
-                title: "Live IDE Integration",
-                desc: "Practice coding directly in the browser while watching lessons. Real-time execution and error highlighting without leaving the platform.",
+                title: t('welcome.featureIde'),
+                desc: t('welcome.featureIdeDesc'),
               },
             ].map((feature) => {
               const Icon = feature.icon;
@@ -331,13 +331,13 @@ export default function Welcome() {
             >
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-600 dark:text-blue-400">
-                  Parcours
+                  {t('welcome.learningPathsLabel')}
                 </p>
                 <h2 className="text-3xl md:text-4xl font-black mt-2">
-                  Learning Paths
+                  {t('welcome.learningPaths')}
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 mt-2">
-                  Des parcours guides pour atteindre vos objectifs.
+                  {t('welcome.learningPathsDesc')}
                 </p>
               </div>
               <Route className="w-12 h-12 text-blue-600/20 dark:text-blue-400/10" />
@@ -372,7 +372,7 @@ export default function Welcome() {
                       {path.description}
                     </p>
                     <p className="mt-4 text-sm font-bold text-blue-600 dark:text-blue-400">
-                      {path.courses.length} courses
+                      {t('welcome.courseCount', { count: path.courses.length })}
                     </p>
                   </Link>
                 </motion.div>
@@ -407,18 +407,16 @@ export default function Welcome() {
           >
             <Users className="w-16 h-16 mx-auto mb-6 text-blue-400" />
             <h2 className="text-3xl md:text-5xl font-bold mb-6">
-              Become an Instructor
+              {t('welcome.becomeInstructor')}
             </h2>
             <p className="text-lg text-slate-300 mb-10 max-w-2xl mx-auto">
-              Share your knowledge with the world. Our marketplace model lets
-              you keep 70% of every sale, while we handle the hosting, AI costs,
-              and payments.
+              {t('welcome.becomeInstructorDesc')}
             </p>
             <Link
               to="/pricing"
               className="inline-flex items-center gap-2 bg-white text-slate-900 px-8 py-4 rounded-full font-bold text-lg hover:bg-slate-100 transition-transform hover:scale-105"
             >
-              See Instructor Plans
+              {t('welcome.seeInstructorPlans')}
               <ArrowRight className="w-5 h-5" />
             </Link>
           </motion.div>
@@ -432,7 +430,7 @@ export default function Welcome() {
             <span className="font-bold text-xl tracking-tight">EduStream</span>
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            ┬® 2026 EduStream LMS. All rights reserved.
+            © 2026 EduStream LMS. All rights reserved.
           </p>
         </div>
       </footer>
