@@ -224,38 +224,46 @@ export default function ManageAssignments() {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden mb-6">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h2 className="font-bold text-lg">Devoirs existants</h2>
-              <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className="border border-slate-200 rounded-xl px-4 py-2 text-sm">
-                <option value="">Tous les cours</option>
-                {courses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between px-6 py-4 border-b border-slate-200 gap-4">
+              <h2 className="font-bold text-lg text-slate-900">📋 Devoirs existants</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600 font-medium hidden sm:inline">Filtrer par cours:</span>
+                <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium bg-white hover:border-blue-400 transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="">📚 Tous les cours ({courses.length})</option>
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             {filteredAssignments.length === 0 ? (
-              <p className="px-6 py-6 text-sm text-slate-500">Aucun devoir pour ce scope.</p>
+              <div className="px-6 py-12 text-center">
+                <div className="text-4xl mb-3">📝</div>
+                <p className="text-slate-600 font-medium">Aucun devoir pour ce scope</p>
+                <p className="text-sm text-slate-500 mt-1">Créez votre premier devoir pour commencer</p>
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-500 border-b border-slate-200 bg-slate-50">
-                      <th className="px-6 py-3">Devoir</th>
-                      <th className="px-6 py-3">Type</th>
-                      <th className="px-6 py-3">Échéance</th>
-                      <th className="px-6 py-3">Points</th>
-                      <th className="px-6 py-3">Formats</th>
-                      <th className="px-6 py-3">Consignes</th>
-                      <th className="px-6 py-3 text-right">Actions</th>
+                    <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-600 border-b border-slate-200 bg-linear-to-r from-slate-50 to-slate-100">
+                      <th className="px-6 py-4 text-slate-700">📄 Devoir</th>
+                      <th className="px-6 py-4 text-slate-700">🏷️ Type</th>
+                      <th className="px-6 py-4 text-slate-700">⏰ Échéance</th>
+                      <th className="px-6 py-4 text-slate-700">⭐ Points</th>
+                      <th className="px-6 py-4 text-slate-700 hidden lg:table-cell">📁 Formats</th>
+                      <th className="px-6 py-4 text-slate-700 hidden md:table-cell">📋 Consignes</th>
+                      <th className="px-6 py-4 text-right text-slate-700">⚙️ Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredAssignments.map((assignment) => {
                       const gradedUnpublished = submissions.filter((s) => s.assignment === assignment.id && s.status === 'GRADED' && !s.is_published).length;
+                      const submittedCount = submissions.filter((s) => s.assignment === assignment.id).length;
                       return (
-                        <tr key={assignment.id} className="hover:bg-slate-50 transition-colors">
+                        <tr key={assignment.id} className="hover:bg-blue-50/30 transition-colors border-l-4 border-l-transparent hover:border-l-blue-500">
                           <td className="px-6 py-4">
                             <p className="font-semibold text-slate-900">{assignment.title}</p>
                             <p className="text-xs text-slate-500">{assignment.course_title || assignment.course}</p>
@@ -278,26 +286,27 @@ export default function ManageAssignments() {
                               <FileText className="w-3.5 h-3.5 text-slate-400" /> {assignment.allowed_extensions?.length ? assignment.allowed_extensions.join(', ') : 'Tous formats'} · {assignment.max_file_size_mb} Mo max
                             </span>
                           </td>
-                          <td className="px-6 py-4">
+
+                          <td className="px-6 py-4 hidden md:table-cell">
                             {assignment.instructions_url ? (
                               <button
                                 type="button"
                                 onClick={() => setPreview({ url: assignment.instructions_url!, name: assignment.instructions_name || 'Consignes' })}
-                                className="inline-flex items-center gap-1 text-blue-600 font-semibold hover:underline cursor-pointer"
+                                className="inline-flex items-center gap-1.5 text-blue-600 font-semibold hover:text-blue-700 hover:underline cursor-pointer transition-colors text-sm"
                               >
-                                <Eye className="w-3.5 h-3.5" /> {assignment.instructions_name || 'Consignes'}
+                                <Eye className="w-4 h-4" /> Voir
                               </button>
                             ) : (
                               <span className="text-xs text-slate-300">—</span>
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => openStats(assignment)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors">
-                                <BarChart3 className="w-4 h-4" /> Statistiques
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              <button onClick={() => openStats(assignment)} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all hover:shadow-sm" title="Voir les statistiques">
+                                <BarChart3 className="w-4 h-4" /> <span className="hidden xl:inline">Stats</span>
                               </button>
                               {gradedUnpublished > 0 && (
-                                <button onClick={() => handlePublishAll(assignment)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors">
+                                <button onClick={() => handlePublishAll(assignment)} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold transition-all hover:shadow-sm" title={`Publier ${gradedUnpublished} note(s)`}>
                                   <Send className="w-4 h-4" /> Publier {gradedUnpublished} note(s)
                                 </button>
                               )}

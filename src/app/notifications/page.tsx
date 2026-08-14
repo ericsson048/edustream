@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, CheckCheck, ChevronLeft, ChevronRight, Loader2, GraduationCap, BookOpen, Shield } from 'lucide-react';
+import { Bell, CheckCheck, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
 import InstructorSidebar from '../../components/InstructorSidebar';
 import AdminSidebar from '../../components/AdminSidebar';
@@ -9,13 +9,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { notificationService, type Notification, type NotificationType } from '../../services/notificationService';
 
 type RoleTab = '' | 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
-
-const roleTabs: { key: RoleTab; label: string; icon: typeof GraduationCap }[] = [
-  { key: '', label: 'notifications.allRoles', icon: Bell },
-  { key: 'STUDENT', label: 'notifications.roleStudent', icon: GraduationCap },
-  { key: 'INSTRUCTOR', label: 'notifications.roleInstructor', icon: BookOpen },
-  { key: 'ADMIN', label: 'notifications.roleAdmin', icon: Shield },
-];
 
 const roleTypeMap: Record<string, NotificationType[]> = {
   STUDENT: ['ASSIGNMENT', 'GRADE', 'SKILL_UNLOCK', 'COURSE_UPDATE'],
@@ -43,8 +36,8 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [roleFilter, setRoleFilter] = useState<RoleTab>((initialRole as RoleTab) || '');
   const [typeFilter, setTypeFilter] = useState<string>('');
+  const roleFilter: RoleTab = (initialRole as RoleTab) || '';
 
   const visibleTypes = roleFilter ? (roleTypeMap[roleFilter] ?? []) : (Object.keys(typeConfig) as NotificationType[]);
 
@@ -65,12 +58,6 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
   }, [page, roleFilter, typeFilter]);
 
   useEffect(() => { fetch(); }, [fetch]);
-
-  const handleRoleChange = (role: RoleTab) => {
-    setRoleFilter(role);
-    setTypeFilter('');
-    setPage(1);
-  };
 
   const handleMarkRead = async (n: Notification) => {
     if (n.is_read) return;
@@ -111,25 +98,7 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
             )}
           </div>
 
-          {/* Role tabs */}
-          <div className="flex gap-2 mb-4 flex-wrap">
-            {roleTabs.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => handleRoleChange(key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
-                  roleFilter === key
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {t(label)}
-              </button>
-            ))}
-          </div>
-
-          {/* Type filter tabs (scoped to selected role) */}
+          {/* Type filter tabs (scoped to role) */}
           <div className="flex gap-2 mb-6 flex-wrap">
             <button
               onClick={() => { setTypeFilter(''); setPage(1); }}

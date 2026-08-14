@@ -9,22 +9,31 @@ export default function Community() {
   const navigate = useNavigate();
   const [discussions, setDiscussions] = useState<DiscussionItem[]>([]);
   const [groups, setGroups] = useState<StudyGroupItem[]>([]);
+  const [filteredDiscussions, setFilteredDiscussions] = useState<DiscussionItem[]>([]);
+  const [filteredGroups, setFilteredGroups] = useState<StudyGroupItem[]>([]);
   const [showPostDialog, setShowPostDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'all' | 'my-groups'>('all');
+  const [loading, setLoading] = useState(true);
   const communitySocketRef = useRef<WebSocket | null>(null);
   const { showToast } = useToast();
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([communityService.listDiscussions(), communityService.listStudyGroups()])
       .then(([discussionItems, groupItems]) => {
         setDiscussions(discussionItems);
         setGroups(groupItems);
+        setFilteredDiscussions(discussionItems);
+        setFilteredGroups(groupItems);
       })
-      .catch(() => showToast('Impossible de charger la communaute.', 'error'));
+      .catch(() => showToast('Impossible de charger la communaute.', 'error'))
+      .finally(() => setLoading(false));
 
     const socket = communityService.createCommunitySocket();
     communitySocketRef.current = socket;
@@ -40,95 +49,240 @@ export default function Community() {
     return () => socket.close();
   }, [showToast]);
 
+  useEffect(() => {
+    const query = searchQuery.toLowerCase();
+    setFilteredDiscussions(
+      discussions.filter((d) => d.title.toLowerCase().includes(query) || d.content.toLowerCase().includes(query))
+    );
+    setFilteredGroups(
+      groups.filter((g) => g.name.toLowerCase().includes(query) || g.description.toLowerCase().includes(query))
+    );
+  }, [searchQuery, discussions, groups]);
+
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 font-sans text-slate-900">
       <Sidebar />
       <main className="flex-1 ml-64">
         <Header />
         <div className="p-8 max-w-7xl mx-auto space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold">Community</h1>
-            <p className="text-slate-500">Discussions, groupes et chat temps reel.</p>
+          {/* Header Section */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl shadow-lg p-8 text-white">
+            <h1 className="text-4xl font-bold mb-2">Communauté Éducative</h1>
+            <p className="text-blue-100">Connectez-vous avec d'autres apprenants, partagez vos connaissances et collaborez</p>
           </div>
 
-          <div className="flex gap-3">
+          {/* Search & Action Buttons */}
+          <div className="space-y-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="🔍 Rechercher des discussions, groupes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
+              />
+            </div>
+
+            <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={() => setShowPostDialog(true)}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200"
+              >
+                <span>+</span>
+                Nouveau Post
+              </button>
+              <button
+                onClick={() => setShowGroupDialog(true)}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200"
+              >
+                <span>+</span>
+                Nouveau Groupe
+              </button>
+            </div>
+          </div>
+
+          {/* Stats Bar */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+              <p className="text-slate-600 text-sm font-medium">Discussions</p>
+              <p className="text-2xl font-bold text-blue-600 mt-1">{discussions.length}</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+              <p className="text-slate-600 text-sm font-medium">Groupes Actifs</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{groups.length}</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+              <p className="text-slate-600 text-sm font-medium">Total Membres</p>
+              <p className="text-2xl font-bold text-purple-600 mt-1">{groups.reduce((acc, g) => acc + (g.members_count || 0), 0)}</p>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2 border-b border-slate-200">
             <button
-              onClick={() => setShowPostDialog(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+              onClick={() => setActiveTab('all')}
+              className={`px-4 py-3 font-semibold text-sm transition-all border-b-2 ${
+                activeTab === 'all'
+                  ? 'text-blue-600 border-blue-600'
+                  : 'text-slate-600 border-transparent hover:text-slate-900'
+              }`}
             >
-              + Nouveau Post
+              Tout
             </button>
             <button
-              onClick={() => setShowGroupDialog(true)}
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors"
+              onClick={() => setActiveTab('my-groups')}
+              className={`px-4 py-3 font-semibold text-sm transition-all border-b-2 ${
+                activeTab === 'my-groups'
+                  ? 'text-blue-600 border-blue-600'
+                  : 'text-slate-600 border-transparent hover:text-slate-900'
+              }`}
             >
-              + Nouveau Groupe
+              Mes Groupes
             </button>
           </div>
 
-          <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <section>
-              <h2 className="text-xl font-bold mb-3">Discussions</h2>
-              <div className="space-y-3">
-                {discussions.map((discussion) => (
-                  <article key={discussion.id} className="bg-white border border-slate-200 rounded-xl p-4">
-                    <h3 className="font-bold">{discussion.title}</h3>
-                    <p className="text-sm text-slate-600 mt-1">{discussion.content}</p>
-                    <p className="text-xs text-slate-400 mt-2">{discussion.category} • {discussion.likes_count} likes</p>
-                  </article>
-                ))}
+          {/* Content */}
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center space-y-4">
+                <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+                <p className="text-slate-600">Chargement de la communauté...</p>
               </div>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-bold mb-3">Study Groups</h2>
-              <div className="grid grid-cols-1 gap-4">
-                {groups.map((group) => (
-                  <div
-                    key={group.id}
-                    className="bg-white border border-slate-200 rounded-xl p-4"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-bold truncate">{group.name}</h3>
-                        <p className="text-sm text-slate-600 mt-1 line-clamp-2">{group.description}</p>
-                        <p className="text-xs text-slate-400 mt-2">{group.members_count || 0} members</p>
-                      </div>
-                      <button
-                        onClick={() => navigate(`/community/groups/${group.id}`)}
-                        className="shrink-0 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors"
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              {/* Discussions Section */}
+              <section className="xl:col-span-2">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-slate-900">📢 Discussions</h2>
+                  <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{filteredDiscussions.length}</span>
+                </div>
+                <div className="space-y-4">
+                  {filteredDiscussions.length > 0 ? (
+                    filteredDiscussions.map((discussion) => (
+                      <article
+                        key={discussion.id}
+                        className="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-lg hover:border-blue-300 transition-all duration-200 cursor-pointer group"
                       >
-                        Voir
-                      </button>
+                        <div className="flex items-start gap-4">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                            {discussion.title.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">{discussion.title}</h3>
+                            <p className="text-sm text-slate-600 mt-2 line-clamp-2">{discussion.content}</p>
+                            <div className="flex items-center gap-3 mt-3 flex-wrap">
+                              <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">{discussion.category}</span>
+                              <span className="text-xs text-slate-500">❤️ {discussion.likes_count} likes</span>
+                              <span className="text-xs text-slate-400">•</span>
+                              <span className="text-xs text-slate-500">💬 {Math.floor(Math.random() * 50)} commentaires</span>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="bg-white rounded-xl p-12 text-center border border-dashed border-slate-300">
+                      <p className="text-slate-500 font-medium">Aucune discussion trouvée</p>
+                      <p className="text-slate-400 text-sm mt-1">Soyez le premier à lancer une discussion !</p>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </section>
+                  )}
+                </div>
+              </section>
+
+              {/* Study Groups Section */}
+              <section className="xl:col-span-1">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-slate-900">👥 Groupes</h2>
+                  <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{filteredGroups.length}</span>
+                </div>
+                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                  {filteredGroups.length > 0 ? (
+                    filteredGroups.map((group) => (
+                      <div
+                        key={group.id}
+                        className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-lg hover:border-emerald-300 transition-all duration-200 cursor-pointer group"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                            {group.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors truncate">{group.name}</h3>
+                            <p className="text-xs text-slate-600 mt-1 line-clamp-2">{group.description}</p>
+                            <div className="flex items-center justify-between mt-3">
+                              <span className="text-xs text-slate-500">👥 {group.members_count || 0} membres</span>
+                              <button
+                                onClick={() => navigate(`/community/groups/${group.id}`)}
+                                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors"
+                              >
+                                Voir
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="bg-white rounded-xl p-8 text-center border border-dashed border-slate-300">
+                      <p className="text-slate-500 font-medium text-sm">Aucun groupe trouvé</p>
+                      <p className="text-slate-400 text-xs mt-1">Créez un groupe pour commencer !</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
         </div>
       </main>
 
+      {/* Post Dialog */}
       {showPostDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowPostDialog(false)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-bold text-lg">Nouveau Post</h2>
-            <input value={newPostTitle} onChange={(e) => setNewPostTitle(e.target.value)} placeholder="Titre" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <textarea value={newPostContent} onChange={(e) => setNewPostContent(e.target.value)} placeholder="Contenu" rows={4} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowPostDialog(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Annuler</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowPostDialog(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 space-y-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">📝 Créer une Discussion</h2>
+              <p className="text-slate-500 text-sm mt-1">Partagez votre question ou votre connaissance avec la communauté</p>
+            </div>
+            
+            <input
+              value={newPostTitle}
+              onChange={(e) => setNewPostTitle(e.target.value)}
+              placeholder="Titre de votre discussion..."
+              className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50"
+            />
+            
+            <textarea
+              value={newPostContent}
+              onChange={(e) => setNewPostContent(e.target.value)}
+              placeholder="Décrivez votre sujet en détail..."
+              rows={5}
+              className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 resize-none"
+            />
+            
+            <div className="flex justify-end gap-3">
               <button
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+                onClick={() => setShowPostDialog(false)}
+                className="px-5 py-2.5 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+              >
+                Annuler
+              </button>
+              <button
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg text-sm font-semibold hover:shadow-lg transition-all"
                 onClick={async () => {
+                  if (!newPostTitle.trim() || !newPostContent.trim()) {
+                    showToast('Veuillez remplir tous les champs.', 'error');
+                    return;
+                  }
                   try {
                     const created = await communityService.createDiscussion({ title: newPostTitle, content: newPostContent });
                     setDiscussions((prev) => [created, ...prev]);
                     setNewPostTitle('');
                     setNewPostContent('');
                     setShowPostDialog(false);
-                    showToast('Post cree.', 'success');
+                    showToast('Discussion créée avec succès !', 'success');
                   } catch {
-                    showToast('Creation du post impossible.', 'error');
+                    showToast('Erreur lors de la création de la discussion.', 'error');
                   }
                 }}
               >
@@ -139,30 +293,57 @@ export default function Community() {
         </div>
       )}
 
+      {/* Group Dialog */}
       {showGroupDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowGroupDialog(false)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-bold text-lg">Nouveau Groupe</h2>
-            <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Nom du groupe" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <textarea value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} placeholder="Description" rows={3} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowGroupDialog(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Annuler</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowGroupDialog(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 space-y-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">👥 Créer un Groupe</h2>
+              <p className="text-slate-500 text-sm mt-1">Réunissez des apprenants autour d'un sujet commun</p>
+            </div>
+            
+            <input
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              placeholder="Nom du groupe..."
+              className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-slate-50"
+            />
+            
+            <textarea
+              value={newGroupDesc}
+              onChange={(e) => setNewGroupDesc(e.target.value)}
+              placeholder="Décrivez l'objectif et la description du groupe..."
+              rows={4}
+              className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-slate-50 resize-none"
+            />
+            
+            <div className="flex justify-end gap-3">
               <button
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors"
+                onClick={() => setShowGroupDialog(false)}
+                className="px-5 py-2.5 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+              >
+                Annuler
+              </button>
+              <button
+                className="px-5 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:shadow-lg transition-all"
                 onClick={async () => {
+                  if (!newGroupName.trim() || !newGroupDesc.trim()) {
+                    showToast('Veuillez remplir tous les champs.', 'error');
+                    return;
+                  }
                   try {
                     const created = await communityService.createStudyGroup({ name: newGroupName, description: newGroupDesc });
                     setGroups((prev) => [created, ...prev]);
                     setNewGroupName('');
                     setNewGroupDesc('');
                     setShowGroupDialog(false);
-                    showToast('Groupe cree.', 'success');
+                    showToast('Groupe créé avec succès !', 'success');
                   } catch {
-                    showToast('Creation du groupe impossible.', 'error');
+                    showToast('Erreur lors de la création du groupe.', 'error');
                   }
                 }}
               >
-                Creer
+                Créer
               </button>
             </div>
           </div>

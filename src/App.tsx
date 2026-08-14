@@ -10,7 +10,6 @@ import Pricing from "./app/pricing/page";
 import Login from "./app/login/page";
 import Register from "./app/register/page";
 import ForgotPassword from "./app/forgot-password/page";
-import ResetPassword from "./app/reset-password/page";
 import VerifyEmail from "./app/verify-email/page";
 const Dashboard = lazy(() => import("./app/dashboard/page"));
 import Catalog from "./app/catalog/page";
@@ -136,7 +135,6 @@ export default function App() {
             }
           />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:userId/:token" element={<ResetPassword />} />
           <Route path="/verify-email/:userId/:token" element={<VerifyEmail />} />
           <Route
             path="/dashboard"

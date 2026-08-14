@@ -1,10 +1,21 @@
 import json
+from uuid import UUID
 
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from .models import Discussion, StudyGroup, StudyGroupMessage
 from .serializers import StudyGroupMessageSerializer
+
+
+def _json_safe(value):
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return value
 
 
 class CommunityHubConsumer(AsyncWebsocketConsumer):
@@ -101,4 +112,4 @@ class StudyGroupConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def _create_message(self, group_id, user_id, content):
         message = StudyGroupMessage.objects.create(group_id=group_id, sender_id=user_id, content=content)
-        return StudyGroupMessageSerializer(message).data
+        return _json_safe(StudyGroupMessageSerializer(message).data)

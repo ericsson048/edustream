@@ -2,6 +2,7 @@ import Sidebar from '../../components/Sidebar';
 import Header from '../../components/Header';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   learningService,
   type AssignmentItem,
@@ -46,32 +47,32 @@ function formatDate(iso: string) {
   });
 }
 
-function StatusBadge({ status }: { status: string | undefined }) {
+function StatusBadge({ status, t }: { status: string | undefined; t: (key: string) => string }) {
   if (!status || status === 'PENDING') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400">
-        <Circle className="w-3 h-3" /> À rendre
+        <Circle className="w-3 h-3" /> {t('assignments.statusPending')}
       </span>
     );
   }
   if (status === 'SUBMITTED') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600">
-        <Clock className="w-3 h-3" /> Soumis
+        <Clock className="w-3 h-3" /> {t('assignments.submitted')}
       </span>
     );
   }
   if (status === 'GRADED') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600">
-        <CheckCircle2 className="w-3 h-3" /> Noté
+        <CheckCircle2 className="w-3 h-3" /> {t('assignments.graded')}
       </span>
     );
   }
   if (status === 'MISSING') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
-        <AlertCircle className="w-3 h-3" /> Manquant
+        <AlertCircle className="w-3 h-3" /> {t('assignments.missing')}
       </span>
     );
   }
@@ -79,6 +80,7 @@ function StatusBadge({ status }: { status: string | undefined }) {
 }
 
 export default function Assignments() {
+  const { t } = useTranslation();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
@@ -99,9 +101,9 @@ export default function Assignments() {
         setAssignments(a);
         setSubmissions(s);
       })
-      .catch(() => showToast('Impossible de charger les données.', 'error'))
+      .catch(() => showToast(t('assignments.loadError'), 'error'))
       .finally(() => setLoading(false));
-  }, [showToast]);
+  }, [showToast, t]);
 
   const submissionByAssignment = Object.fromEntries(submissions.map((s) => [s.assignment, s]));
 
@@ -135,18 +137,18 @@ export default function Assignments() {
               onClick={() => setSelectedCourseId(null)}
               className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors mb-6 cursor-pointer bg-transparent border-none"
             >
-              <ArrowLeft className="w-4 h-4" /> Tous les cours
+              <ArrowLeft className="w-4 h-4" /> {t('assignments.allCourses')}
             </button>
 
             <h1 className="text-2xl font-bold mb-1">{selectedEnrollment.course_title}</h1>
             <p className="text-slate-500 mb-8 text-sm">
-              {courseAssignments.length} devoir{courseAssignments.length !== 1 ? 's' : ''}
+              {t('assignments.countAssignments', { count: courseAssignments.length })}
             </p>
 
             {courseAssignments.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
                 <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">Aucun devoir pour ce cours.</p>
+                <p className="text-slate-500 font-medium">{t('assignments.noAssignmentsForCourse')}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -177,37 +179,37 @@ export default function Assignments() {
                           </span>
                           {sub?.is_late && submitted && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                              <Clock size={10} /> En retard
+                              <Clock size={10} /> {t('assignments.late')}
                             </span>
                           )}
                         </div>
 
                         <div className="flex items-center gap-4 mt-1 text-xs text-slate-400 flex-wrap">
                           <span className={overdue ? 'text-red-500 font-semibold' : ''}>
-                            {overdue ? '⚠ ' : ''}Rendu :{' '}
+                            {overdue ? '⚠ ' : ''}{t('assignments.dueLabel')}{' '}
                             {new Date(a.due_date).toLocaleDateString('fr-FR', {
                               day: 'numeric',
                               month: 'short',
                               year: 'numeric',
                             })}
                           </span>
-                          <span>{a.points} pts</span>
+                          <span>{a.points} {t('assignments.points')}</span>
                           {!sub && overdue && (
-                            <span className="text-red-500 font-semibold">En retard</span>
+                            <span className="text-red-500 font-semibold">{t('assignments.late')}</span>
                           )}
                           {submitted && (
                             <span className="text-blue-600 font-semibold">
-                              Soumis — en attente de correction
+                              {t('assignments.submittedPending')}
                             </span>
                           )}
                           {gradedPending && (
                             <span className="text-amber-600 font-semibold">
-                              Note : {sub.grade} / {a.points} — publication en attente
+                              {t('assignments.gradePending', { grade: sub.grade, points: a.points })}
                             </span>
                           )}
                           {published && (
                             <span className="text-green-600 font-semibold">
-                              Note : {sub.grade} / {a.points}
+                              {t('assignments.gradePublished', { grade: sub.grade, points: a.points })}
                             </span>
                           )}
                         </div>
@@ -215,7 +217,7 @@ export default function Assignments() {
                         {sub?.file_name && (
                           <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1 truncate">
                             <FileText size={11} className="text-slate-400 shrink-0" />
-                            {sub.file_name} — rendu le {formatDate(sub.submitted_at)}
+                            {sub.file_name} — {t('assignments.submittedOn', { date: formatDate(sub.submitted_at) })}
                           </p>
                         )}
                         {published && sub?.feedback && (
@@ -224,13 +226,13 @@ export default function Assignments() {
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <StatusBadge status={sub?.status} />
+                        <StatusBadge status={sub?.status} t={t} />
                         {!sub && (
                           <Link
                             to={`/assignments/${a.id}/submit`}
                             className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors"
                           >
-                            Rendre
+                            {t('assignments.submit')}
                           </Link>
                         )}
                         {sub && !sub.is_published && (
@@ -238,7 +240,7 @@ export default function Assignments() {
                             to={`/assignments/${a.id}/submit`}
                             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
                           >
-                            <Pencil size={13} /> Modifier
+                            <Pencil size={13} /> {t('common.edit')}
                           </Link>
                         )}
                         {sub && (
@@ -246,7 +248,7 @@ export default function Assignments() {
                             onClick={() => setDetail(sub)}
                             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer bg-transparent border-none"
                           >
-                            <Eye size={13} /> Voir
+                            <Eye size={13} /> {t('grades.view')}
                           </button>
                         )}
                       </div>
@@ -268,8 +270,8 @@ export default function Assignments() {
       <main className="flex-1 ml-64">
         <Header />
         <div className="p-8 mx-auto">
-          <h1 className="text-3xl font-bold mb-1">Devoirs</h1>
-          <p className="text-slate-500 mb-8">Sélectionnez un cours pour voir ses devoirs.</p>
+          <h1 className="text-3xl font-bold mb-1">{t('assignments.title')}</h1>
+          <p className="text-slate-500 mb-8">{t('assignments.selectCourse')}</p>
 
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -283,12 +285,12 @@ export default function Assignments() {
           ) : enrollments.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
               <BookOpen className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">Vous n'êtes inscrit à aucun cours.</p>
+              <p className="text-slate-500 font-medium">{t('assignments.noEnrollments')}</p>
               <Link
                 to="/catalog"
                 className="mt-4 inline-block text-sm font-bold text-blue-600 hover:text-blue-700"
               >
-                Parcourir le catalogue →
+                {t('assignments.browseCatalog')} →
               </Link>
             </div>
           ) : (
@@ -316,8 +318,8 @@ export default function Assignments() {
 
                     <p className="text-sm text-slate-500 mb-4">
                       {total === 0
-                        ? 'Aucun devoir'
-                        : `${done} / ${total} devoir${total > 1 ? 's' : ''} rendu${done > 1 ? 's' : ''}`}
+                        ? t('assignments.noAssignments')
+                        : t('assignments.progressText', { done, total })}
                     </p>
 
                     {total > 0 && (
@@ -334,17 +336,17 @@ export default function Assignments() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {done > 0 && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                          <CheckCircle2 className="w-3 h-3" /> {done} rendu{done > 1 ? 's' : ''}
+                          <CheckCircle2 className="w-3 h-3" /> {t('assignments.doneBadge', { count: done })}
                         </span>
                       )}
                       {overdue > 0 && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                          <AlertCircle className="w-3 h-3" /> {overdue} en retard
+                          <AlertCircle className="w-3 h-3" /> {t('assignments.overdueBadge', { count: overdue })}
                         </span>
                       )}
                       {total - done - overdue > 0 && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                          <Circle className="w-3 h-3" /> {total - done - overdue} à faire
+                          <Circle className="w-3 h-3" /> {t('assignments.todoBadge', { count: total - done - overdue })}
                         </span>
                       )}
                       {total === 0 && <span className="text-xs text-slate-400">—</span>}

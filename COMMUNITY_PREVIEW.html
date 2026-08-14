@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduStream - Page Communauté Améliorée</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        .hover\:scale-105:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
+    <div class="flex min-h-screen font-sans text-slate-900">
+        <!-- Sidebar (Simulation) -->
+        <aside class="w-64 bg-slate-900 text-white p-6 hidden md:block">
+            <div class="text-xl font-bold mb-8">EduStream</div>
+            <nav class="space-y-2">
+                <div class="px-4 py-2 hover:bg-slate-800 rounded cursor-pointer">Dashboard</div>
+                <div class="px-4 py-2 bg-blue-600 rounded cursor-pointer">Communauté</div>
+                <div class="px-4 py-2 hover:bg-slate-800 rounded cursor-pointer">Cours</div>
+                <div class="px-4 py-2 hover:bg-slate-800 rounded cursor-pointer">Groupes</div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1">
+            <!-- Header (Simulation) -->
+            <header class="bg-white border-b border-slate-200 p-6">
+                <div class="flex justify-between items-center max-w-7xl mx-auto">
+                    <h1 class="text-xl font-semibold">EduStream</h1>
+                    <div class="flex gap-4 items-center">
+                        <span class="text-sm text-slate-600">👤 Utilisateur</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="p-8 max-w-7xl mx-auto space-y-8">
+                <!-- Hero Header -->
+                <div class="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl shadow-lg p-8 text-white">
+                    <h1 class="text-4xl font-bold mb-2">Communauté Éducative</h1>
+                    <p class="text-blue-100">Connectez-vous avec d'autres apprenants, partagez vos connaissances et collaborez</p>
+                </div>
+
+                <!-- Search & Action Buttons -->
+                <div class="space-y-4">
+                    <div class="relative">
+                        <input
+                            type="text"
+                            placeholder="🔍 Rechercher des discussions, groupes..."
+                            class="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
+                        />
+                    </div>
+
+                    <div class="flex gap-3 flex-wrap">
+                        <button class="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200">
+                            <span>+</span>
+                            Nouveau Post
+                        </button>
+                        <button class="inline-flex items-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200">
+                            <span>+</span>
+                            Nouveau Groupe
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Bar -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                        <p class="text-slate-600 text-sm font-medium">Discussions</p>
+                        <p class="text-2xl font-bold text-blue-600 mt-1">24</p>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                        <p class="text-slate-600 text-sm font-medium">Groupes Actifs</p>
+                        <p class="text-2xl font-bold text-emerald-600 mt-1">8</p>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                        <p class="text-slate-600 text-sm font-medium">Total Membres</p>
+                        <p class="text-2xl font-bold text-purple-600 mt-1">156</p>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="flex gap-2 border-b border-slate-200">
+                    <button class="px-4 py-3 font-semibold text-sm text-blue-600 border-b-2 border-blue-600">
+                        Tout
+                    </button>
+                    <button class="px-4 py-3 font-semibold text-sm text-slate-600 border-b-2 border-transparent hover:text-slate-900">
+                        Mes Groupes
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    <!-- Discussions Section -->
+                    <section class="xl:col-span-2">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-2xl font-bold text-slate-900">📢 Discussions</h2>
+                            <span class="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">3</span>
+                        </div>
+                        <div class="space-y-4">
+                            <!-- Discussion Card 1 -->
+                            <article class="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-lg hover:border-blue-300 transition-all duration-200 cursor-pointer group">
+                                <div class="flex items-start gap-4">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                        C
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Comment maîtriser React Hooks ?</h3>
+                                        <p class="text-sm text-slate-600 mt-2">J'aimerais comprendre les hooks React en profondeur. Quelqu'un peut m'expliquer comment utiliser useState et useEffect correctement ?</p>
+                                        <div class="flex items-center gap-3 mt-3 flex-wrap">
+                                            <span class="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Développement</span>
+                                            <span class="text-xs text-slate-500">❤️ 12 likes</span>
+                                            <span class="text-xs text-slate-400">•</span>
+                                            <span class="text-xs text-slate-500">💬 24 commentaires</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <!-- Discussion Card 2 -->
+                            <article class="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-lg hover:border-blue-300 transition-all duration-200 cursor-pointer group">
+                                <div class="flex items-start gap-4">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                        M
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Meillures pratiques pour le responsive design</h3>
+                                        <p class="text-sm text-slate-600 mt-2">Quels sont les meilleurs outils et méthodologies pour concevoir des sites responsive efficacement ?</p>
+                                        <div class="flex items-center gap-3 mt-3 flex-wrap">
+                                            <span class="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Design</span>
+                                            <span class="text-xs text-slate-500">❤️ 8 likes</span>
+                                            <span class="text-xs text-slate-400">•</span>
+                                            <span class="text-xs text-slate-500">💬 15 commentaires</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <!-- Discussion Card 3 -->
+                            <article class="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-lg hover:border-blue-300 transition-all duration-200 cursor-pointer group">
+                                <div class="flex items-start gap-4">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                        A
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Authentification OAuth avec TypeScript</h3>
+                                        <p class="text-sm text-slate-600 mt-2">Je travaille sur l'implémentation d'OAuth dans un projet TypeScript. Comment gérer les tokens et les sessions ?</p>
+                                        <div class="flex items-center gap-3 mt-3 flex-wrap">
+                                            <span class="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Sécurité</span>
+                                            <span class="text-xs text-slate-500">❤️ 5 likes</span>
+                                            <span class="text-xs text-slate-400">•</span>
+                                            <span class="text-xs text-slate-500">💬 8 commentaires</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+
+                    <!-- Study Groups Section -->
+                    <section class="xl:col-span-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-2xl font-bold text-slate-900">👥 Groupes</h2>
+                            <span class="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">8</span>
+                        </div>
+                        <div class="space-y-4 max-h-96 overflow-y-auto pr-2">
+                            <!-- Group Card 1 -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-lg hover:border-emerald-300 transition-all duration-200 cursor-pointer group">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                        R
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">React Developers</h3>
+                                        <p class="text-xs text-slate-600 mt-1">Groupe pour les développeurs React, partage de ressources et d'expériences</p>
+                                        <div class="flex items-center justify-between mt-3">
+                                            <span class="text-xs text-slate-500">👥 42 membres</span>
+                                            <button class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors">
+                                                Voir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Group Card 2 -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-lg hover:border-emerald-300 transition-all duration-200 cursor-pointer group">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                        P
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">Python Study Group</h3>
+                                        <p class="text-xs text-slate-600 mt-1">Apprentissage collectif de Python, de la base aux concepts avancés</p>
+                                        <div class="flex items-center justify-between mt-3">
+                                            <span class="text-xs text-slate-500">👥 28 membres</span>
+                                            <button class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors">
+                                                Voir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Group Card 3 -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-lg hover:border-emerald-300 transition-all duration-200 cursor-pointer group">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                        W
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">Web Design Pioneers</h3>
+                                        <p class="text-xs text-slate-600 mt-1">Échange sur les dernières tendances du design web et UX/UI</p>
+                                        <div class="flex items-center justify-between mt-3">
+                                            <span class="text-xs text-slate-500">👥 35 membres</span>
+                                            <button class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors">
+                                                Voir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Group Card 4 -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-lg hover:border-emerald-300 transition-all duration-200 cursor-pointer group">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                        J
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">Java & Spring Boot</h3>
+                                        <p class="text-xs text-slate-600 mt-1">Pour les développeurs Java, frameworks et bonnes pratiques</p>
+                                        <div class="flex items-center justify-between mt-3">
+                                            <span class="text-xs text-slate-500">👥 19 membres</span>
+                                            <button class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors">
+                                                Voir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Info Box -->
+    <div class="fixed bottom-6 right-6 bg-white shadow-xl rounded-lg p-4 max-w-sm">
+        <h3 class="font-bold text-slate-900 mb-2">✨ Améliorations Appliquées</h3>
+        <ul class="text-sm text-slate-600 space-y-1">
+            <li>✅ Design moderne avec gradients</li>
+            <li>✅ Barre de recherche en temps réel</li>
+            <li>✅ Cartes avec animations au survol</li>
+            <li>✅ Statistiques visuelles</li>
+            <li>✅ Onglets de navigation</li>
+            <li>✅ Meilleure organisation du contenu</li>
+        </ul>
+    </div>
+</body>
+</html>

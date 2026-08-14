@@ -4,6 +4,7 @@ import Pagination from '../../components/Pagination';
 import SubmissionDetailModal from '../../components/SubmissionDetailModal';
 import { LoadingState, EmptyState, ErrorState } from '../../components/states';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { learningService, type SubmissionItem } from '../../services/learningService';
 import { useToast } from '../../contexts/ToastContext';
 import { Eye, FileText } from 'lucide-react';
@@ -11,6 +12,7 @@ import { Eye, FileText } from 'lucide-react';
 const PAGE_SIZE = 5;
 
 export default function Grades() {
+  const { t } = useTranslation();
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
   const [page, setPage] = useState(1);
   const [detail, setDetail] = useState<SubmissionItem | null>(null);
@@ -63,8 +65,8 @@ export default function Grades() {
         <div className="p-8 max-w-6xl mx-auto">
           <div className="flex justify-between items-end mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Grades</h1>
-              <p className="text-sm text-slate-500 mt-1">{submissions.length} submission(s) · Average: {average || 0}</p>
+              <h1 className="text-2xl font-bold text-slate-900">{t('grades.title')}</h1>
+              <p className="text-sm text-slate-500 mt-1">{t('grades.subtitle', { count: submissions.length, average: average || 0 })}</p>
             </div>
           </div>
 
@@ -72,24 +74,24 @@ export default function Grades() {
             <LoadingState rows={4} />
           ) : error ? (
             <ErrorState
-              title="Impossible de charger les notes"
-              description="Vérifiez votre connexion puis réessayez."
+              title={t('grades.loadError')}
+              description={t('grades.retryHint')}
               onRetry={load}
             />
           ) : sorted.length === 0 ? (
             <EmptyState
               icon={FileText}
-              title={hasUnpublished ? 'Vos notes ne sont pas encore publiées.' : 'Aucune note publiée pour le moment.'}
+              title={hasUnpublished ? t('grades.notPublished') : t('grades.noGrades')}
             />
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500 tracking-wide">
                   <tr>
-                    <th className="px-6 py-4">Submission</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Grade</th>
-                    <th className="px-6 py-4">Submitted At</th>
+                    <th className="px-6 py-4">{t('grades.submission')}</th>
+                    <th className="px-6 py-4">{t('grades.status')}</th>
+                    <th className="px-6 py-4">{t('grades.score')}</th>
+                    <th className="px-6 py-4">{t('grades.submittedAt')}</th>
                     <th className="px-6 py-4"></th>
                   </tr>
                 </thead>
@@ -98,7 +100,7 @@ export default function Grades() {
                     <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-medium text-sm text-slate-900">{s.assignment_title || s.assignment}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{s.course_title || 'Course'}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{s.course_title || t('grades.course')}</div>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{s.status}</td>
                       <td className="px-6 py-4 text-sm font-medium text-slate-700">{s.grade ?? '-'}</td>
@@ -108,7 +110,7 @@ export default function Grades() {
                           onClick={() => setDetail(s)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer bg-transparent border-none"
                         >
-                          <Eye size={13} /> Voir
+                          <Eye size={13} /> {t('grades.view')}
                         </button>
                       </td>
                     </tr>

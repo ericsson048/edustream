@@ -152,7 +152,7 @@ export default function DocumentPreviewUrl({
           </div>
         </div>
 
-        <div className="flex-1 bg-slate-100 p-1 relative overflow-hidden">
+        <div className="flex-1 bg-slate-100 p-1 relative overflow-y-auto">
           {loading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/75">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -161,7 +161,7 @@ export default function DocumentPreviewUrl({
           )}
 
           {error && (
-            <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+            <div className="flex flex-col items-center justify-center min-h-96 p-6 text-center">
               <FileX2 className="w-14 h-14 text-red-500" />
               <p className="mt-4 text-slate-600">{error}</p>
               <button
@@ -174,27 +174,27 @@ export default function DocumentPreviewUrl({
           )}
 
           {isPdf && !error && (
-            <div className="h-full">
+            <div className="min-h-full bg-white">
               <Worker workerUrl={workerUrl}>
                 <Viewer fileUrl={documentUrl} plugins={[defaultLayoutPluginInstance]} />
               </Worker>
             </div>
           )}
 
-          {isDoc && !error && <div ref={docxContainerRef} />}
+          {isDoc && !error && <div ref={docxContainerRef} className="p-4 bg-white min-h-full" />}
 
           {isExcel && !error && (
-            <div className="h-full overflow-auto">
+            <div className="bg-white">
               <ExcelPreview fileUrl={documentUrl} />
             </div>
           )}
 
           {isImage && !error && (
-            <div className="flex items-center justify-center bg-white rounded shadow p-4 min-h-[400px] h-full">
+            <div className="flex items-center justify-center bg-white p-8 min-h-full">
               <img
                 src={documentUrl}
                 alt={documentName}
-                className="max-w-full max-h-full object-contain rounded"
+                className="max-w-full max-h-[70vh] object-contain rounded shadow"
                 onLoad={() => setLoading(false)}
                 onError={() => {
                   setLoading(false);

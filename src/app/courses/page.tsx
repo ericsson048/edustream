@@ -3,6 +3,7 @@ import Header from '../../components/Header';
 import { PlayCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { courseService } from '../../services/courseService';
 import type { Course, Enrollment } from '../../types/lms';
 import { useToast } from '../../contexts/ToastContext';
@@ -16,6 +17,7 @@ function getFirstLessonPath(course?: Course) {
 }
 
 export default function MyCourses() {
+  const { t } = useTranslation();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [coursesMap, setCoursesMap] = useState<Record<string, Course>>({});
   const { showToast } = useToast();
@@ -30,12 +32,11 @@ export default function MyCourses() {
         setEnrollments(myEnrollments);
         setCoursesMap(Object.fromEntries(allCourses.map((course) => [course.id, course])));
       } catch {
-        const message = 'Impossible de charger vos cours.';
-        showToast(message, 'error');
+        showToast(t('myCourses.loadError'), 'error');
       }
     }
     load();
-  }, [showToast]);
+  }, [showToast, t]);
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -45,8 +46,8 @@ export default function MyCourses() {
         <div className="p-8 max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">My Learning Journey</h1>
-              <p className="text-slate-500 mt-1">Continue where you left off.</p>
+              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t('myCourses.heroTitle')}</h1>
+              <p className="text-slate-500 mt-1">{t('myCourses.heroSubtitle')}</p>
             </div>
           </div>
 
@@ -66,10 +67,10 @@ export default function MyCourses() {
                     <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
                       {course?.title || enrollment.course_title}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-2">{course?.instructor_name || 'Instructor'}</p>
+                    <p className="text-xs text-slate-500 mt-2">{course?.instructor_name || t('course.instructor')}</p>
                     <div className="mt-auto pt-4">
                       <Link to={getFirstLessonPath(course)} className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
-                        Continue Learning
+                        {t('dashboard.continueLearning')}
                         <PlayCircle className="w-4 h-4" />
                       </Link>
                     </div>

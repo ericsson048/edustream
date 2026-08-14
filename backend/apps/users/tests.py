@@ -1,13 +1,24 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from .models import PasswordResetCode
+
 User = get_user_model()
 
 
+@override_settings(REST_FRAMEWORK={"DEFAULT_THROTTLE_CLASSES": []})
 class AuthTests(APITestCase):
     def setUp(self):
+        from apps.users import views
+
+        views.ForgotPasswordView.throttle_classes = []
+        views.ResetPasswordView.throttle_classes = []
+
         self.register_url = reverse("register")
         self.login_url = reverse("token_obtain_pair")
         self.me_url = reverse("me")
@@ -89,6 +100,35 @@ class AuthTests(APITestCase):
     def test_forgot_password(self):
         response = self.client.post(self.forgot_password_url, {"email": "student@test.com"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(PasswordResetCode.objects.filter(user=self.student_user).exists())
+
+    @patch("apps.users.views.PasswordResetCode.generate_code", return_value="123456")
+    def test_forgot_and_reset_password_with_otp(self, _mock):
+        self.client.post(self.forgot_password_url, {"email": "student@test.com"})
+        code = PasswordResetCode.objects.get(user=self.student_user)
+        self.assertTrue(code.is_valid("123456"))
+
+        reset_url = reverse("reset-password")
+        response = self.client.post(
+            reset_url,
+            {"email": "student@test.com", "otp": "999999", "new_password": "newpassword456"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        code.refresh_from_db()
+        self.assertEqual(code.attempts, 1)
+
+        response = self.client.post(
+            reset_url,
+            {"email": "student@test.com", "otp": "123456", "new_password": "newpassword456"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.student_user.refresh_from_db()
+        self.assertTrue(self.student_user.check_password("newpassword456"))
+        self.assertFalse(PasswordResetCode.objects.filter(user=self.student_user).exists())
+
+    def test_reset_password_without_email(self):
+        response = self.client.post(reverse("reset-password"), {"otp": "123456", "new_password": "newpassword456"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_public_stats(self):
         response = self.client.get(self.public_stats_url)

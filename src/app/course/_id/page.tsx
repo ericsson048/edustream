@@ -3,12 +3,14 @@ import Sidebar from '../../../components/Sidebar';
 import { Star, Clock, Users, PlayCircle, CheckCircle, FileText, Award } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { courseService } from '../../../services/courseService';
 import { authService } from '../../../services/authService';
 import type { Course, CourseReview, Enrollment } from '../../../types/lms';
 import type { AuthUser } from '../../../types/auth';
 
 export default function CourseDetails() {
+  const { t } = useTranslation();
   const { id = '' } = useParams();
   const [course, setCourse] = useState<Course | null>(null);
   const [instructor, setInstructor] = useState<AuthUser | null>(null);
@@ -26,7 +28,7 @@ export default function CourseDetails() {
       if (courseItem.instructor) {
         authService.getUser(courseItem.instructor).then(setInstructor).catch(() => {});
       }
-    }).catch(() => setError('Cours introuvable ou inaccessible.'));
+    }).catch(() => setError(t('course.notFound')));
 
     courseService.listEnrollments({ course: id, is_active: true }).then((enrollments) => {
       setEnrollment(enrollments[0] || null);
@@ -42,27 +44,27 @@ export default function CourseDetails() {
   }
 
   if (!course) {
-    return <div className="min-h-screen grid place-items-center text-slate-500">Loading...</div>;
+    return <div className="min-h-screen grid place-items-center text-slate-500">{t('common.loading')}</div>;
   }
 
   const firstModule = (course.modules || []).find((module) => (module.lessons || []).length > 0);
   const firstLesson = firstModule?.lessons?.[0];
   const ctaHref = enrollment && firstLesson ? `/player/${course.id}/${firstLesson.id}` : `/checkout/${course.id}`;
-  const ctaLabel = enrollment ? 'Start Learning' : 'Enroll Now';
+  const ctaLabel = enrollment ? t('course.startCourse') : t('course.enroll');
   const learningItems = (course.learning_objectives || []).length
     ? course.learning_objectives || []
     : [
-        'Build practical skills with guided lessons',
-        'Understand concepts through real-world examples',
-        'Follow a structured and scalable learning path',
-        'Apply best practices used in production teams',
+        t('course.learn1'),
+        t('course.learn2'),
+        t('course.learn3'),
+        t('course.learn4'),
       ];
 
   const totalMinutes = (course.modules || []).reduce((sum, mod) => sum + (mod.estimated_minutes || 0), 0);
   const durationDisplay = course.estimated_hours
-    ? `${course.estimated_hours}h total`
+    ? t('course.hoursTotal', { hours: course.estimated_hours })
     : totalMinutes > 0
-      ? `${Math.round(totalMinutes / 60)}h total`
+      ? t('course.hoursTotal', { hours: Math.round(totalMinutes / 60) })
       : undefined;
 
   const instructorAvatar = instructor?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80';
@@ -75,14 +77,14 @@ export default function CourseDetails() {
 
         <div className="bg-slate-900 text-white py-16 px-8 relative overflow-hidden">
           <div className="absolute inset-0 opacity-20">
-            <img src={course.thumbnail || course.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=2000&q=80'} alt="Background" className="w-full h-full object-cover" />
+            <img src={course.thumbnail || course.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=2000&q=80'} alt={t('course.backgroundAlt')} className="w-full h-full object-cover" />
           </div>
           <div className="max-w-5xl mx-auto relative z-10 flex flex-col md:flex-row gap-8 items-center">
             <div className="flex-1">
                 <div className="flex items-center gap-2 text-blue-400 font-bold text-sm mb-4">
-                  <span className="bg-blue-500/20 px-2.5 py-1 rounded-md">{course.category || 'General'}</span>
+                  <span className="bg-blue-500/20 px-2.5 py-1 rounded-md">{course.category || t('course.general')}</span>
                   <span>·</span>
-                  <span>{course.level}</span>
+                  <span>{course.level === 'ALL' ? t('catalog.allLevels') : t(`catalog.levels.${course.level}`)}</span>
                   {course.tags && course.tags.length > 0 && (
                     <>
                       <span>·</span>
@@ -95,21 +97,21 @@ export default function CourseDetails() {
                   )}
                 </div>
               <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{course.title}</h1>
-              <p className="text-lg text-slate-300 mb-6 line-clamp-2">{course.description || 'Course description is being prepared.'}</p>
+              <p className="text-lg text-slate-300 mb-6 line-clamp-2">{course.description || t('course.descriptionPlaceholder')}</p>
 
               <div className="flex flex-wrap items-center gap-6 text-sm text-slate-300 mb-8">
                 <div className="flex items-center gap-1 text-amber-400 font-bold">
-                  <Star className="w-5 h-5 fill-current" /> Featured
+                  <Star className="w-5 h-5 fill-current" /> {t('course.featured')}
                 </div>
-                <div className="flex items-center gap-2"><Users className="w-5 h-5" /> {studentCount > 0 ? `${studentCount.toLocaleString()} student${studentCount !== 1 ? 's' : ''}` : 'Enroll now'}</div>
+                <div className="flex items-center gap-2"><Users className="w-5 h-5" /> {studentCount > 0 ? t('course.studentsEnrolled', { count: studentCount }) : t('course.enroll')}</div>
                 {durationDisplay && <div className="flex items-center gap-2"><Clock className="w-5 h-5" /> {durationDisplay}</div>}
               </div>
 
               <div className="flex items-center gap-4">
-                <img src={instructorAvatar} alt={course.instructor_name || 'Instructor'} className="w-12 h-12 rounded-full border-2 border-slate-700" />
+                <img src={instructorAvatar} alt={course.instructor_name || t('course.instructor')} className="w-12 h-12 rounded-full border-2 border-slate-700" />
                 <div>
-                  <p className="text-sm text-slate-400">Created by</p>
-                  <p className="font-bold">{course.instructor_name || instructor?.full_name || 'Instructor'}</p>
+                  <p className="text-sm text-slate-400">{t('course.createdBy')}</p>
+                  <p className="font-bold">{course.instructor_name || instructor?.full_name || t('course.instructor')}</p>
                 </div>
               </div>
             </div>
@@ -119,12 +121,12 @@ export default function CourseDetails() {
               <Link to={ctaHref} className="block w-full py-3 px-4 bg-blue-600 text-white text-center font-bold rounded-xl hover:bg-blue-700 transition-colors mb-4 shadow-sm">
                 {ctaLabel}
               </Link>
-              <p className="text-xs text-center text-slate-500 mb-6">30-Day Money-Back Guarantee</p>
+              <p className="text-xs text-center text-slate-500 mb-6">{t('course.moneyBackGuarantee')}</p>
 
               <div className="space-y-3 text-sm font-medium text-slate-700">
-                <div className="flex items-center gap-3"><PlayCircle className="w-5 h-5 text-blue-600" /> On-demand video</div>
-                <div className="flex items-center gap-3"><FileText className="w-5 h-5 text-blue-600" /> Downloadable resources</div>
-                <div className="flex items-center gap-3"><Award className="w-5 h-5 text-blue-600" /> Certificate of completion</div>
+                <div className="flex items-center gap-3"><PlayCircle className="w-5 h-5 text-blue-600" /> {t('course.onDemandVideo')}</div>
+                <div className="flex items-center gap-3"><FileText className="w-5 h-5 text-blue-600" /> {t('course.downloadableResources')}</div>
+                <div className="flex items-center gap-3"><Award className="w-5 h-5 text-blue-600" /> {t('course.certificateOfCompletion')}</div>
               </div>
             </div>
           </div>
@@ -133,7 +135,7 @@ export default function CourseDetails() {
         <div className="max-w-5xl mx-auto px-8 py-12 grid grid-cols-1 lg:grid-cols-3 gap-12">
           <div className="lg:col-span-2 space-y-12">
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-              <h2 className="text-2xl font-bold mb-6">What you'll learn</h2>
+              <h2 className="text-2xl font-bold mb-6">{t('course.whatYouWillLearn')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {learningItems.map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
@@ -145,17 +147,17 @@ export default function CourseDetails() {
             </div>
 
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-              <h2 className="text-2xl font-bold mb-6">Course Content</h2>
+              <h2 className="text-2xl font-bold mb-6">{t('course.content')}</h2>
               <div className="space-y-4">
                 {(course.modules || []).map((module) => (
                   <div key={module.id} className="rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <h3 className="font-bold text-slate-900">{module.title}</h3>
-                        <p className="text-sm text-slate-500 mt-1">{module.description || 'Module in progress.'}</p>
+                        <p className="text-sm text-slate-500 mt-1">{module.description || t('course.moduleInProgress')}</p>
                       </div>
                       <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                        {(module.lessons || []).length} lesson(s)
+                        {t('course.lessonsCount', { count: (module.lessons || []).length })}
                       </span>
                     </div>
                   </div>
@@ -165,10 +167,10 @@ export default function CourseDetails() {
 
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
               <h2 className="text-2xl font-bold mb-6">
-                Student Reviews ({reviews.length})
+                {t('course.studentReviews', { count: reviews.length })}
               </h2>
               {reviews.length === 0 ? (
-                <p className="text-sm text-slate-500">No reviews yet. Be the first to review this course!</p>
+                <p className="text-sm text-slate-500">{t('course.noReviewsYet')}</p>
               ) : (
                 <div className="space-y-6">
                   {reviews.map((review) => (

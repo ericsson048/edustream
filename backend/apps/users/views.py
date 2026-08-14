@@ -1,9 +1,11 @@
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
+from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -12,6 +14,7 @@ from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .emailing import send_template_email
+from .models import PasswordResetCode
 from .serializers import PublicUserSerializer, RegisterSerializer, UserSerializer
 
 User = get_user_model()
@@ -151,33 +154,42 @@ class ForgotPasswordView(APIView):
         email = request.data.get("email", "").strip().lower()
         user = User.objects.filter(email__iexact=email, is_active=True).first()
         if user:
-            token = default_token_generator.make_token(user)
-            reset_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/reset-password/{user.pk}/{token}"
-            subject = "Réinitialisation de votre mot de passe EduStream"
+            code = PasswordResetCode.generate_code()
+            expires_at = timezone.now() + timedelta(minutes=PasswordResetCode.CODE_VALIDITY_MINUTES)
+            PasswordResetCode.objects.update_or_create(
+                user=user,
+                defaults={
+                    "otp_hash": PasswordResetCode.hash_code(code),
+                    "expires_at": expires_at,
+                    "attempts": 0,
+                    "used": False,
+                },
+            )
+            subject = "Votre code de réinitialisation EduStream"
             plain_text = (
                 f"Bonjour {user.full_name or user.email},\n\n"
                 f"Vous avez demandé la réinitialisation de votre mot de passe.\n"
-                f"Cliquez sur le lien suivant pour choisir un nouveau mot de passe :\n"
-                f"{reset_url}\n\n"
-                f"Ce lien est valable pendant 3 jours. Si vous n'êtes pas à l'origine de "
-                f"cette demande, ignorez simplement cet email.\n\n"
+                f"Votre code de vérification est :\n\n"
+                f"    {code}\n\n"
+                f"Ce code expire dans {PasswordResetCode.CODE_VALIDITY_MINUTES} minutes. "
+                f"Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email.\n\n"
                 f"L'équipe EduStream"
             )
             html_text = (
                 "<p>Bonjour <strong>%s</strong>,</p>"
                 "<p>Vous avez demandé la réinitialisation de votre mot de passe.</p>"
-                '<p><a href="%s" style="background:#2563eb;color:#fff;padding:10px 18px;'
-                'border-radius:8px;text-decoration:none;display:inline-block">'
-                "Réinitialiser mon mot de passe</a></p>"
-                "<p>Ce lien est valable pendant 3 jours. Si vous n'êtes pas à l'origine de "
-                "cette demande, ignorez simplement cet email.</p>"
+                "<p>Votre code de vérification est :</p>"
+                '<p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;'
+                'margin:16px 0;color:#2563eb">%s</p>'
+                "<p>Ce code expire dans %d minutes. Si vous n'êtes pas à l'origine de cette demande, "
+                "ignorez simplement cet email.</p>"
                 "<p>L'équipe EduStream</p>"
-            ) % (user.full_name or user.email, reset_url)
+            ) % (user.full_name or user.email, code, PasswordResetCode.CODE_VALIDITY_MINUTES)
             send_template_email(subject, user.email, plain_text, html_text)
-            logger.info("password_reset_requested email=%s", user.email)
+            logger.info("password_reset_otp_sent email=%s", user.email)
             if settings.DEBUG:
-                print(f"[FORGOT PASSWORD] Reset link for {user.email}: {reset_url}")
-        return Response({"detail": "If that email exists, a reset link has been sent."})
+                print(f"[FORGOT PASSWORD] OTP for {user.email}: {code}")
+        return Response({"detail": "If that email exists, a reset code has been sent."})
 
 
 class ResetPasswordView(APIView):
@@ -186,26 +198,33 @@ class ResetPasswordView(APIView):
     throttle_scope = "password_reset"
 
     def post(self, request):
-        user_id = request.data.get("user_id")
-        token = request.data.get("token")
+        email = request.data.get("email", "").strip().lower()
+        otp = request.data.get("otp", "").strip()
         new_password = request.data.get("new_password")
-        if not user_id or not token or not new_password:
+        if not email or not otp or not new_password:
             return Response(
-                {"detail": "user_id, token and new_password are required."},
+                {"detail": "email, otp and new_password are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             validate_password(new_password)
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        user = User.objects.filter(pk=user_id, is_active=True).first()
-        if not user or not default_token_generator.check_token(user, token):
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        code = getattr(user, "reset_code", None) if user else None
+        if not code or not code.is_valid(otp):
+            if code:
+                code.attempts += 1
+                code.save(update_fields=["attempts"])
             return Response(
-                {"detail": "Invalid or expired reset link."},
+                {"detail": "Invalid or expired reset code."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        code.used = True
+        code.save(update_fields=["used"])
         user.set_password(new_password)
         user.save(update_fields=["password"])
+        code.delete()
         logger.info("password_reset_completed email=%s", user.email)
         return Response({"detail": "Password reset successfully."})
 

@@ -1,5 +1,9 @@
+import hashlib
+import secrets
 import uuid
+from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
@@ -38,3 +42,37 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.full_name} <{self.email}>"
+
+
+class PasswordResetCode(models.Model):
+    """One-time 6-digit code used to reset a user's password."""
+
+    CODE_VALIDITY_MINUTES = 15
+    MAX_ATTEMPTS = 5
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reset_code",
+    )
+    otp_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @staticmethod
+    def generate_code():
+        return f"{secrets.randbelow(10**6):06d}"
+
+    @staticmethod
+    def hash_code(code):
+        return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+    def is_valid(self, code):
+        return (
+            not self.used
+            and self.expires_at > timezone.now()
+            and self.attempts < self.MAX_ATTEMPTS
+            and secrets.compare_digest(self.otp_hash, self.hash_code(code))
+        )
