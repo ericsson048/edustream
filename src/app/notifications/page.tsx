@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, CheckCheck, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Bell, BookOpen, CheckCheck, ClipboardList, BarChart3, MessageSquare, Radio, AlarmClock, Star, ShieldCheck, Megaphone, type LucideIcon } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
 import InstructorSidebar from '../../components/InstructorSidebar';
 import AdminSidebar from '../../components/AdminSidebar';
@@ -16,15 +16,15 @@ const roleTypeMap: Record<string, NotificationType[]> = {
   ADMIN: ['SYSTEM'],
 };
 
-const typeConfig: Record<NotificationType, { icon: string; color: string; bg: string }> = {
-  COURSE_UPDATE: { icon: '📚', color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
-  ASSIGNMENT: { icon: '📝', color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30' },
-  GRADE: { icon: '📊', color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
-  MESSAGE: { icon: '💬', color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
-  LIVE_SESSION: { icon: '🔴', color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-900/30' },
-  LIVE_REMINDER: { icon: '⏰', color: 'text-orange-600', bg: 'bg-orange-100 dark:bg-orange-900/30' },
-  SKILL_UNLOCK: { icon: '⭐', color: 'text-amber-500', bg: 'bg-amber-100 dark:bg-amber-900/30' },
-  SYSTEM: { icon: '🔔', color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
+const typeConfig: Record<NotificationType, { icon: LucideIcon; color: string; bg: string }> = {
+  COURSE_UPDATE: { icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+  ASSIGNMENT: { icon: ClipboardList, color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+  GRADE: { icon: BarChart3, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
+  MESSAGE: { icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
+  LIVE_SESSION: { icon: Radio, color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-900/30' },
+  LIVE_REMINDER: { icon: AlarmClock, color: 'text-orange-600', bg: 'bg-orange-100 dark:bg-orange-900/30' },
+  SKILL_UNLOCK: { icon: Star, color: 'text-amber-500', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+  SYSTEM: { icon: Bell, color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
 };
 
 const PAGE_SIZE = 20;

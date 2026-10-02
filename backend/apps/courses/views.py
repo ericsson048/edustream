@@ -1,6 +1,8 @@
 import uuid
+from datetime import datetime
 
 from django.db import transaction
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import permissions, status, viewsets
@@ -14,13 +16,18 @@ from django.conf import settings
 from django.db.models import Avg, Count
 
 from .models import (
+    AttendanceRecord,
     Category,
     Certificate,
     ContentBlock,
     Course,
+    CourseGrade,
+    CourseInvitation,
     CourseReview,
     CourseVersion,
     Enrollment,
+    Evaluation,
+    EvaluationGrade,
     LearningPath,
     Lesson,
     LessonComment,
@@ -31,6 +38,8 @@ from .models import (
     Resource,
     Section,
     Tag,
+    UniversitySession,
+    generate_invitation_code,
 )
 from .permissions import (
     IsAdminOrReadOnly,
@@ -41,13 +50,18 @@ from .permissions import (
     owns_learning_object,
 )
 from .serializers import (
+    AttendanceRecordSerializer,
     CategorySerializer,
     CertificateSerializer,
     ContentBlockSerializer,
+    CourseGradeSerializer,
+    CourseInvitationSerializer,
     CourseReviewSerializer,
     CourseSerializer,
     CourseVersionSerializer,
     EnrollmentSerializer,
+    EvaluationGradeSerializer,
+    EvaluationSerializer,
     LearningPathSerializer,
     LessonCommentSerializer,
     LessonSerializer,
@@ -58,6 +72,18 @@ from .serializers import (
     ResourceSerializer,
     SectionSerializer,
     TagSerializer,
+    UniversitySessionSerializer,
+)
+from .university import (
+    attendance_rate,
+    attendance_summary,
+    can_justify,
+    compute_average,
+    create_session_records,
+    effective_note,
+    eligible_evaluations,
+    recompute_course_grades,
+    update_course_grade,
 )
 
 
@@ -244,6 +270,65 @@ class CourseViewSet(viewsets.ModelViewSet):
         enrollment.delete()
         return Response({"detail": "Student removed from the course."}, status=status.HTTP_200_OK)
 
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="invitations",
+        permission_classes=[IsInstructorOwnerOrAdmin],
+    )
+    def invitations(self, request, pk=None):
+        course = self.get_object()
+        if not is_admin(request.user) and course.instructor_id != request.user.id:
+            return Response(
+                {"detail": "You cannot manage this course's invitations."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if request.method == "GET":
+            qs = CourseInvitation.objects.filter(course=course).order_by("-created_at")
+            serializer = CourseInvitationSerializer(qs, many=True)
+            return Response({"count": qs.count(), "results": serializer.data})
+
+        serializer = CourseInvitationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        max_uses = serializer.validated_data.get("max_uses", 0)
+        expires_at = serializer.validated_data.get("expires_at")
+        if expires_at is None and course.end_date:
+            expires_at = timezone.make_aware(datetime.combine(course.end_date, datetime.min.time()))
+        invitation = CourseInvitation.objects.create(
+            course=course,
+            code=generate_invitation_code(),
+            max_uses=max_uses,
+            expires_at=expires_at,
+            created_by=request.user,
+        )
+        return Response(
+            CourseInvitationSerializer(invitation).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="invitations/revoke",
+        permission_classes=[IsInstructorOwnerOrAdmin],
+    )
+    def revoke_invitation(self, request, pk=None):
+        course = self.get_object()
+        if not is_admin(request.user) and course.instructor_id != request.user.id:
+            return Response(
+                {"detail": "You cannot manage this course's invitations."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        invitation_id = request.data.get("invitation_id")
+        if not invitation_id:
+            return Response({"detail": "invitation_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        invitation = CourseInvitation.objects.filter(id=invitation_id, course=course).first()
+        if not invitation:
+            return Response({"detail": "Invitation not found."}, status=status.HTTP_404_NOT_FOUND)
+        invitation.is_active = False
+        invitation.save(update_fields=["is_active"])
+        return Response({"detail": "Invitation révoquée."}, status=status.HTTP_200_OK)
+
 
 class ModuleViewSet(viewsets.ModelViewSet):
     queryset = Module.objects.select_related("course").all()
@@ -359,7 +444,10 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         if not course.is_published:
             raise PermissionDenied("This course is not available for enrollment.")
 
-        if course.price > 0:
+        invitation = None
+        if course.course_type == Course.CourseType.MARGINAL:
+            invitation = self._consume_invitation(course)
+        elif course.price > 0:
             from apps.billing.models import Transaction
             has_paid = Transaction.objects.filter(
                 student=self.request.user,
@@ -368,7 +456,28 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
             ).exists()
             if not has_paid:
                 raise PermissionDenied("You must purchase this course before enrolling.")
-        serializer.save(student=self.request.user)
+        serializer.save(student=self.request.user, invitation=invitation)
+
+    def _consume_invitation(self, course):
+        code = (self.request.data.get("invitation_code") or "").strip()
+        if not code:
+            raise PermissionDenied("Ce cours marginal requiert un code d'invitation.")
+        invitation = (
+            CourseInvitation.objects.filter(code__iexact=code, course=course, is_active=True)
+            .select_related("course")
+            .first()
+        )
+        if invitation is None:
+            raise PermissionDenied("Code d'invitation invalide pour ce cours.")
+        if invitation.expires_at and invitation.expires_at < timezone.now():
+            raise PermissionDenied("Cette invitation a expiré.")
+        if invitation.max_uses and invitation.used_count >= invitation.max_uses:
+            raise PermissionDenied("Cette invitation a atteint sa limite d'utilisations.")
+        if invitation.course.end_date and invitation.course.end_date < timezone.now().date():
+            raise PermissionDenied("La période de ce cours marginal est terminée.")
+        invitation.used_count += 1
+        invitation.save(update_fields=["used_count"])
+        return invitation
 
 
 class ProgressViewSet(viewsets.ModelViewSet):
@@ -876,3 +985,454 @@ class UploadImageView(APIView):
         if request.build_absolute_uri:
             url = request.build_absolute_uri(url)
         return Response({"url": url}, status=status.HTTP_201_CREATED)
+
+
+ALLOWED_ATTENDANCE_STATUSES = [
+    AttendanceRecord.Status.PRESENT,
+    AttendanceRecord.Status.LATE,
+    AttendanceRecord.Status.ABSENT,
+    AttendanceRecord.Status.EXCUSED,
+]
+
+
+class UniversitySessionViewSet(viewsets.ModelViewSet):
+    queryset = UniversitySession.objects.select_related("course", "created_by")
+    serializer_class = UniversitySessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["course", "session_type"]
+
+    def _owns_course(self, course):
+        return is_admin(self.request.user) or course.instructor_id == self.request.user.id
+
+    def get_queryset(self):
+        qs = self.queryset
+        if is_admin(self.request.user):
+            return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(course__instructor=self.request.user)
+        return qs.filter(course__enrollments__student=self.request.user, course__enrollments__is_active=True).distinct()
+
+    def perform_create(self, serializer):
+        course = serializer.validated_data["course"]
+        if not self._owns_course(course):
+            raise PermissionDenied("Vous ne pouvez pas planifier de séance pour ce cours.")
+        session = serializer.save(created_by=self.request.user)
+        create_session_records(session)
+
+    def perform_update(self, serializer):
+        if not self._owns_course(serializer.instance.course):
+            raise PermissionDenied("Vous ne pouvez pas modifier cette séance.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not self._owns_course(instance.course):
+            raise PermissionDenied("Vous ne pouvez pas supprimer cette séance.")
+        instance.delete()
+
+    @action(detail=True, methods=["get", "post"], url_path="attendance")
+    def attendance(self, request, pk=None):
+        session = self.get_object()
+        if request.method == "POST":
+            if not self._owns_course(session.course):
+                raise PermissionDenied("Réservé à l'enseignant du cours.")
+            payload = request.data.get("records") or []
+            if not isinstance(payload, list):
+                return Response({"detail": "records doit être une liste."}, status=status.HTTP_400_BAD_REQUEST)
+            updated = []
+            for item in payload:
+                student_id = item.get("student_id")
+                new_status = item.get("status")
+                if not student_id or new_status not in ALLOWED_ATTENDANCE_STATUSES:
+                    return Response(
+                        {"detail": f"Statut invalide pour {student_id}: {new_status}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                record = session.records.filter(student_id=student_id).first()
+                if record is None:
+                    continue
+                if record.status == AttendanceRecord.Status.EXCUSED and new_status != AttendanceRecord.Status.EXCUSED:
+                    new_status = AttendanceRecord.Status.EXCUSED
+                record.status = new_status
+                record.save(update_fields=["status", "updated_at"])
+                updated.append(record.id)
+            return Response({"updated": len(updated)})
+        records = session.records.select_related("student").all()
+        return Response(AttendanceRecordSerializer(records, many=True).data)
+
+
+class AttendanceRecordViewSet(viewsets.ModelViewSet):
+    queryset = AttendanceRecord.objects.select_related("session", "session__course", "student")
+    serializer_class = AttendanceRecordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["session", "student"]
+
+    def get_queryset(self):
+        qs = self.queryset
+        if is_admin(self.request.user):
+            return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(session__course__instructor=self.request.user)
+        return qs.filter(student=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        return Response({"detail": "Les fiches de présence sont créées lors de la planification des séances."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def update(self, request, *args, **kwargs):
+        return Response({"detail": "Utilisez l'action attendance de la séance."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        return Response({"detail": "Impossible de supprimer une fiche de présence."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @action(detail=True, methods=["post"], url_path="justify")
+    def justify(self, request, pk=None):
+        record = self.get_object()
+        if record.student_id != request.user.id:
+            raise PermissionDenied("Vous ne pouvez justifier que vos propres absences.")
+        if not can_justify(record):
+            return Response(
+                {"detail": "Justification impossible : délai de 48h dépassé ou absence non justifiable."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        justification = (request.data.get("justification") or "").strip()
+        if not justification:
+            return Response({"detail": "Une justification est requise."}, status=status.HTTP_400_BAD_REQUEST)
+        record.justification = justification
+        record.justification_status = AttendanceRecord.JustificationStatus.PENDING
+        record.justification_submitted_at = timezone.now()
+        record.save(
+            update_fields=["justification", "justification_status", "justification_submitted_at", "updated_at"]
+        )
+        return Response(AttendanceRecordSerializer(record, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], url_path="review")
+    def review(self, request, pk=None):
+        record = self.get_object()
+        if not is_admin(request.user) and record.session.course.instructor_id != request.user.id:
+            raise PermissionDenied("Réservé à l'enseignant du cours.")
+        decision = request.data.get("decision")
+        if decision not in {"APPROVE", "REJECT"}:
+            return Response({"detail": "decision doit être APPROVE ou REJECT."}, status=status.HTTP_400_BAD_REQUEST)
+        if record.justification_status != AttendanceRecord.JustificationStatus.PENDING:
+            return Response({"detail": "Aucune justification en attente."}, status=status.HTTP_400_BAD_REQUEST)
+        if decision == "APPROVE":
+            record.status = AttendanceRecord.Status.EXCUSED
+            record.justification_status = AttendanceRecord.JustificationStatus.APPROVED
+        else:
+            record.justification_status = AttendanceRecord.JustificationStatus.REJECTED
+        record.reviewed_by = request.user
+        record.reviewed_at = timezone.now()
+        record.save(
+            update_fields=["status", "justification_status", "reviewed_by", "reviewed_at", "updated_at"]
+        )
+        return Response(AttendanceRecordSerializer(record, context={"request": request}).data)
+
+
+class EvaluationViewSet(viewsets.ModelViewSet):
+    queryset = Evaluation.objects.select_related("course", "quiz", "assignment")
+    serializer_class = EvaluationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["course", "kind"]
+
+    def _owns_course(self, course):
+        return is_admin(self.request.user) or course.instructor_id == self.request.user.id
+
+    def get_queryset(self):
+        qs = self.queryset
+        if is_admin(self.request.user):
+            return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(course__instructor=self.request.user)
+        return qs.filter(course__enrollments__student=self.request.user, course__enrollments__is_active=True).distinct()
+
+    def perform_create(self, serializer):
+        course = serializer.validated_data["course"]
+        if not self._owns_course(course):
+            raise PermissionDenied("Vous ne pouvez pas ajouter d'évaluation pour ce cours.")
+        evaluation = serializer.save(created_by=self.request.user)
+        recompute_course_grades(course)
+
+    def perform_update(self, serializer):
+        if not self._owns_course(serializer.instance.course):
+            raise PermissionDenied("Vous ne pouvez pas modifier cette évaluation.")
+        evaluation = serializer.save()
+        recompute_course_grades(evaluation.course)
+
+    def perform_destroy(self, instance):
+        if not self._owns_course(instance.course):
+            raise PermissionDenied("Vous ne pouvez pas supprimer cette évaluation.")
+        course = instance.course
+        instance.delete()
+        recompute_course_grades(course)
+
+
+class EvaluationGradeViewSet(viewsets.ModelViewSet):
+    queryset = EvaluationGrade.objects.select_related("evaluation", "evaluation__course", "enrollment", "enrollment__student")
+    serializer_class = EvaluationGradeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["evaluation", "enrollment", "attempt"]
+
+    def get_queryset(self):
+        qs = self.queryset
+        if is_admin(self.request.user):
+            return qs
+        if self.request.user.role == "INSTRUCTOR":
+            return qs.filter(evaluation__course__instructor=self.request.user)
+        return qs.filter(enrollment__student=self.request.user)
+
+    def perform_create(self, serializer):
+        evaluation = serializer.validated_data["evaluation"]
+        enrollment = serializer.validated_data["enrollment"]
+        attempt = serializer.validated_data.get("attempt", 1)
+        if not is_admin(self.request.user) and evaluation.course.instructor_id != self.request.user.id:
+            raise PermissionDenied("Réservé à l'enseignant du cours.")
+        if enrollment.course_id != evaluation.course_id:
+            raise PermissionDenied("Cette inscription ne correspond pas au cours de l'évaluation.")
+        try:
+            instance = EvaluationGrade.objects.get(evaluation=evaluation, enrollment=enrollment, attempt=attempt)
+        except EvaluationGrade.DoesNotExist:
+            grade = serializer.save()
+        else:
+            grade = serializer.update(instance, serializer.validated_data)
+        update_course_grade(enrollment, grade.attempt)
+
+    def perform_update(self, serializer):
+        if not is_admin(self.request.user) and serializer.instance.evaluation.course.instructor_id != self.request.user.id:
+            raise PermissionDenied("Réservé à l'enseignant du cours.")
+        serializer.save()
+        update_course_grade(serializer.instance.enrollment, serializer.instance.attempt)
+
+
+class CourseGradeSummaryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, course_id):
+        try:
+            course = Course.objects.get(pk=course_id)
+        except Course.DoesNotExist:
+            return Response({"detail": "Cours introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        can_view_all = is_admin(request.user) or course.instructor_id == request.user.id
+        if can_view_all:
+            enrollments = (
+                course.enrollments.filter(is_active=True)
+                .select_related("student", "course")
+                .order_by("student__full_name")
+            )
+        else:
+            enrollments = course.enrollments.filter(student=request.user, is_active=True)
+            if not enrollments.exists():
+                raise PermissionDenied("Vous n'êtes pas inscrit à ce cours.")
+
+        students = []
+        for enrollment in enrollments:
+            update_course_grade(enrollment, 1)
+            grade_1 = CourseGrade.objects.filter(enrollment=enrollment, attempt=1).first()
+            grade_2 = CourseGrade.objects.filter(enrollment=enrollment, attempt=2).first()
+            evaluations = []
+            for item in eligible_evaluations(enrollment, 1):
+                evaluation = item["evaluation"]
+                evaluations.append(
+                    {
+                        "id": evaluation.id,
+                        "title": evaluation.title,
+                        "kind": evaluation.kind,
+                        "coefficient": float(evaluation.coefficient or 1),
+                        "note": item["note"],
+                    }
+                )
+            students.append(
+                {
+                    "enrollment_id": enrollment.id,
+                    "student_id": enrollment.student_id,
+                    "student_name": enrollment.student.full_name,
+                    "student_email": enrollment.student.email,
+                    "attendance": attendance_summary(enrollment),
+                    "attendance_rate": attendance_rate(enrollment),
+                    "session_1": {
+                        "average": float(grade_1.average) if grade_1 and grade_1.average is not None else None,
+                        "decision": grade_1.decision if grade_1 else CourseGrade.Decision.PENDING,
+                        "decision_display": grade_1.get_decision_display() if grade_1 else "En attente",
+                        "credits_earned": grade_1.credits_earned if grade_1 else 0,
+                    },
+                    "session_2": {
+                        "average": float(grade_2.average) if grade_2 and grade_2.average is not None else None,
+                        "decision": grade_2.decision if grade_2 else CourseGrade.Decision.PENDING,
+                        "decision_display": grade_2.get_decision_display() if grade_2 else "En attente",
+                        "credits_earned": grade_2.credits_earned if grade_2 else 0,
+                    },
+                    "evaluations": evaluations,
+                }
+            )
+        return Response({"course": {"id": course.id, "title": course.title, "credits": course.credits}, "students": students})
+
+
+class CourseGradeDecideView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, course_id):
+        try:
+            course = Course.objects.get(pk=course_id)
+        except Course.DoesNotExist:
+            return Response({"detail": "Cours introuvable."}, status=status.HTTP_404_NOT_FOUND)
+        if not is_admin(request.user) and course.instructor_id != request.user.id:
+            raise PermissionDenied("Réservé à l'enseignant du cours.")
+
+        enrollment_id = request.data.get("enrollment_id")
+        attempt = int(request.data.get("attempt", 1))
+        decision = request.data.get("decision")
+        if not enrollment_id or attempt not in {1, 2}:
+            return Response({"detail": "enrollment_id et attempt (1/2) sont requis."}, status=status.HTTP_400_BAD_REQUEST)
+        valid_decisions = {c[0] for c in CourseGrade.Decision.choices}
+        if decision not in valid_decisions:
+            return Response({"detail": f"decision doit être l'une des valeurs : {valid_decisions}."}, status=status.HTTP_400_BAD_REQUEST)
+
+        enrollment = course.enrollments.filter(id=enrollment_id, is_active=True).select_related("student").first()
+        if enrollment is None:
+            return Response({"detail": "Inscription introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        grade, _ = CourseGrade.objects.get_or_create(enrollment=enrollment, attempt=attempt)
+        if attempt == 1 and decision in {CourseGrade.Decision.RATTRAPAGE, CourseGrade.Decision.REFUSE}:
+            if grade.average is None:
+                grade.average = compute_average(enrollment, 1)
+            if grade.average is not None and grade.average >= 10 and decision != CourseGrade.Decision.PENDING:
+                return Response(
+                    {"detail": "Moyenne ≥ 10 : la délibération doit être ADMIS ou COMPENSE."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        if attempt == 1 and decision in {CourseGrade.Decision.ADMIS, CourseGrade.Decision.COMPENSE} and grade.average is not None and grade.average < 10 and decision == CourseGrade.Decision.ADMIS:
+            return Response(
+                {"detail": "Moyenne < 10 : seule une décision COMPENSE est possible pour admettre."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        grade.decision = decision
+        grade.decided_by = request.user
+        grade.decided_at = timezone.now()
+        grade.credits_earned = course.credits if decision in {CourseGrade.Decision.ADMIS, CourseGrade.Decision.COMPENSE} else 0
+        grade.save(update_fields=["decision", "decided_by", "decided_at", "credits_earned"])
+        return Response(
+            {
+                "enrollment_id": enrollment.id,
+                "student_name": enrollment.student.full_name,
+                "attempt": attempt,
+                "decision": grade.decision,
+                "average": float(grade.average) if grade.average is not None else None,
+                "credits_earned": grade.credits_earned,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CourseTranscriptView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, course_id):
+        try:
+            course = Course.objects.get(pk=course_id)
+        except Course.DoesNotExist:
+            return Response({"detail": "Cours introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        can_view_all = is_admin(request.user) or course.instructor_id == request.user.id
+        filters = {"course": course, "is_active": True}
+        if not can_view_all:
+            filters["student"] = request.user
+        enrollments = (
+            course.enrollments.filter(**filters)
+            .select_related("student")
+            .order_by("student__full_name")
+        )
+        if not can_view_all and not enrollments.exists():
+            raise PermissionDenied("Vous n'êtes pas inscrit à ce cours.")
+
+        rows = []
+        for enrollment in enrollments:
+            update_course_grade(enrollment, 1)
+            grade_1 = CourseGrade.objects.filter(enrollment=enrollment, attempt=1).first()
+            grade_2 = CourseGrade.objects.filter(enrollment=enrollment, attempt=2).first()
+            final_grade = {}
+            if grade_2 and grade_2.decision != CourseGrade.Decision.PENDING:
+                final_grade = {
+                    "attempt": 2,
+                    "average": float(grade_2.average) if grade_2.average is not None else None,
+                    "decision": grade_2.decision,
+                    "decision_display": grade_2.get_decision_display(),
+                }
+            elif grade_1 and grade_1.decision != CourseGrade.Decision.PENDING:
+                final_grade = {
+                    "attempt": 1,
+                    "average": float(grade_1.average) if grade_1.average is not None else None,
+                    "decision": grade_1.decision,
+                    "decision_display": grade_1.get_decision_display(),
+                }
+            else:
+                final_grade = {
+                    "attempt": 1,
+                    "average": float(grade_1.average) if grade_1 and grade_1.average is not None else None,
+                    "decision": grade_1.decision if grade_1 else CourseGrade.Decision.PENDING,
+                    "decision_display": grade_1.get_decision_display() if grade_1 else "En attente",
+                }
+            credits_earned = (grade_2.credits_earned if grade_2 else 0) or (grade_1.credits_earned if grade_1 else 0)
+
+            evaluations = []
+            for attempt in (1, 2):
+                for item in eligible_evaluations(enrollment, attempt):
+                    evaluation = item["evaluation"]
+                    evaluations.append(
+                        {
+                            "id": evaluation.id,
+                            "title": evaluation.title,
+                            "kind": evaluation.kind,
+                            "coefficient": float(evaluation.coefficient or 1),
+                            "attempt": attempt,
+                            "note": item["note"],
+                            "has_grade": evaluation.grades.filter(enrollment=enrollment, attempt=attempt).exists(),
+                        }
+                    )
+
+            rows.append(
+                {
+                    "enrollment_id": enrollment.id,
+                    "student": can_view_all
+                        and {
+                            "id": enrollment.student_id,
+                            "full_name": enrollment.student.full_name,
+                            "email": enrollment.student.email,
+                        }
+                        or {"full_name": enrollment.student.full_name},
+                    "attendance": attendance_summary(enrollment),
+                    "attendance_rate": attendance_rate(enrollment),
+                    "session_1": {
+                        "average": float(grade_1.average) if grade_1 and grade_1.average is not None else None,
+                        "decision": grade_1.decision if grade_1 else CourseGrade.Decision.PENDING,
+                        "decision_display": grade_1.get_decision_display() if grade_1 else "En attente",
+                    },
+                    "session_2": {
+                        "average": float(grade_2.average) if grade_2 and grade_2.average is not None else None,
+                        "decision": grade_2.decision if grade_2 else CourseGrade.Decision.PENDING,
+                        "decision_display": grade_2.get_decision_display() if grade_2 else "En attente",
+                    },
+                    "final": final_grade,
+                    "credits_earned": credits_earned,
+                    "evaluations": evaluations,
+                }
+            )
+
+        return Response(
+            {
+                "course": {
+                    "id": course.id,
+                    "title": course.title,
+                    "subtitle": course.subtitle,
+                    "course_type": course.course_type,
+                    "credits": course.credits,
+                    "start_date": course.start_date,
+                    "end_date": course.end_date,
+                    "instructor_name": course.instructor.full_name,
+                    "issued_at": timezone.now().date().isoformat(),
+                },
+                "rows": rows,
+            }
+        )

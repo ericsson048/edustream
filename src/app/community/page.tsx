@@ -2,8 +2,19 @@
 import Header from '../../components/Header';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Users, Compass, MessagesSquare, MessageCircle, Heart, StickyNote, ShieldQuestion, GraduationCap, Briefcase, Lightbulb, PencilLine, Sparkles, MessagesSquare as GroupIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { communityService, type DiscussionItem, type StudyGroupItem } from '../../services/communityService';
 import { useToast } from '../../contexts/ToastContext';
+
+const categoryConfig: Record<string, { icon: LucideIcon; color: string; bg: string }> = {
+  "Aide aux devoirs": { icon: ShieldQuestion, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+  "Orientation": { icon: Compass, color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
+  "Carrière": { icon: Briefcase, color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+  "Tutos & Astuces": { icon: Lightbulb, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
+  "Sciences": { icon: GraduationCap, color: 'text-emerald-600', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
+  "Général": { icon: MessagesSquare, color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
+};
 
 export default function Community() {
   const navigate = useNavigate();
@@ -74,12 +85,13 @@ export default function Community() {
           {/* Search & Action Buttons */}
           <div className="space-y-4">
             <div className="relative">
+              <Search className="w-5 h-5 text-slate-400 absolute left-5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="🔍 Rechercher des discussions, groupes..."
+                placeholder="Rechercher des discussions, groupes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
+                className="w-full pl-14 pr-5 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
               />
             </div>
 
@@ -154,7 +166,10 @@ export default function Community() {
               {/* Discussions Section */}
               <section className="xl:col-span-2">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-slate-900">📢 Discussions</h2>
+                  <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <MessagesSquare className="w-7 h-7 text-blue-600" />
+                    Discussions
+                  </h2>
                   <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{filteredDiscussions.length}</span>
                 </div>
                 <div className="space-y-4">
@@ -165,17 +180,17 @@ export default function Community() {
                         className="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-lg hover:border-blue-300 transition-all duration-200 cursor-pointer group"
                       >
                         <div className="flex items-start gap-4">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                            {discussion.title.charAt(0).toUpperCase()}
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                            <MessagesSquare className="w-5 h-5" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">{discussion.title}</h3>
                             <p className="text-sm text-slate-600 mt-2 line-clamp-2">{discussion.content}</p>
                             <div className="flex items-center gap-3 mt-3 flex-wrap">
                               <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">{discussion.category}</span>
-                              <span className="text-xs text-slate-500">❤️ {discussion.likes_count} likes</span>
+                              <span className="text-xs text-slate-500"><Heart className="w-3.5 h-3.5 inline-block mr-1 text-red-500" />{discussion.likes_count} likes</span>
                               <span className="text-xs text-slate-400">•</span>
-                              <span className="text-xs text-slate-500">💬 {Math.floor(Math.random() * 50)} commentaires</span>
+                              <span className="text-xs text-slate-500"><MessageCircle className="w-3.5 h-3.5 inline-block mr-1 text-slate-400" />{Math.floor(Math.random() * 50)} commentaires</span>
                             </div>
                           </div>
                         </div>
@@ -193,7 +208,7 @@ export default function Community() {
               {/* Study Groups Section */}
               <section className="xl:col-span-1">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-slate-900">👥 Groupes</h2>
+                  <h2 className="text-2xl font-bold text-slate-900"><Users className="w-6 h-6 inline-block mr-2 text-emerald-600" />Groupes</h2>
                   <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{filteredGroups.length}</span>
                 </div>
                 <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
@@ -204,14 +219,14 @@ export default function Community() {
                         className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-lg hover:border-emerald-300 transition-all duration-200 cursor-pointer group"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                            {group.name.charAt(0).toUpperCase()}
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                            <Users className="w-5 h-5 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors truncate">{group.name}</h3>
                             <p className="text-xs text-slate-600 mt-1 line-clamp-2">{group.description}</p>
                             <div className="flex items-center justify-between mt-3">
-                              <span className="text-xs text-slate-500">👥 {group.members_count || 0} membres</span>
+                              <span className="text-xs text-slate-500"><Users className="w-3.5 h-3.5 inline-block mr-1 text-emerald-500" />{group.members_count || 0} membres</span>
                               <button
                                 onClick={() => navigate(`/community/groups/${group.id}`)}
                                 className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors"
@@ -241,7 +256,7 @@ export default function Community() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowPostDialog(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 space-y-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900">📝 Créer une Discussion</h2>
+              <h2 className="text-2xl font-bold text-slate-900"><PencilLine className="w-6 h-6 inline-block mr-2 text-blue-600" />Créer une Discussion</h2>
               <p className="text-slate-500 text-sm mt-1">Partagez votre question ou votre connaissance avec la communauté</p>
             </div>
             

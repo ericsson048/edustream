@@ -34,6 +34,9 @@ type CourseForm = {
   prerequisites: string;
   target_audience: string;
   is_published: boolean;
+  course_type: "REGULAR" | "MARGINAL";
+  start_date: string;
+  end_date: string;
 };
 
 const emptyForm: CourseForm = {
@@ -49,6 +52,9 @@ const emptyForm: CourseForm = {
   prerequisites: "",
   target_audience: "",
   is_published: false,
+  course_type: "REGULAR",
+  start_date: "",
+  end_date: "",
 };
 
 const levelLabels: Record<CourseForm["level"], string> = {
@@ -164,6 +170,9 @@ export default function InstructorCourses() {
       prerequisites: (course.prerequisites || []).join(", "),
       target_audience: (course.target_audience || []).join(", "),
       is_published: course.is_published,
+      course_type: course.course_type || "REGULAR",
+      start_date: course.start_date || "",
+      end_date: course.end_date || "",
     });
     setThumbnailFile(null);
     setDialogVisible(true);
@@ -190,6 +199,9 @@ export default function InstructorCourses() {
         prerequisites: splitCsv(form.prerequisites),
         target_audience: splitCsv(form.target_audience),
         is_published: form.is_published,
+        course_type: form.course_type,
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
       };
       const thumbPayload = thumbnailFile
         ? { thumbnail_file: thumbnailFile }
@@ -368,6 +380,11 @@ export default function InstructorCourses() {
                         >
                           {c.title}
                         </button>
+                        {c.course_type === "MARGINAL" && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                            Marginal
+                          </span>
+                        )}
                         {c.subtitle && (
                           <p className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">
                             {c.subtitle}
@@ -583,6 +600,60 @@ export default function InstructorCourses() {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Type de cours
+                  </label>
+                  <select
+                    value={form.course_type}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        course_type: e.target.value as CourseForm["course_type"],
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow bg-white"
+                  >
+                    <option value="REGULAR">Cours du programme</option>
+                    <option value="MARGINAL">Cours marginal (période définie + invitation)</option>
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Un cours marginal est un cours optionnel hors programme, ouvert sur une période précise aux apprenants invités.
+                  </p>
+                </div>
+                {form.course_type === "MARGINAL" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                        Début de la période *
+                      </label>
+                      <input
+                        type="date"
+                        value={form.start_date}
+                        onChange={(e) =>
+                          setForm({ ...form, start_date: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                        Fin de la période *
+                      </label>
+                      <input
+                        type="date"
+                        value={form.end_date}
+                        onChange={(e) =>
+                          setForm({ ...form, end_date: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               <div>

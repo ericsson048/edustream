@@ -1,8 +1,8 @@
 ﻿import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
-import { Star, Clock, Users, PlayCircle, CheckCircle, FileText, Award } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { Star, Clock, Users, PlayCircle, CheckCircle, FileText, Award, Copy, ExternalLink } from 'lucide-react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { courseService } from '../../../services/courseService';
 import { authService } from '../../../services/authService';
@@ -12,6 +12,7 @@ import type { AuthUser } from '../../../types/auth';
 export default function CourseDetails() {
   const { t } = useTranslation();
   const { id = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [course, setCourse] = useState<Course | null>(null);
   const [instructor, setInstructor] = useState<AuthUser | null>(null);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
@@ -19,6 +20,14 @@ export default function CourseDetails() {
   const [reviews, setReviews] = useState<CourseReview[]>([]);
   const [tags, setTags] = useState<import('../../../types/lms').Tag[]>([]);
   const [error, setError] = useState('');
+
+  const initialInviteCode = searchParams.get('invite') || '';
+  const [inviteCode, setInviteCode] = useState(initialInviteCode);
+  const [joiningCourse, setJoiningCourse] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [joinSuccess, setJoinSuccess] = useState(false);
+
+  const isMarginal = course?.course_type === 'MARGINAL';
 
   useEffect(() => {
     if (!id) return;
@@ -38,6 +47,23 @@ export default function CourseDetails() {
     courseService.listReviews({ course: id }).then(setReviews).catch(() => {});
     courseService.listTags().then(setTags).catch(() => {});
   }, [id]);
+
+  const joinWithInviteCode = async () => {
+    if (!inviteCode.trim() || !id) return;
+    setJoiningCourse(true);
+    setInviteError('');
+    try {
+      const enroll = await courseService.enrollWithInvitation(id, inviteCode.trim());
+      setEnrollment(enroll);
+      setJoinSuccess(true);
+      searchParams.delete('invite');
+      setSearchParams(searchParams);
+    } catch (err: any) {
+      setInviteError(err?.response?.data?.detail || "Code d'invitation invalide.");
+    } finally {
+      setJoiningCourse(false);
+    }
+  };
 
   if (error) {
     return <div className="min-h-screen grid place-items-center text-red-600">{error}</div>;
@@ -117,11 +143,79 @@ export default function CourseDetails() {
             </div>
 
             <div className="w-full md:w-80 bg-white rounded-2xl p-6 text-slate-900 shadow-2xl">
-              <div className="text-3xl font-bold mb-4">${course.price}</div>
-              <Link to={ctaHref} className="block w-full py-3 px-4 bg-blue-600 text-white text-center font-bold rounded-xl hover:bg-blue-700 transition-colors mb-4 shadow-sm">
-                {ctaLabel}
-              </Link>
-              <p className="text-xs text-center text-slate-500 mb-6">{t('course.moneyBackGuarantee')}</p>
+              {isMarginal && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-200 text-amber-800">
+                      Cours marginal
+                    </span>
+                    {course.start_date && course.end_date && (
+                      <span className="text-[11px] text-amber-600 font-medium">
+                        {course.start_date} → {course.end_date}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {enrollment || !isMarginal ? (
+                <>
+                  {Number(course.price) > 0 && (
+                    <div className="text-3xl font-bold mb-4">${course.price}</div>
+                  )}
+                  {Number(course.price) === 0 && !enrollment && (
+                    <div className="text-3xl font-bold text-green-600 mb-4">Gratuit</div>
+                  )}
+                  <Link to={ctaHref} className="block w-full py-3 px-4 bg-blue-600 text-white text-center font-bold rounded-xl hover:bg-blue-700 transition-colors mb-4 shadow-sm">
+                    {ctaLabel}
+                  </Link>
+                  {enrollment && (
+                    <Link
+                      to={`/course/${course.id}/suivi`}
+                      className="block w-full py-3 px-4 bg-indigo-50 text-indigo-700 text-center font-bold rounded-xl hover:bg-indigo-100 transition-colors mb-4 text-sm"
+                    >
+                      Mon suivi universitaire
+                    </Link>
+                  )}
+                  <p className="text-xs text-center text-slate-500 mb-6">{t('course.moneyBackGuarantee')}</p>
+                </>
+              ) : (
+                <div className="space-y-3 mb-4">
+                  <p className="text-sm font-medium text-slate-700">Rejoindre avec un code d&apos;invitation :</p>
+                  {joinSuccess ? (
+                    <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm text-center font-medium">
+                      Inscrit avec succès !{" "}
+                      {firstLesson ? (
+                        <Link to={`/player/${course.id}/${firstLesson.id}`} className="underline font-bold">
+                          Commencer →
+                        </Link>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        value={inviteCode}
+                        onChange={(e) => setInviteCode(e.target.value)}
+                        placeholder="Ex : EDU-AB12CD"
+                        className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-shadow"
+                      />
+                      {inviteError && (
+                        <p className="text-xs text-red-600">{inviteError}</p>
+                      )}
+                      <button
+                        onClick={joinWithInviteCode}
+                        disabled={joiningCourse || !inviteCode.trim()}
+                        className="w-full py-3 px-4 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-sm cursor-pointer"
+                      >
+                        {joiningCourse ? "Inscription..." : "Rejoindre"}
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-xs text-center text-slate-400 mt-2">
+                    Demandez le code à votre professeur.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-3 text-sm font-medium text-slate-700">
                 <div className="flex items-center gap-3"><PlayCircle className="w-5 h-5 text-blue-600" /> {t('course.onDemandVideo')}</div>

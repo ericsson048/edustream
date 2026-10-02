@@ -5,5 +5,8 @@ coverage/
 .DS_Store
 *.log
 logs/
+.env.docker
+backend/media/
+backend/db.sqlite3
 .env*
 !.env.example

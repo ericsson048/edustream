@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { ContentBlock, Course, CourseCategory, CourseLesson, CourseModule, CourseReview, Enrollment, LearningPath, LessonResource, NoteItem, PathCourseItem, ProgressItem } from '../types/lms';
+import type { AttendanceRecord, ContentBlock, Course, CourseCategory, CourseGradesSummary, CourseInvitation, CourseLesson, CourseModule, CourseReview, CourseTranscript, Enrollment, Evaluation, EvaluationGrade, LearningPath, LessonResource, NoteItem, PathCourseItem, ProgressItem, Tag, UniversitySession } from '../types/lms';
 import type { GeneratedCourseOutline } from './aiService';
 
 interface PaginatedResponse<T> {
@@ -127,6 +127,14 @@ export const courseService = {
     return data.results ?? [];
   },
 
+  async enrollWithInvitation(courseId: string, invitationCode: string): Promise<Enrollment> {
+    const { data } = await apiClient.post<Enrollment>('/enrollments/', {
+      course: courseId,
+      invitation_code: invitationCode,
+    });
+    return data;
+  },
+
   async listProgress(params?: { enrollment?: string; lesson?: string; is_completed?: boolean }): Promise<ProgressItem[]> {
     const { data } = await apiClient.get<PaginatedResponse<ProgressItem>>('/progress/', { params });
     return data.results ?? [];
@@ -190,6 +198,9 @@ export const courseService = {
     estimated_hours?: number;
     price: string;
     is_published?: boolean;
+    course_type?: 'REGULAR' | 'MARGINAL';
+    start_date?: string | null;
+    end_date?: string | null;
   }): Promise<Course> {
     const form = new FormData();
     form.append('title', payload.title);
@@ -204,6 +215,9 @@ export const courseService = {
     form.append('estimated_hours', String(payload.estimated_hours ?? 0));
     form.append('price', payload.price);
     form.append('is_published', String(payload.is_published ?? false));
+    form.append('course_type', payload.course_type || 'REGULAR');
+    if (payload.start_date) form.append('start_date', payload.start_date);
+    if (payload.end_date) form.append('end_date', payload.end_date);
     if (payload.thumbnail_url) form.append('thumbnail_url', payload.thumbnail_url);
     if (payload.thumbnail_file) form.append('thumbnail_file', payload.thumbnail_file);
 
@@ -225,6 +239,9 @@ export const courseService = {
         | 'level'
         | 'price'
         | 'is_published'
+        | 'course_type'
+        | 'start_date'
+        | 'end_date'
         | 'learning_objectives'
         | 'prerequisites'
         | 'target_audience'
@@ -247,6 +264,9 @@ export const courseService = {
     if (payload.level !== undefined) form.append('level', payload.level);
     if (payload.price !== undefined) form.append('price', String(payload.price));
     if (payload.is_published !== undefined) form.append('is_published', String(payload.is_published));
+    if (payload.course_type !== undefined) form.append('course_type', payload.course_type);
+    if (payload.start_date !== undefined) form.append('start_date', payload.start_date || '');
+    if (payload.end_date !== undefined) form.append('end_date', payload.end_date || '');
     if (payload.estimated_hours !== undefined) form.append('estimated_hours', String(payload.estimated_hours));
     if (payload.thumbnail_url !== undefined) form.append('thumbnail_url', payload.thumbnail_url);
     if (payload.learning_objectives !== undefined) form.append('learning_objectives', JSON.stringify(payload.learning_objectives));
@@ -293,6 +313,20 @@ export const courseService = {
 
   async removeCourseStudent(courseId: string, enrollmentId: string): Promise<void> {
     await apiClient.post(`/courses/${courseId}/students/remove/`, { enrollment_id: enrollmentId });
+  },
+
+  async listCourseInvitations(courseId: string): Promise<CourseInvitation[]> {
+    const { data } = await apiClient.get<{ count: number; results: CourseInvitation[] }>(`/courses/${courseId}/invitations/`);
+    return data.results ?? [];
+  },
+
+  async createCourseInvitation(courseId: string, payload: { max_uses?: number; expires_at?: string | null }): Promise<CourseInvitation> {
+    const { data } = await apiClient.post<CourseInvitation>(`/courses/${courseId}/invitations/`, payload);
+    return data;
+  },
+
+  async revokeCourseInvitation(courseId: string, invitationId: string): Promise<void> {
+    await apiClient.post(`/courses/${courseId}/invitations/revoke/`, { invitation_id: invitationId });
   },
 
   async createModule(payload: {
@@ -502,5 +536,126 @@ export const courseService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data.url;
+  },
+
+  // --- Suivi universitaire ---
+
+  async listUniversitySessions(courseId: string): Promise<UniversitySession[]> {
+    const { data } = await apiClient.get<{ count: number; results: UniversitySession[] }>(
+      '/university-sessions/',
+      { params: { course: courseId } },
+    );
+    return data.results ?? [];
+  },
+
+  async createUniversitySession(payload: {
+    course: string;
+    session_type: 'CM' | 'TD' | 'TP';
+    title?: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    location?: string;
+  }): Promise<UniversitySession> {
+    const { data } = await apiClient.post<UniversitySession>('/university-sessions/', payload);
+    return data;
+  },
+
+  async deleteUniversitySession(sessionId: string): Promise<void> {
+    await apiClient.delete(`/university-sessions/${sessionId}/`);
+  },
+
+  async listSessionAttendance(sessionId: string): Promise<AttendanceRecord[]> {
+    const { data } = await apiClient.get<AttendanceRecord[]>(`/university-sessions/${sessionId}/attendance/`);
+    return data;
+  },
+
+  async markSessionAttendance(sessionId: string, records: { student_id: string; status: string }[]): Promise<number> {
+    const { data } = await apiClient.post<{ updated: number }>(
+      `/university-sessions/${sessionId}/attendance/`,
+      { records },
+    );
+    return data.updated;
+  },
+
+  async listAttendanceRecords(params?: { session?: string; student?: string }): Promise<AttendanceRecord[]> {
+    const { data } = await apiClient.get<{ count: number; results: AttendanceRecord[] }>(
+      '/attendance-records/',
+      { params },
+    );
+    return data.results ?? [];
+  },
+
+  async justifyAbsence(recordId: string, justification: string): Promise<AttendanceRecord> {
+    const { data } = await apiClient.post<AttendanceRecord>(`/attendance-records/${recordId}/justify/`, {
+      justification,
+    });
+    return data;
+  },
+
+  async reviewJustification(recordId: string, decision: 'APPROVE' | 'REJECT'): Promise<AttendanceRecord> {
+    const { data } = await apiClient.post<AttendanceRecord>(`/attendance-records/${recordId}/review/`, {
+      decision,
+    });
+    return data;
+  },
+
+  async listEvaluations(courseId: string): Promise<Evaluation[]> {
+    const { data } = await apiClient.get<{ count: number; results: Evaluation[] }>('/evaluations/', {
+      params: { course: courseId },
+    });
+    return data.results ?? [];
+  },
+
+  async createEvaluation(payload: {
+    course: string;
+    kind: 'CONTINUOUS' | 'EXAM' | 'ORAL';
+    title: string;
+    coefficient: number;
+    date?: string | null;
+    quiz?: string | null;
+    assignment?: string | null;
+  }): Promise<Evaluation> {
+    const { data } = await apiClient.post<Evaluation>('/evaluations/', payload);
+    return data;
+  },
+
+  async deleteEvaluation(evaluationId: string): Promise<void> {
+    await apiClient.delete(`/evaluations/${evaluationId}/`);
+  },
+
+  async listEvaluationGrades(params?: { evaluation?: string; enrollment?: string; attempt?: number }): Promise<EvaluationGrade[]> {
+    const { data } = await apiClient.get<{ count: number; results: EvaluationGrade[] }>('/evaluation-grades/', {
+      params,
+    });
+    return data.results ?? [];
+  },
+
+  async upsertEvaluationGrade(payload: {
+    evaluation: string;
+    enrollment: string;
+    attempt: number;
+    note: number | null;
+  }): Promise<EvaluationGrade> {
+    const { data } = await apiClient.post<EvaluationGrade>('/evaluation-grades/', payload);
+    return data;
+  },
+
+  async getCourseGradesSummary(courseId: string): Promise<CourseGradesSummary> {
+    const { data } = await apiClient.get<CourseGradesSummary>(`/course-grades/${courseId}/`);
+    return data;
+  },
+
+  async decideCourseGrade(
+    courseId: string,
+    payload: { enrollment_id: string; attempt: number; decision: string },
+  ): Promise<{ enrollment_id: string; student_name: string; attempt: number; decision: string; average: number | null; credits_earned: number }> {
+    const { data } = await apiClient.post(`/course-grades/${courseId}/decide/`, payload);
+    return data;
+  },
+
+  async getCourseTranscript(courseId: string): Promise<CourseTranscript> {
+    const { data } = await apiClient.get<CourseTranscript>(`/course-transcript/${courseId}/`);
+    return data;
   },
 };

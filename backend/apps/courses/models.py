@@ -1,7 +1,11 @@
+import random
+import string
 import uuid
+from datetime import UTC, datetime
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 
@@ -94,6 +98,10 @@ class Course(models.Model):
         FINAL_EXAM = "FINAL_EXAM", "Final exam only"
         MANUAL = "MANUAL", "Manual by instructor"
 
+    class CourseType(models.TextChoices):
+        REGULAR = "REGULAR", "Cours du programme"
+        MARGINAL = "MARGINAL", "Cours marginal"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     subtitle = models.CharField(max_length=255, blank=True)
@@ -113,6 +121,12 @@ class Course(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     platform_fee_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=30.00)
     is_published = models.BooleanField(default=False)
+    course_type = models.CharField(
+        max_length=20, choices=CourseType.choices, default=CourseType.REGULAR
+    )
+    start_date = models.DateField(null=True, blank=True, help_text="Début de la période (cours marginal)")
+    end_date = models.DateField(null=True, blank=True, help_text="Fin de la période (cours marginal)")
+    credits = models.PositiveSmallIntegerField(default=0, help_text="Crédits ECTS attribués à la validation du cours")
     completion_criteria = models.CharField(
         max_length=20, choices=CompletionCriteria.choices, default=CompletionCriteria.ALL_LESSONS
     )
@@ -285,6 +299,13 @@ class Enrollment(models.Model):
         related_name="enrollments",
     )
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="enrollments")
+    invitation = models.ForeignKey(
+        "CourseInvitation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollments",
+    )
     purchased_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
@@ -362,6 +383,196 @@ class Certificate(models.Model):
 
     class Meta:
         unique_together = ("user", "course")
+
+
+class CourseInvitation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="invitations")
+    code = models.CharField(max_length=20, unique=True, editable=False)
+    max_uses = models.PositiveIntegerField(default=0, help_text="0 = nombre d'utilisations illimité")
+    used_count = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_invitations",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.course.title} / {self.code}"
+
+
+class UniversitySession(models.Model):
+    class Type(models.TextChoices):
+        CM = "CM", "Cours magistral"
+        TD = "TD", "Travaux dirigés"
+        TP = "TP", "Travaux pratiques"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="university_sessions")
+    title = models.CharField(max_length=255, blank=True)
+    session_type = models.CharField(max_length=10, choices=Type.choices, default=Type.CM)
+    date = models.DateField()
+    start_time = models.TimeField(default="09:00:00")
+    end_time = models.TimeField(default="11:00:00")
+    location = models.CharField(max_length=255, blank=True)
+    is_cancelled = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="university_sessions_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["date", "start_time"]
+        indexes = [models.Index(fields=["course", "date"])]
+
+    def __str__(self):
+        return f"{self.course.title} / {self.session_type} {self.date}"
+
+
+class AttendanceRecord(models.Model):
+    class Status(models.TextChoices):
+        PRESENT = "PRESENT", "Présent"
+        LATE = "LATE", "Retard"
+        ABSENT = "ABSENT", "Absent"
+        EXCUSED = "EXCUSED", "Excusé"
+
+    class JustificationStatus(models.TextChoices):
+        NONE = "NONE", "Aucune"
+        PENDING = "PENDING", "En attente"
+        APPROVED = "APPROVED", "Approuvée"
+        REJECTED = "REJECTED", "Rejetée"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(UniversitySession, on_delete=models.CASCADE, related_name="records")
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="attendance_records")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ABSENT)
+    justification = models.TextField(blank=True)
+    justification_status = models.CharField(
+        max_length=20, choices=JustificationStatus.choices, default=JustificationStatus.NONE
+    )
+    justification_submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attendance_reviews",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("session", "student")
+        ordering = ["session__date", "session__start_time"]
+
+    def __str__(self):
+        return f"{self.student.full_name} / {self.session} / {self.status}"
+
+    @property
+    def session_end(self):
+        return datetime.combine(self.session.date, self.session.end_time, tzinfo=UTC)
+
+
+class Evaluation(models.Model):
+    class Kind(models.TextChoices):
+        CONTINUOUS = "CONTINUOUS", "Contrôle continu"
+        EXAM = "EXAM", "Examen"
+        ORAL = "ORAL", "Oral"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="evaluations")
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.CONTINUOUS)
+    title = models.CharField(max_length=255)
+    coefficient = models.DecimalField(max_digits=4, decimal_places=2, default=1.00)
+    date = models.DateField(null=True, blank=True)
+    assignment = models.ForeignKey(
+        "learning.Assignment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="evaluations",
+    )
+    quiz = models.ForeignKey(
+        "learning.Quiz",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="evaluations",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="evaluations_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["date", "created_at"]
+
+    def __str__(self):
+        return f"{self.course.title} / {self.title}"
+
+
+class EvaluationGrade(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    evaluation = models.ForeignKey(Evaluation, on_delete=models.CASCADE, related_name="grades")
+    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name="evaluation_grades")
+    attempt = models.PositiveSmallIntegerField(default=1, help_text="1 = session 1, 2 = rattrapage")
+    note = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Note sur 20")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("evaluation", "enrollment", "attempt")
+
+    def __str__(self):
+        return f"{self.evaluation.title} / {self.enrollment.student.full_name} / {self.note}"
+
+
+class CourseGrade(models.Model):
+    class Decision(models.TextChoices):
+        PENDING = "PENDING", "En attente de délibération"
+        ADMIS = "ADMIS", "Admis"
+        COMPENSE = "COMPENSE", "Admis par compensation"
+        RATTRAPAGE = "RATTRAPAGE", "Rattrapage"
+        REFUSE = "REFUSE", "Refusé"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name="course_grades")
+    attempt = models.PositiveSmallIntegerField(default=1, help_text="1 = session 1, 2 = rattrapage")
+    average = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Moyenne sur 20")
+    decision = models.CharField(max_length=20, choices=Decision.choices, default=Decision.PENDING)
+    credits_earned = models.PositiveSmallIntegerField(default=0)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="grades_decided",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("enrollment", "attempt")
+        ordering = ["-attempt"]
+
+    def __str__(self):
+        return f"{self.enrollment.student.full_name} / session {self.attempt} / {self.get_decision_display()}"
+
+
+def generate_invitation_code():
+    alphabet = string.ascii_uppercase + string.digits
+    while True:
+        code = "EDU-" + "".join(random.choices(alphabet, k=6))
+        if not CourseInvitation.objects.filter(code=code).exists():
+            return code
 
 
 def is_lesson_accessible(user_id, lesson):

@@ -3,13 +3,18 @@ import json
 from rest_framework import serializers
 
 from .models import (
+    AttendanceRecord,
     Category,
     Certificate,
     ContentBlock,
     Course,
+    CourseGrade,
+    CourseInvitation,
     CourseReview,
     CourseVersion,
     Enrollment,
+    Evaluation,
+    EvaluationGrade,
     LearningPath,
     Lesson,
     LessonComment,
@@ -20,7 +25,9 @@ from .models import (
     Resource,
     Section,
     Tag,
+    UniversitySession,
 )
+from .university import can_justify
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -220,6 +227,26 @@ class CourseSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        course_type = attrs.get("course_type")
+        if course_type is None and self.instance is not None:
+            course_type = self.instance.course_type
+        start_date = attrs.get("start_date")
+        if start_date is None and self.instance is not None:
+            start_date = self.instance.start_date
+        end_date = attrs.get("end_date")
+        if end_date is None and self.instance is not None:
+            end_date = self.instance.end_date
+
+        if course_type == Course.CourseType.MARGINAL:
+            if not start_date or not end_date:
+                raise serializers.ValidationError(
+                    {"start_date": "Un cours marginal doit définir une période (start_date et end_date)."}
+                )
+            if end_date < start_date:
+                raise serializers.ValidationError(
+                    {"end_date": "La date de fin doit être postérieure à la date de début."}
+                )
+
         should_publish = attrs.get("is_published")
         if should_publish is None and self.instance is not None:
             should_publish = self.instance.is_published
@@ -305,9 +332,34 @@ class CourseVersionSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class CourseInvitationSerializer(serializers.ModelSerializer):
+    course_title = serializers.CharField(source="course.title", read_only=True)
+    created_by_name = serializers.CharField(source="created_by.full_name", read_only=True)
+    expires_at = serializers.DateTimeField(required=False, allow_null=True)
+
+    class Meta:
+        model = CourseInvitation
+        fields = [
+            "id",
+            "course",
+            "course_title",
+            "code",
+            "max_uses",
+            "used_count",
+            "expires_at",
+            "is_active",
+            "created_by",
+            "created_by_name",
+            "created_at",
+        ]
+        read_only_fields = ["id", "course", "course_title", "code", "used_count", "is_active", "created_by", "created_at"]
+
+
 class EnrollmentSerializer(serializers.ModelSerializer):
     course_title = serializers.CharField(source="course.title", read_only=True)
     student_name = serializers.CharField(source="student.full_name", read_only=True)
+    invitation_code = serializers.CharField(source="invitation.code", read_only=True)
+    invitation = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Enrollment
@@ -343,3 +395,92 @@ class CertificateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Certificate
         fields = "__all__"
+
+
+class UniversitySessionSerializer(serializers.ModelSerializer):
+    course_title = serializers.CharField(source="course.title", read_only=True)
+    student_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UniversitySession
+        fields = "__all__"
+        read_only_fields = ["created_by"]
+
+    def get_student_count(self, obj):
+        return obj.course.enrollments.filter(is_active=True).count()
+
+
+class AttendanceRecordSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
+    course_id = serializers.UUIDField(source="session.course_id", read_only=True)
+    course_title = serializers.CharField(source="session.course.title", read_only=True)
+    session_title = serializers.CharField(source="session.title", read_only=True)
+    session_date = serializers.DateField(source="session.date", read_only=True)
+    session_type = serializers.CharField(source="session.session_type", read_only=True)
+    session_end = serializers.SerializerMethodField()
+    can_justify = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AttendanceRecord
+        fields = "__all__"
+        read_only_fields = [
+            "session",
+            "student",
+            "status",
+            "justification",
+            "justification_status",
+            "justification_submitted_at",
+            "reviewed_by",
+            "reviewed_at",
+        ]
+
+    def get_session_end(self, obj):
+        return obj.session_end.isoformat()
+
+    def get_can_justify(self, obj):
+        return can_justify(obj)
+
+
+class EvaluationSerializer(serializers.ModelSerializer):
+    course_title = serializers.CharField(source="course.title", read_only=True)
+    kind_display = serializers.CharField(source="get_kind_display", read_only=True)
+    source = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Evaluation
+        fields = "__all__"
+        read_only_fields = ["created_by"]
+
+    def get_source(self, obj):
+        if obj.quiz_id:
+            return f"Quiz : {obj.quiz.title}"
+        if obj.assignment_id:
+            return f"Devoir : {obj.assignment.title}"
+        return None
+
+
+class EvaluationGradeSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source="enrollment.student.full_name", read_only=True)
+    evaluation_title = serializers.CharField(source="evaluation.title", read_only=True)
+    evaluation_kind = serializers.CharField(source="evaluation.kind", read_only=True)
+    course_id = serializers.UUIDField(source="evaluation.course_id", read_only=True)
+
+    class Meta:
+        model = EvaluationGrade
+        fields = "__all__"
+
+    def validate_note(self, value):
+        if value is not None and (value < 0 or value > 20):
+            raise serializers.ValidationError("La note doit être comprise entre 0 et 20.")
+        return value
+
+
+class CourseGradeSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source="enrollment.student.full_name", read_only=True)
+    course_id = serializers.UUIDField(source="enrollment.course_id", read_only=True)
+    decision_display = serializers.CharField(source="get_decision_display", read_only=True)
+
+    class Meta:
+        model = CourseGrade
+        fields = "__all__"
+        read_only_fields = ["decided_by"]

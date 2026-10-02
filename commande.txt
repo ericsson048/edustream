@@ -1,0 +1,51 @@
+=============================================================================
+  COMMANDE POUR LANCER EDUSTREAM (Docker Compose)
+=============================================================================
+
+  Il suffit de lancer le script start-docker.ps1 depuis PowerShell.
+  Il s'occupe de TOUT automatiquement :
+    • crée .env.docker (secrets générés) si absent,
+    • détecte l'IP Wi-Fi de la machine et l'injecte (ALLOWED_HOSTS,
+      CORS, FRONTEND_BASE_URL),
+    • construit puis démarre : web (Nginx :3000), backend (Django ASGI :8000),
+      postgres (16) et redis (7).
+
+-----------------------------------------------------------------------------
+  DANS POWERSHELL (recommande)
+-----------------------------------------------------------------------------
+
+  cd D:\ecole\Etude\edustream
+  PowerShell -ExecutionPolicy Bypass -File .\start-docker.ps1
+
+-----------------------------------------------------------------------------
+  VARIANTES
+-----------------------------------------------------------------------------
+
+  # Après un premier build : démarrage rapide sans reconstruire
+  PowerShell -ExecutionPolicy Bypass -File .\start-docker.ps1 -NoBuild
+
+  # Forcer la réécriture de .env.docker (nouveaux secrets + nouvelle IP)
+  PowerShell -ExecutionPolicy Bypass -File .\start-docker.ps1 -ForceEnv
+
+-----------------------------------------------------------------------------
+  ACCES RESULTAT (sans ngrok)
+-----------------------------------------------------------------------------
+
+  Sur le PC           : http://localhost:3000
+  Appareils du Wi-Fi  : http://IP_DE_LA_MACHINE:3000
+                        (ex. http://192.168.1.50:3000)
+
+  Le Nginx sert le front web ET fait le proxy vers le backend :
+    /api/*  -> backend:8000
+    /ws/*   -> backend:8000 (websocket)
+  Donc accès complet via http://IP_DE_LA_MACHINE:3000 sans ngrok.
+
+-----------------------------------------------------------------------------
+  MANAGEMENT
+-----------------------------------------------------------------------------
+
+  docker compose ps                       # état des services
+  docker compose logs -f backend          # logs Django (daphne)
+  docker compose logs -f web              # logs Nginx
+  docker compose down                     # arrêt (données conservées)
+  docker compose down -v                  # arrêt + suppression volumes

@@ -146,6 +146,11 @@ export default function Catalog() {
                     <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold text-slate-900 shadow-sm">
                       {course.level === 'ALL' ? t('catalog.allLevels') : t(`catalog.levels.${course.level}`)}
                     </div>
+                    {course.course_type === 'MARGINAL' && (
+                      <div className="absolute top-3 right-3 bg-amber-500/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold text-white shadow-sm">
+                        Marginal
+                      </div>
+                    )}
                   </div>
                   <div className="p-5 flex flex-col flex-1">
                     <h3 className="font-bold text-lg text-slate-900 mb-1 line-clamp-2">{course.title}</h3>

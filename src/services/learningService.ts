@@ -249,6 +249,10 @@ export const learningService = {
   async deleteAssignment(id: string): Promise<void> {
     await apiClient.delete(`/assignments/${id}/`);
   },
+  async listQuizzes(params?: { course?: string }): Promise<QuizItem[]> {
+    const { data } = await apiClient.get<PaginatedResponse<QuizItem>>('/quizzes/', { params });
+    return data.results ?? [];
+  },
   async listQuizzesByModule(moduleId: string): Promise<QuizItem[]> {
     const { data } = await apiClient.get<PaginatedResponse<QuizItem>>(`/quizzes/?module=${moduleId}`);
     return data.results ?? [];

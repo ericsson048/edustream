@@ -1,7 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { tokenStorage } from './tokenStorage';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
+// Production uses the Nginx reverse proxy; local Vite development keeps the
+// existing direct backend address unless VITE_API_BASE_URL overrides it.
+const baseURL = import.meta.env.VITE_API_BASE_URL || (
+  import.meta.env.DEV ? 'http://127.0.0.1:8000/api/v1' : '/api/v1'
+);
 
 interface RetryConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;

@@ -2,11 +2,15 @@ import InstructorSidebar from "../../../../components/InstructorSidebar";
 import Header from "../../../../components/Header";
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
   ChevronRight,
+  Copy,
   Edit,
   Eye,
+  Link2,
   Plus,
+  RotateCw,
   Trash2,
   X,
   FileText,
@@ -24,7 +28,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useToast } from "../../../../contexts/ToastContext";
 import { courseService } from "../../../../services/courseService";
 import { learningService } from "../../../../services/learningService";
-import type { Course, CourseModule, CourseLesson, LessonResource } from "../../../../types/lms";
+import type { Course, CourseInvitation, CourseModule, CourseLesson, LessonResource } from "../../../../types/lms";
 import type { QuizItem, QuizQuestionItem } from "../../../../services/learningService";
 
 type ModuleForm = {
@@ -138,6 +142,11 @@ export default function CourseDetail() {
     time_limit_minutes: 10,
   });
 
+  const [inviteDialogVisible, setInviteDialogVisible] = useState(false);
+  const [invitations, setInvitations] = useState<CourseInvitation[]>([]);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
+
   const load = async () => {
     try {
       const data = await courseService.getCourse(id);
@@ -147,6 +156,54 @@ export default function CourseDetail() {
       showToast("Impossible de charger le cours.", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openInviteDialog = async () => {
+    setInviteDialogVisible(true);
+    try {
+      const list = await courseService.listCourseInvitations(id);
+      setInvitations(list);
+    } catch {
+      setInvitations([]);
+    }
+  };
+
+  const generateInvitation = async () => {
+    setGeneratingInvite(true);
+    try {
+      const inv = await courseService.createCourseInvitation(id, {});
+      setInvitations((prev) => [inv, ...prev]);
+      showToast("Invitation générée. Partagez le code ou le lien.", "success");
+    } catch {
+      showToast("Erreur lors de la génération.", "error");
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const revokeInvitation = async (invitationId: string) => {
+    try {
+      await courseService.revokeCourseInvitation(id, invitationId);
+      setInvitations((prev) =>
+        prev.map((inv) =>
+          inv.id === invitationId ? { ...inv, is_active: false } : inv,
+        ),
+      );
+      showToast("Invitation révoquée.", "success");
+    } catch {
+      showToast("Erreur lors de la révocation.", "error");
+    }
+  };
+
+  const copyInviteLink = async (invitation: CourseInvitation) => {
+    const link = `${window.location.origin}/course/${id}?invite=${invitation.code}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedInvite(invitation.id);
+      setTimeout(() => setCopiedInvite(null), 2000);
+    } catch {
+      showToast("Impossible de copier le lien.", "error");
     }
   };
 
@@ -562,6 +619,18 @@ export default function CourseDetail() {
                       />
                       {course.is_published ? "Publié" : "Brouillon"}
                     </span>
+                    {course.course_type === "MARGINAL" && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                        Cours marginal
+                      </span>
+                    )}
+                    {course.course_type === "MARGINAL" &&
+                      course.start_date &&
+                      course.end_date && (
+                        <span className="text-xs text-slate-400">
+                          Période : {course.start_date} → {course.end_date}
+                        </span>
+                      )}
                     <span className="text-xs text-slate-400">
                       {modules.length} module{modules.length > 1 ? "s" : ""}
                     </span>
@@ -585,12 +654,27 @@ export default function CourseDetail() {
                     )}
                   </Link>
                   <Link
+                    to={`/instructor/courses/${id}/suivi`}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm cursor-pointer transition-colors"
+                  >
+                    <ClipboardList size={16} />
+                    Suivi
+                  </Link>
+                  <Link
                     to={`/course/${id}`}
                     target="_blank"
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm cursor-pointer transition-colors"
                   >
                     <Eye size={16} /> Aperçu
                   </Link>
+                  {course.course_type === "MARGINAL" && (
+                    <button
+                      onClick={openInviteDialog}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm cursor-pointer transition-colors"
+                    >
+                      <Link2 size={16} /> Inviter
+                    </button>
+                  )}
                   <button
                     onClick={openNewModule}
                     className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm cursor-pointer transition-colors shadow-sm shadow-indigo-600/20"
@@ -1306,6 +1390,103 @@ export default function CourseDetail() {
                 className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer text-sm font-medium"
               >
                 Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inviteDialogVisible && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => setInviteDialogVisible(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 shrink-0">
+              <h2 className="text-lg font-bold text-slate-900">Inviter des apprenants</h2>
+              <button
+                onClick={() => setInviteDialogVisible(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto">
+              <p className="text-sm text-slate-500">
+                Partagez ce code ou le lien ci-dessous aux étudiants que vous souhaitez inviter.
+                Le code est valide jusqu&apos;à la fin de la période du cours.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={generateInvitation}
+                  disabled={generatingInvite}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm cursor-pointer disabled:opacity-50 transition-colors"
+                >
+                  {generatingInvite ? <RotateCw size={14} className="animate-spin" /> : <Plus size={14} />}
+                  Générer un code
+                </button>
+              </div>
+              {invitations.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">Aucune invitation créée.</p>
+              ) : (
+                <div className="space-y-2">
+                  {invitations.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                        inv.is_active ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-semibold text-slate-800 tracking-wider">
+                            {inv.code}
+                          </span>
+                          {!inv.is_active && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">
+                              Révoqué
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Utilisé {inv.used_count}{inv.max_uses ? ` / ${inv.max_uses}` : ""} fois
+                          {inv.expires_at && ` · expire le ${new Date(inv.expires_at).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {inv.is_active && (
+                          <>
+                            <button
+                              onClick={() => copyInviteLink(inv)}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+                              title="Copier le lien"
+                            >
+                              {copiedInvite === inv.id ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                            </button>
+                            <button
+                              onClick={() => revokeInvitation(inv.id)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 cursor-pointer transition-colors"
+                              title="Révoquer"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-slate-200 shrink-0">
+              <button
+                onClick={() => setInviteDialogVisible(false)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer text-sm"
+              >
+                Fermer
               </button>
             </div>
           </div>

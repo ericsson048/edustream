@@ -1,8 +1,10 @@
 import { tokenStorage } from './tokenStorage';
 
 function getApiOrigin() {
-  const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
-  return new URL(baseURL).origin;
+  const baseURL = import.meta.env.VITE_API_BASE_URL || (
+    import.meta.env.DEV ? 'http://127.0.0.1:8000/api/v1' : '/api/v1'
+  );
+  return new URL(baseURL, window.location.origin).origin;
 }
 
 export function buildWebSocketUrl(path: string) {

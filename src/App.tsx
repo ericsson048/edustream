@@ -14,6 +14,7 @@ import VerifyEmail from "./app/verify-email/page";
 const Dashboard = lazy(() => import("./app/dashboard/page"));
 import Catalog from "./app/catalog/page";
 import CourseDetails from "./app/course/_id/page";
+import StudentCourseSuivi from "./app/course/_id/suivi/page";
 import Checkout from "./app/checkout/_id/page";
 import SubscriptionCheckout from "./app/subscription/checkout/page";
 import MyCourses from "./app/courses/page";
@@ -56,6 +57,7 @@ import ManageAssignments from "./app/instructor/assignments/page";
 import InstructorCourses from "./app/instructor/courses/page";
 import CourseDetail from "./app/instructor/courses/_id/page";
 import CourseStudents from "./app/instructor/courses/_id/students/page";
+import CourseSuivi from "./app/instructor/courses/_id/suivi/page";
 import Students from "./app/instructor/students/page";
 import StudentDetail from "./app/instructor/students/_id/page";
 import LessonContentEditor from "./app/instructor/courses/_id/lessons/_lessonId/content/page";
@@ -159,6 +161,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
                 <CourseDetails />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/course/:id/suivi"
+            element={
+              <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "ADMIN"]}>
+                <StudentCourseSuivi />
               </ProtectedRoute>
             }
           />
@@ -475,6 +485,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["INSTRUCTOR"]}>
                 <CourseStudents />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/courses/:id/suivi"
+            element={
+              <ProtectedRoute roles={["INSTRUCTOR"]}>
+                <CourseSuivi />
               </ProtectedRoute>
             }
           />
