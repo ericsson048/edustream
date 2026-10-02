@@ -1,6 +1,6 @@
 ﻿import Sidebar from '../../components/Sidebar';
 import Header from '../../components/Header';
-import { PlayCircle, CheckCircle, Star, ArrowRight, CalendarClock, Flame, TrendingUp, BookOpen, Zap, Sparkles, Target, Loader2, Clock3, Trophy, MessageSquare, FileText, BrainCircuit } from 'lucide-react';
+import { PlayCircle, CheckCircle, Star, ArrowRight, CalendarClock, Flame, TrendingUp, BookOpen, Zap, Sparkles, Target, Clock3, Trophy, MessageSquare, FileText, BrainCircuit, Video } from 'lucide-react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import { Link } from 'react-router-dom';
@@ -50,8 +50,15 @@ const ACTIVITY_ICONS: Record<string, typeof PlayCircle> = {
   FOCUS_SESSION: Clock3,
 };
 
+// One accent (blue) + neutrals. Pie slices use tints of the same hue instead of a rainbow.
+const PIE_COLORS = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#64748b', '#94a3b8', '#cbd5e1'];
+
+const RING_RADIUS = 52;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+const card = 'rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
+
 function getWeeklyActivity(progressItems: ProgressItem[]) {
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const now = new Date();
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(now);
@@ -65,11 +72,50 @@ function getWeeklyActivity(progressItems: ProgressItem[]) {
       );
     }).length;
     return {
-      name: dayNames[date.getDay()],
+      name: date.toLocaleDateString(undefined, { weekday: 'short' }),
       hours: Math.max(0, Number((count * 0.75).toFixed(1))),
     };
   });
 }
+
+function Thumb({ src, alt, className }: { src?: string | null; alt: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500`}>
+        <BookOpen className="h-6 w-6" aria-hidden />
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} onError={() => setFailed(true)} className={`${className} object-cover`} />;
+}
+
+function ProgressBar({ value, label }: { value: number; label: string }) {
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+    >
+      <div className="h-full rounded-full bg-blue-600" style={{ width: `${value}%` }} />
+    </div>
+  );
+}
+
+function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <div className="mb-4 flex items-center justify-between">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white">{children}</h3>
+      {action}
+    </div>
+  );
+}
+
+const linkAction = 'text-sm font-medium text-blue-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 dark:text-blue-400';
+const ghostButton = 'mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -116,13 +162,13 @@ export default function DashboardPage() {
         ).flat();
         setProgressItems(progressList);
       } catch {
-        showToast('Impossible de charger le dashboard.', 'error');
+        showToast(t('dashboard.loadError', { defaultValue: 'Impossible de charger le dashboard.' }), 'error');
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [showToast]);
+  }, [showToast, t]);
 
   const enrolledCourses = useMemo<CourseWithMetrics[]>(() => {
     return enrollments.map((enrollment) => {
@@ -158,16 +204,23 @@ export default function DashboardPage() {
   const totalCompletedLessons = progressItems.filter((item) => item.is_completed).length;
   const totalTrackedLessons = enrolledCourses.reduce((sum, item) => sum + item.totalLessons, 0);
   const goalPercent = totalTrackedLessons ? Math.round((totalCompletedLessons / totalTrackedLessons) * 100) : 0;
-  const activityData = getWeeklyActivity(progressItems);
-
+  const activityData = useMemo(() => getWeeklyActivity(progressItems), [progressItems]);
   const maxBarHours = Math.max(...activityData.map((item) => item.hours), 0);
+
+  // The course to resume first: most advanced one that isn't finished, else the first one.
+  const [featured, ...otherCourses] = useMemo(() => {
+    const unfinished = enrolledCourses.filter((c) => c.progressPercent < 100);
+    const sorted = [...unfinished].sort((a, b) => b.progressPercent - a.progressPercent);
+    const rest = enrolledCourses.filter((c) => !sorted.includes(c));
+    return [...sorted, ...rest].slice(0, 4);
+  }, [enrolledCourses]);
 
   const activityChartOptions = useMemo<Highcharts.Options>(() => {
     const colors = chartThemeColors(theme);
     const base = baseChartTheme(theme);
     return {
       ...base,
-      chart: { ...base.chart, type: 'column', height: 256 },
+      chart: { ...base.chart, type: 'column', height: 240 },
       xAxis: {
         categories: activityData.map((item) => item.name),
         crosshair: true,
@@ -178,18 +231,10 @@ export default function DashboardPage() {
       yAxis: {
         min: 0,
         title: { text: undefined },
-        lineColor: colors.gridLine,
-        tickColor: colors.gridLine,
         gridLineColor: colors.gridLine,
         labels: { style: { color: colors.axisLabel } },
       },
-      plotOptions: {
-        column: {
-          borderRadius: 6,
-          pointPadding: 0.15,
-          groupPadding: 0.1,
-        },
-      },
+      plotOptions: { column: { borderRadius: 4, pointPadding: 0.15, groupPadding: 0.1 } },
       series: [
         {
           type: 'column',
@@ -197,7 +242,7 @@ export default function DashboardPage() {
           data: activityData.map((item) => ({
             name: item.name,
             y: item.hours,
-            color: item.hours === maxBarHours ? '#2563eb' : '#334155',
+            color: item.hours === maxBarHours && maxBarHours > 0 ? '#2563eb' : theme === 'dark' ? '#475569' : '#cbd5e1',
           })),
         },
       ],
@@ -221,13 +266,15 @@ export default function DashboardPage() {
     const base = baseChartTheme(theme);
     return {
       ...base,
-      chart: { ...base.chart, type: 'pie', height: 256 },
+      chart: { ...base.chart, type: 'pie', height: 240 },
+      colors: PIE_COLORS,
       tooltip: { ...base.tooltip, pointFormat: '{point.y} ({point.percentage:.1f}%)' },
       plotOptions: {
         pie: {
           allowPointSelect: true,
           cursor: 'pointer',
-          innerSize: '60%',
+          innerSize: '62%',
+          borderWidth: 0,
           dataLabels: { enabled: false },
           showInLegend: true,
         },
@@ -236,342 +283,315 @@ export default function DashboardPage() {
     };
   }, [activityDistribution, t, theme]);
 
-  const statCards = [
-    { label: t('dashboard.coursesInProgress'), value: stats ? String(stats.courses_in_progress) : String(coursesInProgress), icon: PlayCircle, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', badge: `${enrolledCourses.length} ${t('dashboard.enrolled')}` },
-    { label: t('dashboard.completedCourses'), value: stats ? String(stats.courses_completed) : String(completedCourses), icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', badge: `${stats?.lessons_completed ?? totalCompletedLessons} ${t('dashboard.lessons')}` },
-    { label: t('dashboard.averageScore'), value: stats ? `${stats.average_quiz_score.toFixed(1)}%` : (gradedSubmissions.length ? `${averageScore}%` : 'N/A'), icon: Star, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30', badge: `${stats?.skills_earned.length ?? 0} ${t('dashboard.skills')}` },
+  // One strip instead of 4 gradient cards + 3 white cards: same data, one hierarchy.
+  const metrics = [
+    { label: t('dashboard.streak'), value: stats?.streak_days ?? '–', hint: t('dashboard.daysInARow'), icon: Flame, accent: 'text-orange-500' },
+    { label: t('dashboard.today'), value: stats?.lessons_completed_today ?? '–', hint: t('dashboard.lessonsCompleted'), icon: TrendingUp, accent: 'text-blue-600 dark:text-blue-400' },
+    { label: t('dashboard.focus'), value: stats?.total_focus_minutes ?? '–', hint: t('dashboard.totalMinutes'), icon: Zap, accent: 'text-blue-600 dark:text-blue-400' },
+    { label: t('dashboard.coursesInProgress'), value: stats ? stats.courses_in_progress : coursesInProgress, hint: `${enrolledCourses.length} ${t('dashboard.enrolled')}`, icon: PlayCircle, accent: 'text-blue-600 dark:text-blue-400' },
+    { label: t('dashboard.completedCourses'), value: stats ? stats.courses_completed : completedCourses, hint: `${stats?.lessons_completed ?? totalCompletedLessons} ${t('dashboard.lessons')}`, icon: CheckCircle, accent: 'text-emerald-600 dark:text-emerald-400' },
+    { label: t('dashboard.averageScore'), value: stats ? `${stats.average_quiz_score.toFixed(1)}%` : gradedSubmissions.length ? `${averageScore}%` : 'N/A', hint: `${stats?.skills_earned.length ?? 0} ${t('dashboard.skills')}`, icon: Star, accent: 'text-amber-600 dark:text-amber-400' },
   ];
 
+  const shell = (children: React.ReactNode) => (
+    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100">
+      <Sidebar />
+      <main className="ml-64 flex-1">
+        <Header />
+        <div className="mx-auto max-w-7xl p-8">{children}</div>
+      </main>
+    </div>
+  );
+
   if (loading) {
-    return (
-      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
-        <Sidebar />
-        <main className="flex-1 ml-64">
-          <Header />
-          <div className="p-8 max-w-7xl mx-auto">
-            <div className="mb-8">
-              <div className="h-9 bg-slate-200 dark:bg-slate-800 rounded-lg w-72 animate-pulse mb-1" />
-              <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-56 animate-pulse" />
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl animate-pulse" />
-              ))}
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-5">
-                <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-44 animate-pulse" />
-                <div className="h-52 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
-                <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-36 animate-pulse" />
-                <div className="h-44 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
-              </div>
-              <div className="space-y-5">
-                <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-28 animate-pulse" />
-                <div className="h-36 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
-                <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-32 animate-pulse" />
-                <div className="h-36 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
-              </div>
-            </div>
+    return shell(
+      <div aria-busy="true" aria-live="polite">
+        <div className="mb-8 space-y-2">
+          <div className="h-8 w-72 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
+          <div className="h-4 w-56 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+        </div>
+        <div className="mb-8 h-24 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
+            <div className="h-48 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+            <div className="h-20 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+            <div className="h-64 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
           </div>
-        </main>
+          <div className="space-y-4">
+            <div className="h-64 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+            <div className="h-48 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 transition-colors">
-      <Sidebar />
-      <main className="flex-1 ml-64">
-        <Header />
-        <div className="p-8 max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-1">{t('dashboard.welcome', { name: user?.full_name?.split(' ')[0] || 'Student' })}</h2>
-            <p className="text-slate-500 dark:text-slate-400">{t('dashboard.subtitle')}</p>
-          </div>
+  const lessonLink = (c: CourseWithMetrics) =>
+    c.course && c.nextLessonId ? `/player/${c.course.id}/${c.nextLessonId}` : '/courses';
 
-          {stats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-gradient-to-br from-orange-500 to-red-500 p-5 rounded-2xl text-white shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <Flame className="w-5 h-5" />
-                  <span className="text-sm font-bold opacity-80">{t('dashboard.streak')}</span>
-                </div>
-                <p className="text-3xl font-black">{stats.streak_days}</p>
-                <p className="text-xs opacity-80 mt-1">{t('dashboard.daysInARow')}</p>
-              </div>
-              <div className="bg-gradient-to-br from-blue-500 to-indigo-500 p-5 rounded-2xl text-white shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-5 h-5" />
-                  <span className="text-sm font-bold opacity-80">{t('dashboard.today')}</span>
-                </div>
-                <p className="text-3xl font-black">{stats.lessons_completed_today}</p>
-                <p className="text-xs opacity-80 mt-1">{t('dashboard.lessonsCompleted')}</p>
-              </div>
-              <div className="bg-gradient-to-br from-emerald-500 to-teal-500 p-5 rounded-2xl text-white shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <Zap className="w-5 h-5" />
-                  <span className="text-sm font-bold opacity-80">{t('dashboard.focus')}</span>
-                </div>
-                <p className="text-3xl font-black">{stats.total_focus_minutes}</p>
-                <p className="text-xs opacity-80 mt-1">{t('dashboard.totalMinutes')}</p>
-              </div>
-              <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-5 rounded-2xl text-white shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="w-5 h-5" />
-                  <span className="text-sm font-bold opacity-80">{t('dashboard.ai')}</span>
-                </div>
-                <p className="text-3xl font-black">{stats.total_ai_tokens_used}</p>
-                <p className="text-xs opacity-80 mt-1">{t('dashboard.aiInteractions')}</p>
-              </div>
+  return shell(
+    <>
+      <header className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          {t('dashboard.welcome', { name: user?.full_name?.split(' ')[0] || 'Student' })}
+        </h1>
+        <p className="mt-1 text-slate-500 dark:text-slate-400">{t('dashboard.subtitle')}</p>
+      </header>
+
+      {/* Metrics strip */}
+      <section aria-label={t('dashboard.studyActivity')} className={`${card} mb-8 grid grid-cols-2 divide-slate-200 dark:divide-slate-800 sm:grid-cols-3 lg:grid-cols-6 lg:divide-x`}>
+        {metrics.map((m) => (
+          <div key={m.label} className="p-4">
+            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+              <m.icon className={`h-4 w-4 ${m.accent}`} aria-hidden />
+              <span className="truncate">{m.label}</span>
             </div>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">{m.value}</p>
+            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{m.hint}</p>
+          </div>
+        ))}
+      </section>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="space-y-8 lg:col-span-2">
+          {/* Continue learning */}
+          <section>
+            <SectionTitle action={<Link to="/courses" className={linkAction}>{t('dashboard.viewAll')}</Link>}>
+              {t('dashboard.continueLearning')}
+            </SectionTitle>
+
+            {!featured ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                {t('dashboard.noEnrollments')}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className={`${card} flex flex-col overflow-hidden sm:flex-row`}>
+                  <Thumb
+                    src={featured.course?.thumbnail || featured.course?.thumbnail_url}
+                    alt=""
+                    className="h-44 w-full sm:h-auto sm:w-56"
+                  />
+                  <div className="flex flex-1 flex-col p-5">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{featured.course?.category || 'Course'}</p>
+                    <h4 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                      {featured.course?.title || featured.enrollment.course_title}
+                    </h4>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {t('dashboard.lessonProgress', { completed: featured.completedLessons, total: featured.totalLessons || 0 })}
+                    </p>
+                    <div className="mt-4 flex items-center gap-3">
+                      <ProgressBar value={featured.progressPercent} label={featured.course?.title || ''} />
+                      <span className="text-sm font-medium tabular-nums text-slate-700 dark:text-slate-300">{featured.progressPercent}%</span>
+                    </div>
+                    <Link
+                      to={lessonLink(featured)}
+                      className="mt-5 inline-flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                    >
+                      <PlayCircle className="h-4 w-4" aria-hidden />
+                      {t('dashboard.continueLesson')}
+                    </Link>
+                  </div>
+                </div>
+
+                {otherCourses.length > 0 && (
+                  <ul className={`${card} divide-y divide-slate-100 dark:divide-slate-800`}>
+                    {otherCourses.map((item) => (
+                      <li key={item.enrollment.id}>
+                        <Link
+                          to={lessonLink(item)}
+                          className="flex items-center gap-4 p-3 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-600 dark:hover:bg-slate-800/50"
+                        >
+                          <Thumb
+                            src={item.course?.thumbnail || item.course?.thumbnail_url}
+                            alt=""
+                            className="h-12 w-16 shrink-0 rounded-lg"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
+                              {item.course?.title || item.enrollment.course_title}
+                            </p>
+                            <div className="mt-2 flex items-center gap-3">
+                              <ProgressBar value={item.progressPercent} label={item.course?.title || ''} />
+                              <span className="w-9 text-right text-xs tabular-nums text-slate-500 dark:text-slate-400">{item.progressPercent}%</span>
+                            </div>
+                          </div>
+                          <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Study activity */}
+          <section className={`${card} p-5`}>
+            <SectionTitle action={<span className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.last7Days')}</span>}>
+              {t('dashboard.studyActivity')}
+            </SectionTitle>
+            <div className="w-full">
+              <HighchartsReact highcharts={Highcharts} options={activityChartOptions} />
+            </div>
+          </section>
+
+          {/* Recommended */}
+          {recommended.length > 0 && (
+            <section>
+              <SectionTitle action={<Link to="/courses" className={linkAction}>{t('dashboard.browseAll')}</Link>}>
+                {t('dashboard.recommendedForYou')}
+              </SectionTitle>
+              <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {recommended.map((course) => (
+                  <li key={course.id}>
+                    <Link
+                      to={`/courses/${course.slug}`}
+                      className={`${card} flex h-full gap-4 p-3 transition-colors hover:border-blue-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 dark:hover:border-blue-700`}
+                    >
+                      <Thumb src={course.thumbnail_url} alt="" className="h-20 w-24 shrink-0 rounded-lg" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{course.category_name || course.level}</p>
+                        <h4 className="mt-0.5 line-clamp-2 text-sm font-semibold text-slate-900 dark:text-white">{course.title}</h4>
+                        {course.reason && <p className="mt-1 line-clamp-2 text-xs text-blue-700 dark:text-blue-400">{course.reason}</p>}
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="flex items-center gap-1"><Star className="h-3 w-3" aria-hidden />{course.average_rating.toFixed(1)}</span>
+                          <span>{course.enrolled_count} {t('dashboard.enrolled')}</span>
+                          {course.estimated_hours && <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" aria-hidden />{course.estimated_hours}h</span>}
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {statCards.map((stat) => (
-              <div key={stat.label} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center`}>
-                    <stat.icon className="w-6 h-6" />
-                  </div>
-                  <span className="text-slate-600 dark:text-slate-300 text-xs font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">{stat.badge}</span>
-                </div>
-                <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{stat.label}</p>
-                <p className="text-3xl font-bold mt-1 dark:text-white">{stat.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold dark:text-white">{t('dashboard.continueLearning')}</h3>
-                  <Link to="/courses" className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">{t('dashboard.viewAll')}</Link>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {enrolledCourses.slice(0, 4).map((item) => (
-                    <div key={item.enrollment.id} className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800 group">
-                      <div className="h-40 bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
-                        <img
-                          src={item.course?.thumbnail || item.course?.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=1740&q=80'}
-                          alt={item.course?.title || item.enrollment.course_title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                        <span className="absolute bottom-3 left-4 px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded uppercase tracking-wider">
-                          {item.course?.category || 'Course'}
-                        </span>
-                      </div>
-                      <div className="p-5">
-                        <h4 className="font-bold text-lg mb-1 dark:text-white">{item.course?.title || item.enrollment.course_title}</h4>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
-                          {t('dashboard.lessonProgress', { completed: item.completedLessons, total: item.totalLessons || 0 })}
-                        </p>
-                        <div className="flex items-center gap-4 mb-4">
-                          <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-600 rounded-full" style={{ width: `${item.progressPercent}%` }}></div>
-                          </div>
-                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{item.progressPercent}%</span>
-                        </div>
-                        <Link
-                          to={item.course && item.nextLessonId ? `/player/${item.course.id}/${item.nextLessonId}` : '/courses'}
-                          className="block w-full py-2.5 bg-slate-900 dark:bg-slate-800 text-white text-center rounded-xl text-sm font-bold hover:bg-blue-600 dark:hover:bg-blue-600 transition-colors"
-                        >
-                          {t('dashboard.continueLesson')}
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                  {enrolledCourses.length === 0 && (
-                    <div className="md:col-span-2 rounded-2xl border border-dashed border-slate-300 bg-white dark:bg-slate-900 p-8 text-sm text-slate-500">
-                      {t('dashboard.noEnrollments')}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold dark:text-white">{t('dashboard.studyActivity')}</h3>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 rounded-lg py-1 px-2 bg-slate-50 dark:bg-slate-800">{t('dashboard.last7Days')}</span>
-                </div>
-                <div className="h-64 w-full">
-                  <HighchartsReact
-                    highcharts={Highcharts}
-                    options={activityChartOptions}
-                  />
-                </div>
-              </div>
-
-              {recommended.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-purple-500" />
-                      <h3 className="text-xl font-bold dark:text-white">{t('dashboard.recommendedForYou')}</h3>
-                    </div>
-                    <Link to="/courses" className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">{t('dashboard.browseAll')}</Link>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {recommended.map((course) => (
-                      <Link key={course.id} to={`/courses/${course.slug}`} className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800 group hover:border-purple-200 dark:hover:border-purple-800 transition-colors">
-                        <div className="h-36 bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
-                          <img
-                            src={course.thumbnail_url || 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?auto=format&fit=crop&w=1740&q=80'}
-                            alt={course.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                          <span className="absolute bottom-3 left-4 px-2 py-1 bg-purple-600 text-white text-[10px] font-bold rounded uppercase tracking-wider">
-                            {course.category_name || course.level}
-                          </span>
-                        </div>
-                        <div className="p-4">
-                          <h4 className="font-bold text-sm dark:text-white mb-1">{course.title}</h4>
-                          <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-2">{course.reason}</p>
-                          {course.insights?.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-2">
-                              {course.insights.map((insight, i) => (
-                                <span key={i} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">{insight}</span>
-                              ))}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-3 text-xs text-slate-500">
-                            <span className="flex items-center gap-1"><Star className="w-3 h-3" />{course.average_rating.toFixed(1)}</span>
-                            <span>{course.enrolled_count} enrolled</span>
-                            {course.estimated_hours && <span className="flex items-center gap-1"><Clock3 className="w-3 h-3" />{course.estimated_hours}h</span>}
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activities.length > 0 && (
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                  <h3 className="text-lg font-bold mb-6 dark:text-white">{t('dashboard.recentActivity')}</h3>
-                  <div className="space-y-4">
-                    {activities.slice(0, 10).map((act) => {
-                      const Icon = ACTIVITY_ICONS[act.kind] || MessageSquare;
-                      return (
-                        <div key={act.id} className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                            <Icon className="w-4 h-4 text-slate-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{t(`dashboard.${ACTIVITY_LABELS[act.kind] || act.kind}`)}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">{new Date(act.created_at).toLocaleString()}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-8">
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 text-center">
-                <h3 className="text-lg font-bold mb-6 text-left dark:text-white">{t('dashboard.learningGoal')}</h3>
-                <div className="relative w-40 h-40 mx-auto mb-6">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle cx="80" cy="80" r="70" fill="transparent" stroke="currentColor" className="text-slate-100 dark:text-slate-800" strokeWidth="12" />
-                    <circle
-                      cx="80" cy="80" r="70" fill="transparent" stroke="#2563eb" strokeWidth="12"
-                      strokeDasharray={440}
-                      strokeDashoffset={440 - (440 * goalPercent) / 100}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-4xl font-extrabold text-slate-900 dark:text-white">{goalPercent}%</span>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-1">{t('dashboard.complete')}</span>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between text-sm p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <span className="text-slate-600 dark:text-slate-400 font-medium">{t('dashboard.completed')}</span>
-                    </div>
-                    <span className="font-bold text-slate-900 dark:text-white">{totalCompletedLessons}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full"></span>
-                      <span className="text-slate-600 dark:text-slate-400 font-medium">{t('dashboard.remaining')}</span>
-                    </div>
-                    <span className="font-bold text-slate-900 dark:text-white">{Math.max(0, totalTrackedLessons - totalCompletedLessons)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {activityDistribution.length > 0 && (
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-lg font-bold dark:text-white">{t('dashboard.activityBreakdown')}</h3>
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 rounded-lg py-1 px-2 bg-slate-50 dark:bg-slate-800">{t('dashboard.byType')}</span>
-                  </div>
-                  <div className="h-64 w-full">
-                    <HighchartsReact
-                      highcharts={Highcharts}
-                      options={activityTypeChartOptions}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold dark:text-white">{t('dashboard.upcomingDeadlines')}</h3>
-                  <CalendarClock className="text-slate-400 w-5 h-5" />
-                </div>
-                <div className="space-y-5">
-                  {upcomingAssignments.map((task) => {
-                    const date = new Date(task.due_date);
-                    return (
-                      <div key={task.id} className="flex gap-4 items-center">
-                        <div className="flex flex-col items-center justify-center w-12 h-12 bg-blue-50 text-blue-600 rounded-xl">
-                          <span className="text-[10px] font-bold uppercase">{date.toLocaleString(undefined, { month: 'short' })}</span>
-                          <span className="text-lg font-black leading-none">{date.getDate()}</span>
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-sm font-bold text-slate-900 dark:text-white">{task.title}</h4>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">{task.course_title || 'Course'}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {upcomingAssignments.length === 0 && <p className="text-sm text-slate-500">{t('dashboard.noDeadlines')}</p>}
-                </div>
-                <Link to="/assignments" className="w-full mt-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                  {t('dashboard.viewAssignments')} <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold dark:text-white">{t('dashboard.upcomingLiveSessions')}</h3>
-                  <CalendarClock className="text-slate-400 w-5 h-5" />
-                </div>
-                <div className="space-y-4">
-                  {upcomingLiveSessions.map((session) => (
-                    <div key={session.id} className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
-                      <p className="font-bold text-slate-900 dark:text-white">{session.title}</p>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{session.course_title || 'Course'} — {new Date(session.scheduled_at).toLocaleString()}</p>
-                    </div>
-                  ))}
-                  {upcomingLiveSessions.length === 0 && <p className="text-sm text-slate-500">{t('dashboard.noLiveSessions')}</p>}
-                </div>
-                <Link to="/schedule" className="w-full mt-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                  {t('dashboard.viewFullSchedule')} <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-            </div>
-          </div>
+          {/* Recent activity */}
+          {activities.length > 0 && (
+            <section className={`${card} p-5`}>
+              <SectionTitle>{t('dashboard.recentActivity')}</SectionTitle>
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {activities.slice(0, 10).map((act) => {
+                  const Icon = ACTIVITY_ICONS[act.kind] || MessageSquare;
+                  return (
+                    <li key={act.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+                        <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
+                      </span>
+                      <p className="min-w-0 flex-1 truncate text-sm text-slate-800 dark:text-slate-200">
+                        {t(`dashboard.${ACTIVITY_LABELS[act.kind] || act.kind}`)}
+                      </p>
+                      <time dateTime={act.created_at} className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(act.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                      </time>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
         </div>
-      </main>
-    </div>
+
+        {/* Sidebar column */}
+        <div className="space-y-8">
+          <section className={`${card} p-5`}>
+            <SectionTitle>{t('dashboard.learningGoal')}</SectionTitle>
+            <div className="flex items-center gap-5">
+              <div className="relative h-28 w-28 shrink-0">
+                <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" role="img" aria-label={`${goalPercent}% ${t('dashboard.complete')}`}>
+                  <circle cx="60" cy="60" r={RING_RADIUS} fill="none" strokeWidth="10" className="stroke-slate-100 dark:stroke-slate-800" />
+                  <circle
+                    cx="60" cy="60" r={RING_RADIUS} fill="none" strokeWidth="10" strokeLinecap="round"
+                    className="stroke-blue-600"
+                    strokeDasharray={RING_CIRCUMFERENCE}
+                    strokeDashoffset={RING_CIRCUMFERENCE * (1 - goalPercent / 100)}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                  {goalPercent}%
+                </span>
+              </div>
+              <dl className="flex-1 space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <dt className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                    <span className="h-2 w-2 rounded-full bg-blue-600" aria-hidden />{t('dashboard.completed')}
+                  </dt>
+                  <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">{totalCompletedLessons}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                    <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden />{t('dashboard.remaining')}
+                  </dt>
+                  <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">{Math.max(0, totalTrackedLessons - totalCompletedLessons)}</dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+
+          {activityDistribution.length > 0 && (
+            <section className={`${card} p-5`}>
+              <SectionTitle action={<span className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.byType')}</span>}>
+                {t('dashboard.activityBreakdown')}
+              </SectionTitle>
+              <HighchartsReact highcharts={Highcharts} options={activityTypeChartOptions} />
+            </section>
+          )}
+
+          <section className={`${card} p-5`}>
+            <SectionTitle action={<CalendarClock className="h-5 w-5 text-slate-400" aria-hidden />}>
+              {t('dashboard.upcomingDeadlines')}
+            </SectionTitle>
+            {upcomingAssignments.length > 0 ? (
+              <ul className="space-y-4">
+                {upcomingAssignments.map((task) => {
+                  const date = new Date(task.due_date);
+                  return (
+                    <li key={task.id} className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                        <span className="text-xs">{date.toLocaleString(undefined, { month: 'short' })}</span>
+                        <span className="text-base font-semibold leading-none">{date.getDate()}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{task.title}</p>
+                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{task.course_title || 'Course'}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.noDeadlines')}</p>
+            )}
+            <Link to="/assignments" className={ghostButton}>
+              {t('dashboard.viewAssignments')} <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </section>
+
+          <section className={`${card} p-5`}>
+            <SectionTitle action={<Video className="h-5 w-5 text-slate-400" aria-hidden />}>
+              {t('dashboard.upcomingLiveSessions')}
+            </SectionTitle>
+            {upcomingLiveSessions.length > 0 ? (
+              <ul className="space-y-3">
+                {upcomingLiveSessions.map((session) => (
+                  <li key={session.id} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{session.title}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {session.course_title || 'Course'} · {new Date(session.scheduled_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.noLiveSessions')}</p>
+            )}
+            <Link to="/schedule" className={ghostButton}>
+              {t('dashboard.viewFullSchedule')} <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </section>
+        </div>
+      </div>
+    </>
   );
 }
