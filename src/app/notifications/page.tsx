@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, BookOpen, CheckCheck, ClipboardList, BarChart3, MessageSquare, Radio, AlarmClock, Star, ShieldCheck, Megaphone, type LucideIcon } from 'lucide-react';
+import { Bell, BookOpen, CheckCheck, ClipboardList, BarChart3, MessageSquare, Radio, AlarmClock, Star, ShieldCheck, Megaphone, Loader2, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
 import InstructorSidebar from '../../components/InstructorSidebar';
 import AdminSidebar from '../../components/AdminSidebar';
@@ -108,7 +108,9 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
             >
               {t('notifications.allTypes')}
             </button>
-            {visibleTypes.map(type => (
+            {visibleTypes.map(type => {
+              const TypeIcon = typeConfig[type].icon;
+              return (
               <button
                 key={type}
                 onClick={() => { setTypeFilter(type); setPage(1); }}
@@ -116,9 +118,10 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
                   typeFilter === type ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
                 }`}
               >
-                {typeConfig[type].icon} {t(`notifications.types.${type}`)}
+                <TypeIcon className="w-3.5 h-3.5 inline mr-1" /> {t(`notifications.types.${type}`)}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {loading ? (
@@ -135,6 +138,7 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
               <div className="space-y-2">
                 {notifications.map((n) => {
                   const cfg = typeConfig[n.notification_type] || typeConfig.SYSTEM;
+                  const RowIcon = cfg.icon;
                   return (
                     <div
                       key={n.id}
@@ -149,7 +153,7 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
                       }`}
                     >
                       <div className={`w-10 h-10 rounded-xl ${cfg.bg} flex items-center justify-center text-lg shrink-0`}>
-                        {cfg.icon}
+                        <RowIcon className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">

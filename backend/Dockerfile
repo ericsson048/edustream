@@ -5,9 +5,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# 1. Installer uv en utilisant l'installateur officiel de l'image de référence
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+# 2. Copier requirements.txt et installer les dépendances ultra rapidement
+COPY requirements.txt ./
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# 3. Copier le reste du code
 COPY . .
 
 EXPOSE 8000

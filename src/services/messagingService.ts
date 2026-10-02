@@ -6,6 +6,7 @@ export interface ConversationItem {
   id: string;
   name: string;
   is_group: boolean;
+  created_at?: string;
   latest_message?: {
     id: string;
     content: string;
