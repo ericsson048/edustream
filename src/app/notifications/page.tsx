@@ -81,7 +81,7 @@ export default function NotificationsPage({ initialRole }: { initialRole?: strin
       <SidebarComponent />
       <main className="flex-1 ml-64">
         <Header />
-        <div className="p-8 max-w-4xl mx-auto">
+        <div className="p-8 w-full mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{t('notifications.pageTitle')}</h1>

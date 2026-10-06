@@ -113,7 +113,6 @@ export default function Welcome() {
             transition={{ delay: 0.2, duration: 0.6 }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium text-sm mb-8 border border-blue-100 dark:border-blue-800/50"
           >
-            <Sparkles className="w-4 h-4" />
             <span>{t('welcome.badge')}</span>
           </motion.div>
           <motion.h1
