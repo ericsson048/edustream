@@ -58,6 +58,29 @@ export const authService = {
     return data;
   },
 
+  async getMyStats(): Promise<{
+    courses_enrolled: number;
+    courses_completed: number;
+    certificates_count: number;
+    assignments_submitted: number;
+    quiz_attempts: number;
+    total_focus_minutes: number;
+    streak_days: number;
+  }> {
+    const { data } = await apiClient.get('/auth/me/stats/');
+    return data;
+  },
+
+  async getMyPreferences(): Promise<Record<string, boolean>> {
+    const { data } = await apiClient.get('/auth/me/preferences/');
+    return data;
+  },
+
+  async updateMyPreferences(payload: Record<string, boolean>): Promise<Record<string, boolean>> {
+    const { data } = await apiClient.patch('/auth/me/preferences/', payload);
+    return data;
+  },
+
   logout(): void {
     tokenStorage.clearTokens();
   },

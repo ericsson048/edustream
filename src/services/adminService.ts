@@ -47,10 +47,15 @@ export interface SupportTicket {
   user: string;
   user_full_name: string;
   user_email: string;
+  user_avatar?: string;
   subject: string;
   message: string;
-  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  admin_reply?: string;
+  replied_by?: string;
+  replied_by_name?: string;
+  replied_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -104,6 +109,13 @@ export const adminService = {
     const { data } = await apiClient.patch<SupportTicket>(`/admin/support/tickets/${id}/`, payload);
     return data;
   },
+  async replySupportTicket(id: string, reply: string, newStatus?: string): Promise<SupportTicket> {
+    const { data } = await apiClient.post<SupportTicket>(`/admin/support/tickets/${id}/reply/`, {
+      reply,
+      status: newStatus ?? 'IN_PROGRESS',
+    });
+    return data;
+  },
   async createSupportTicket(payload: { subject: string; message: string; priority: SupportTicket['priority'] }): Promise<SupportTicket> {
     const { data } = await apiClient.post<SupportTicket>('/admin/support/tickets/', payload);
     return data;
@@ -143,5 +155,15 @@ export const adminService = {
   },
   async refundTransaction(id: string): Promise<void> {
     await apiClient.post(`/billing/transactions/${id}/refund/`);
+  },
+
+  // User-facing support tickets (any role)
+  async listMyTickets(): Promise<SupportTicket[]> {
+    const { data } = await apiClient.get<SupportTicket[]>('/support/tickets/');
+    return Array.isArray(data) ? data : [];
+  },
+  async submitTicket(payload: { subject: string; message: string; priority: SupportTicket['priority'] }): Promise<SupportTicket> {
+    const { data } = await apiClient.post<SupportTicket>('/support/tickets/', payload);
+    return data;
   },
 };

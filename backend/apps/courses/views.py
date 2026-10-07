@@ -121,7 +121,14 @@ class CourseViewSet(viewsets.ModelViewSet):
         return (qs.filter(is_published=True) | qs.filter(enrollments__student=user, enrollments__is_active=True)).distinct()
 
     def perform_create(self, serializer):
-        serializer.save(instructor=self.request.user)
+        instructor = self.request.user
+        # Auto-set institution and course_type=MARGINAL for institution instructors
+        extra = {}
+        if instructor.institution:
+            extra["institution"] = instructor.institution
+            if not serializer.validated_data.get("course_type"):
+                extra["course_type"] = "MARGINAL"
+        serializer.save(instructor=instructor, **extra)
 
     @action(detail=True, methods=["post"], url_path="import-outline")
     def import_outline(self, request, pk=None):

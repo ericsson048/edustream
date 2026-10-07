@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy, MessageSquare, User } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy, MessageSquare, User, Building2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -12,6 +12,7 @@ export default function AdminSidebar() {
   const links = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
     { name: 'Manage Users', icon: Users, href: '/admin/users' },
+    { name: 'Institutions', icon: Building2, href: '/admin/institutions' },
     { name: 'Manage Courses', icon: BookOpen, href: '/admin/courses' },
     { name: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
     { name: 'Financial Reports', icon: TrendingUp, href: '/admin/reports' },

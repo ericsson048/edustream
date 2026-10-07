@@ -90,6 +90,9 @@ export interface Course {
   reviews?: CourseReview[];
   average_rating?: number | null;
   enrollments_count?: number;
+  institution?: string | null;
+  institution_name?: string | null;
+  instructor_institution?: { id: string; name: string; logo_url: string } | null;
   created_at?: string;
   updated_at?: string;
 }

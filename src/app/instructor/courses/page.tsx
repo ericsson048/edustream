@@ -11,10 +11,10 @@ import {
   X,
   AlertTriangle,
   BookOpen,
-  Clock,
-  Layers,
+  ChevronDown,
+  ImageIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useToast } from "../../../contexts/ToastContext";
@@ -104,6 +104,7 @@ export default function InstructorCourses() {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [form, setForm] = useState<CourseForm>(emptyForm);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbPreview, setThumbPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Course | null>(null);
   const [search, setSearch] = useState("");
@@ -132,12 +133,21 @@ export default function InstructorCourses() {
 
   const filteredCourses = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = q ? courses.filter((c) => c.title.toLowerCase().includes(q)) : courses;
-    return [...list].sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
+    const list = q
+      ? courses.filter((c) => c.title.toLowerCase().includes(q))
+      : courses;
+    return [...list].sort(
+      (a, b) =>
+        new Date(b.created_at || "").getTime() -
+        new Date(a.created_at || "").getTime(),
+    );
   }, [courses, search]);
 
   const totalPages = Math.ceil(filteredCourses.length / PAGE_SIZE) || 1;
-  const paginatedCourses = filteredCourses.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginatedCourses = filteredCourses.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
   const stats = useMemo(
     () => ({
@@ -271,6 +281,68 @@ export default function InstructorCourses() {
       </button>
     </div>
   );
+
+  const fieldCls =
+    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 " +
+    "focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30 " +
+    "dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500";
+  const labelCls =
+    "mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300";
+  const hintCls = "mt-1.5 text-xs text-slate-500 dark:text-slate-400";
+  const focusRing =
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+
+  function Section({
+    title,
+    children,
+  }: {
+    title: string;
+    children: ReactNode;
+  }) {
+    return (
+      <section className="space-y-4">
+        <h3 className="border-b border-slate-100 pb-2 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
+          {title}
+        </h3>
+        {children}
+      </section>
+    );
+  }
+
+  // Aperçu de la miniature (et nettoyage de l'URL temporaire)
+  useEffect(() => {
+    if (!thumbnailFile) {
+      setThumbPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(thumbnailFile);
+    setThumbPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [thumbnailFile]);
+
+  // Échap ferme le dialogue ; la page derrière ne défile plus
+  useEffect(() => {
+    if (!dialogVisible) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDialogVisible(false);
+    };
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [dialogVisible, setDialogVisible]);
+
+  const isMarginal = form.course_type === "MARGINAL";
+  const dateError =
+    isMarginal &&
+    form.start_date &&
+    form.end_date &&
+    form.end_date < form.start_date
+      ? "La fin de la période doit être après le début."
+      : null;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -448,291 +520,438 @@ export default function InstructorCourses() {
                   ))}
                 </tbody>
               </table>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+              />
             </div>
           )}
         </div>
       </main>
 
       {dialogVisible && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150"
-          onClick={() => setDialogVisible(false)}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="course-dialog-title"
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 shrink-0">
-              <h2 className="text-lg font-bold text-slate-900">
-                {editingCourse ? "Modifier le cours" : "Nouveau cours"}
-              </h2>
+            {/* En-tête */}
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+              <div>
+                <h2
+                  id="course-dialog-title"
+                  className="text-lg font-semibold text-slate-900 dark:text-white"
+                >
+                  {editingCourse ? "Modifier le cours" : "Nouveau cours"}
+                </h2>
+                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                  Les champs marqués d'un * sont obligatoires.
+                </p>
+              </div>
               <button
+                type="button"
                 onClick={() => setDialogVisible(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+                aria-label="Fermer"
+                className={`rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${focusRing}`}
               >
-                <X size={18} />
+                <X size={18} aria-hidden />
               </button>
             </div>
-            <div className="p-6 space-y-5 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Titre *
-                </label>
-                <input
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
-                  placeholder="Ex : Introduction à React"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Sous-titre
-                </label>
-                <input
-                  value={form.subtitle}
-                  onChange={(e) =>
-                    setForm({ ...form, subtitle: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Description
-                </label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
-                  rows={3}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow resize-none"
-                />
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
+            {/* Contenu */}
+            <div className="space-y-8 overflow-y-auto px-6 py-6">
+              <Section title="Informations">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Catégorie
-                  </label>
-                  <select
-                    value={form.category_id}
-                    onChange={(e) =>
-                      setForm({ ...form, category_id: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow bg-white"
-                  >
-                    <option value="">Sélectionner</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Langue
-                  </label>
-                  <select
-                    value={form.language}
-                    onChange={(e) =>
-                      setForm({ ...form, language: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow bg-white"
-                  >
-                    <option value="fr">Français</option>
-                    <option value="en">English</option>
-                    <option value="es">Español</option>
-                    <option value="de">Deutsch</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Niveau
-                  </label>
-                  <select
-                    value={form.level}
-                    onChange={(e) =>
-                      setForm({ ...form, level: e.target.value as any })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow bg-white"
-                  >
-                    <option value="BEGINNER">Débutant</option>
-                    <option value="INTERMEDIATE">Intermédiaire</option>
-                    <option value="ADVANCED">Avancé</option>
-                    <option value="ALL">Tous niveaux</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Prix (€)
+                  <label htmlFor="course-title" className={labelCls}>
+                    Titre <span aria-hidden>*</span>
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    value={form.price}
+                    id="course-title"
+                    autoFocus
+                    aria-required="true"
+                    value={form.title}
                     onChange={(e) =>
-                      setForm({ ...form, price: e.target.value })
+                      setForm({ ...form, title: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                    className={fieldCls}
+                    placeholder="Ex : Introduction à React"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1">
-                    <Clock size={12} /> Heures
+                  <label htmlFor="course-subtitle" className={labelCls}>
+                    Sous-titre
                   </label>
                   <input
-                    type="number"
-                    min={0}
-                    value={form.estimated_hours}
+                    id="course-subtitle"
+                    value={form.subtitle}
                     onChange={(e) =>
-                      setForm({
-                        ...form,
-                        estimated_hours: Number(e.target.value),
-                      })
+                      setForm({ ...form, subtitle: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                    className={fieldCls}
                   />
                 </div>
-              </div>
+                <div>
+                  <label htmlFor="course-description" className={labelCls}>
+                    Description
+                  </label>
+                  <textarea
+                    id="course-description"
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm({ ...form, description: e.target.value })
+                    }
+                    rows={3}
+                    className={`${fieldCls} resize-none`}
+                  />
+                </div>
+              </Section>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Type de cours
+              <Section title="Classement">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor="course-category" className={labelCls}>
+                      Catégorie
+                    </label>
+                    <select
+                      id="course-category"
+                      value={form.category_id}
+                      onChange={(e) =>
+                        setForm({ ...form, category_id: e.target.value })
+                      }
+                      className={fieldCls}
+                    >
+                      <option value="">Sélectionner</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="course-level" className={labelCls}>
+                      Niveau
+                    </label>
+                    <select
+                      id="course-level"
+                      value={form.level}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          level: e.target.value as CourseForm["level"],
+                        })
+                      }
+                      className={fieldCls}
+                    >
+                      <option value="BEGINNER">Débutant</option>
+                      <option value="INTERMEDIATE">Intermédiaire</option>
+                      <option value="ADVANCED">Avancé</option>
+                      <option value="ALL">Tous niveaux</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="course-language" className={labelCls}>
+                      Langue
+                    </label>
+                    <select
+                      id="course-language"
+                      value={form.language}
+                      onChange={(e) =>
+                        setForm({ ...form, language: e.target.value })
+                      }
+                      className={fieldCls}
+                    >
+                      <option value="fr">Français</option>
+                      <option value="en">English</option>
+                      <option value="es">Español</option>
+                      <option value="de">Deutsch</option>
+                    </select>
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Prix et durée">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="course-price" className={labelCls}>
+                      Prix
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="course-price"
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step="0.01"
+                        placeholder="0,00"
+                        value={form.price}
+                        onChange={(e) =>
+                          setForm({ ...form, price: e.target.value })
+                        }
+                        className={`${fieldCls} pr-8`}
+                      />
+                      <span
+                        className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500 dark:text-slate-400"
+                        aria-hidden
+                      >
+                        €
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="course-hours" className={labelCls}>
+                      Durée estimée
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="course-hours"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        placeholder="0"
+                        value={
+                          form.estimated_hours === 0 ? "" : form.estimated_hours
+                        }
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            estimated_hours: Number(e.target.value),
+                          })
+                        }
+                        className={`${fieldCls} pr-12`}
+                      />
+                      <span
+                        className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500 dark:text-slate-400"
+                        aria-hidden
+                      >
+                        heures
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Type de cours">
+                <div>
+                  <label htmlFor="course-type" className={labelCls}>
+                    Type
                   </label>
                   <select
+                    id="course-type"
                     value={form.course_type}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        course_type: e.target.value as CourseForm["course_type"],
+                        course_type: e.target
+                          .value as CourseForm["course_type"],
                       })
                     }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow bg-white"
+                    className={fieldCls}
                   >
                     <option value="REGULAR">Cours du programme</option>
-                    <option value="MARGINAL">Cours marginal (période définie + invitation)</option>
+                    <option value="MARGINAL">
+                      Cours marginal (période définie + invitation)
+                    </option>
                   </select>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Un cours marginal est un cours optionnel hors programme, ouvert sur une période précise aux apprenants invités.
+                  <p className={hintCls}>
+                    Un cours marginal est optionnel et hors programme. Il est
+                    ouvert sur une période précise aux apprenants invités.
                   </p>
                 </div>
-                {form.course_type === "MARGINAL" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                        Début de la période *
-                      </label>
-                      <input
-                        type="date"
-                        value={form.start_date}
-                        onChange={(e) =>
-                          setForm({ ...form, start_date: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
-                      />
+
+                {isMarginal && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label htmlFor="course-start" className={labelCls}>
+                          Début de la période <span aria-hidden>*</span>
+                        </label>
+                        <input
+                          id="course-start"
+                          type="date"
+                          aria-required="true"
+                          value={form.start_date}
+                          onChange={(e) =>
+                            setForm({ ...form, start_date: e.target.value })
+                          }
+                          className={fieldCls}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="course-end" className={labelCls}>
+                          Fin de la période <span aria-hidden>*</span>
+                        </label>
+                        <input
+                          id="course-end"
+                          type="date"
+                          aria-required="true"
+                          aria-invalid={!!dateError}
+                          aria-describedby={
+                            dateError ? "course-date-error" : undefined
+                          }
+                          min={form.start_date || undefined}
+                          value={form.end_date}
+                          onChange={(e) =>
+                            setForm({ ...form, end_date: e.target.value })
+                          }
+                          className={`${fieldCls} ${dateError ? "border-red-500 focus:border-red-500 focus:ring-red-500/30" : ""}`}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                        Fin de la période *
-                      </label>
-                      <input
-                        type="date"
-                        value={form.end_date}
-                        onChange={(e) =>
-                          setForm({ ...form, end_date: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
-                      />
-                    </div>
-                  </>
+                    {dateError && (
+                      <p
+                        id="course-date-error"
+                        role="alert"
+                        className="mt-2 text-sm text-red-600 dark:text-red-400"
+                      >
+                        {dateError}
+                      </p>
+                    )}
+                  </div>
                 )}
-              </div>
+              </Section>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Miniature
-                </label>
-                <label className="flex items-center gap-3 px-3 py-2.5 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition-colors">
-                  <Layers size={16} className="text-slate-400 shrink-0" />
-                  <span className="truncate">
-                    {thumbnailFile ? thumbnailFile.name : "Choisir une image"}
+              <Section title="Miniature">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
+                    {thumbPreview ? (
+                      <img
+                        src={thumbPreview}
+                        alt="Aperçu de la miniature"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <ImageIcon size={24} aria-hidden />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    {/* L'input reste focusable au clavier : sr-only au lieu de hidden */}
+                    <label
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-blue-600 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800`}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) =>
+                          setThumbnailFile(e.target.files?.[0] || null)
+                        }
+                        className="sr-only"
+                      />
+                      {thumbnailFile ? "Changer l'image" : "Choisir une image"}
+                    </label>
+                    {thumbnailFile && (
+                      <button
+                        type="button"
+                        onClick={() => setThumbnailFile(null)}
+                        className={`ml-2 rounded-lg px-2 py-2 text-sm text-slate-600 hover:underline dark:text-slate-400 ${focusRing}`}
+                      >
+                        Retirer
+                      </button>
+                    )}
+                    <p className={`${hintCls} truncate`}>
+                      {thumbnailFile
+                        ? thumbnailFile.name
+                        : "Format paysage recommandé (16:9)."}
+                    </p>
+                  </div>
+                </div>
+              </Section>
+
+              {/* Champs optionnels repliés pour raccourcir le formulaire */}
+              <details
+                className="group rounded-lg border border-slate-200 dark:border-slate-800"
+                open={!!editingCourse}
+              >
+                <summary
+                  className={`flex cursor-pointer list-none items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white ${focusRing}`}
+                >
+                  Détails pédagogiques
+                  <span className="flex items-center gap-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                    Facultatif
+                    <ChevronDown
+                      size={16}
+                      className="transition-transform group-open:rotate-180"
+                      aria-hidden
+                    />
                   </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      setThumbnailFile(e.target.files?.[0] || null)
-                    }
-                    className="hidden"
-                  />
-                </label>
-              </div>
+                </summary>
+                <div className="space-y-4 border-t border-slate-100 px-4 py-4 dark:border-slate-800">
+                  <div>
+                    <label htmlFor="course-objectives" className={labelCls}>
+                      Objectifs pédagogiques
+                    </label>
+                    <input
+                      id="course-objectives"
+                      value={form.learning_objectives}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          learning_objectives: e.target.value,
+                        })
+                      }
+                      className={fieldCls}
+                      placeholder="Ex : Créer un composant, Gérer l'état, Appeler une API"
+                    />
+                    <p className={hintCls}>Séparés par des virgules.</p>
+                  </div>
+                  <div>
+                    <label htmlFor="course-prerequisites" className={labelCls}>
+                      Prérequis
+                    </label>
+                    <input
+                      id="course-prerequisites"
+                      value={form.prerequisites}
+                      onChange={(e) =>
+                        setForm({ ...form, prerequisites: e.target.value })
+                      }
+                      className={fieldCls}
+                      placeholder="Ex : JavaScript, HTML"
+                    />
+                    <p className={hintCls}>Séparés par des virgules.</p>
+                  </div>
+                  <div>
+                    <label htmlFor="course-audience" className={labelCls}>
+                      Public cible
+                    </label>
+                    <input
+                      id="course-audience"
+                      value={form.target_audience}
+                      onChange={(e) =>
+                        setForm({ ...form, target_audience: e.target.value })
+                      }
+                      className={fieldCls}
+                      placeholder="Ex : Étudiants, Développeurs juniors"
+                    />
+                    <p className={hintCls}>Séparés par des virgules.</p>
+                  </div>
+                </div>
+              </details>
 
-              <div className="pt-2 border-t border-slate-100 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Objectifs pédagogiques
-                  </label>
-                  <input
-                    value={form.learning_objectives}
-                    onChange={(e) =>
-                      setForm({ ...form, learning_objectives: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
-                    placeholder="Séparés par des virgules"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Prérequis
-                  </label>
-                  <input
-                    value={form.prerequisites}
-                    onChange={(e) =>
-                      setForm({ ...form, prerequisites: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
-                    placeholder="Séparés par des virgules"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Public cible
-                  </label>
-                  <input
-                    value={form.target_audience}
-                    onChange={(e) =>
-                      setForm({ ...form, target_audience: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
-                    placeholder="Séparés par des virgules"
-                  />
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
                 <input
                   type="checkbox"
                   checked={form.is_published}
                   onChange={(e) =>
                     setForm({ ...form, is_published: e.target.checked })
                   }
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                 />
-                <span className="text-sm text-slate-700">
-                  Publier immédiatement
+                <span>
+                  <span className="block text-sm font-medium text-slate-900 dark:text-white">
+                    Publier immédiatement
+                  </span>
+                  <span className="block text-xs text-slate-500 dark:text-slate-400">
+                    Sinon, le cours reste en brouillon jusqu'à sa publication.
+                  </span>
                 </span>
               </label>
             </div>
-            <div className="p-6 border-t border-slate-200 shrink-0">
+
+            {/* Pied : les boutons de `footer` restent à droite */}
+            <div className="shrink-0 rounded-b-xl border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               {footer}
             </div>
           </div>

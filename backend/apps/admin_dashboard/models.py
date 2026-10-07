@@ -9,6 +9,7 @@ class SupportTicket(models.Model):
         OPEN = "OPEN", "Open"
         IN_PROGRESS = "IN_PROGRESS", "In Progress"
         RESOLVED = "RESOLVED", "Resolved"
+        CLOSED = "CLOSED", "Closed"
 
     class Priority(models.TextChoices):
         LOW = "LOW", "Low"
@@ -16,16 +17,33 @@ class SupportTicket(models.Model):
         HIGH = "HIGH", "High"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="support_tickets")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="support_tickets",
+    )
     subject = models.CharField(max_length=255)
     message = models.TextField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.MEDIUM)
+    # Admin reply
+    admin_reply = models.TextField(blank=True, default="")
+    replied_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ticket_replies",
+    )
+    replied_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.status}] {self.subject} — {self.user.full_name}"
 
 
 class PlatformSetting(models.Model):

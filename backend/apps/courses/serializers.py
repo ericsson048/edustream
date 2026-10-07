@@ -166,6 +166,8 @@ class CourseReviewSerializer(serializers.ModelSerializer):
 
 class CourseSerializer(serializers.ModelSerializer):
     instructor_name = serializers.CharField(source="instructor.full_name", read_only=True)
+    institution_name = serializers.SerializerMethodField()
+    instructor_institution = serializers.SerializerMethodField()
     modules = serializers.SerializerMethodField()
     sections = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
@@ -186,7 +188,20 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = "__all__"
-        read_only_fields = ["slug", "instructor", "platform_fee_percentage", "created_at", "updated_at", "modules", "thumbnail", "category", "category_slug", "sections"]
+        read_only_fields = ["slug", "instructor", "platform_fee_percentage", "created_at", "updated_at", "modules", "thumbnail", "category", "category_slug", "sections", "institution_name", "instructor_institution"]
+
+    def get_institution_name(self, obj):
+        if obj.institution:
+            return obj.institution.name
+        if obj.instructor and obj.instructor.institution:
+            return obj.instructor.institution.name
+        return None
+
+    def get_instructor_institution(self, obj):
+        inst = obj.institution or (obj.instructor.institution if obj.instructor else None)
+        if not inst:
+            return None
+        return {"id": str(inst.id), "name": inst.name, "logo_url": inst.logo_url or ""}
 
     def _normalize_string_list_field(self, data, field):
         if hasattr(data, "getlist"):

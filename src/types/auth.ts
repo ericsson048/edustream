@@ -1,4 +1,4 @@
-export type UserRole = 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+export type UserRole = 'STUDENT' | 'INSTRUCTOR' | 'INSTITUTION_ADMIN' | 'ADMIN';
 
 export interface AuthUser {
   id: string;
@@ -15,6 +15,9 @@ export interface AuthUser {
   website?: string;
   title?: string;
   date_joined?: string;
+  institution?: string | null;
+  institution_name?: string | null;
+  must_change_password?: boolean;
 }
 
 export interface LoginResponse {

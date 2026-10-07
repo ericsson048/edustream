@@ -11,16 +11,75 @@ from django.utils import timezone
 from .managers import UserManager
 
 
+class Institution(models.Model):
+    """Represents a university or organization on the platform."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    slug = models.SlugField(max_length=280, unique=True, blank=True)
+    description = models.TextField(blank=True, default="")
+    logo_url = models.URLField(blank=True, default="")
+    country = models.CharField(max_length=100, blank=True, default="")
+    website = models.URLField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="institutions_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+            base = slugify(self.name) or uuid.uuid4().hex[:8]
+            slug = base
+            n = 1
+            while Institution.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                n += 1
+                slug = f"{base}-{n}"
+            self.slug = slug
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     class Role(models.TextChoices):
         STUDENT = "STUDENT", "Student"
         INSTRUCTOR = "INSTRUCTOR", "Instructor"
+        INSTITUTION_ADMIN = "INSTITUTION_ADMIN", "Institution Admin"
         ADMIN = "ADMIN", "Admin"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
+    institution = models.ForeignKey(
+        Institution,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="members",
+    )
+    created_by = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_users",
+    )
+    must_change_password = models.BooleanField(
+        default=False,
+        help_text="Force password change on next login (set for accounts created by instructors/admins)",
+    )
     stripe_account_id = models.CharField(max_length=255, blank=True, null=True)
     stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
     avatar_url = models.URLField(blank=True, default="")

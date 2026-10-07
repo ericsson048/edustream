@@ -29,6 +29,7 @@ export default function ProtectedRoute({ children, roles }: ProtectedRouteProps)
 
 export function getDefaultRoute(role: UserRole): string {
   if (role === 'ADMIN') return '/admin';
+  if (role === 'INSTITUTION_ADMIN') return '/admin/institutions';
   if (role === 'INSTRUCTOR') return '/instructor';
   return '/dashboard';
 }

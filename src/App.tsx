@@ -50,6 +50,9 @@ import AdminSupport from "./app/admin/support/page";
 import AdminTransactions from "./app/admin/transactions/page";
 import AdminPlans from "./app/admin/plans/page";
 import UserDetail from "./app/admin/users/[id]/page";
+import AdminInstitutions from "./app/admin/institutions/page";
+import AdminInstitutionDetail from "./app/admin/institutions/_id/page";
+import SupportPage from "./app/support/page";
 
 // Instructor Pages
 import InstructorDashboard from "./app/instructor/page";
@@ -59,6 +62,7 @@ import CourseDetail from "./app/instructor/courses/_id/page";
 import CourseStudents from "./app/instructor/courses/_id/students/page";
 import CourseSuivi from "./app/instructor/courses/_id/suivi/page";
 import Students from "./app/instructor/students/page";
+import InstructorStudents from "./app/instructor/students/page";
 import StudentDetail from "./app/instructor/students/_id/page";
 import LessonContentEditor from "./app/instructor/courses/_id/lessons/_lessonId/content/page";
 import InstructorResources from "./app/instructor/resources/page";
@@ -557,6 +561,30 @@ export default function App() {
             element={
               <ProtectedRoute roles={["ADMIN"]}>
                 <UserDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/institutions"
+            element={
+              <ProtectedRoute roles={["ADMIN", "INSTITUTION_ADMIN"]}>
+                <AdminInstitutions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/institutions/:id"
+            element={
+              <ProtectedRoute roles={["ADMIN", "INSTITUTION_ADMIN"]}>
+                <AdminInstitutionDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/support"
+            element={
+              <ProtectedRoute roles={["STUDENT", "INSTRUCTOR", "INSTITUTION_ADMIN"]}>
+                <SupportPage />
               </ProtectedRoute>
             }
           />

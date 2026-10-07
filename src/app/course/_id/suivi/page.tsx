@@ -66,14 +66,16 @@ export default function CourseSuivi() {
     Promise.all([
       courseService.getCourse(id).catch(() => null),
       courseService.listUniversitySessions(id).catch(() => []),
-      courseService.listAttendanceRecords().catch(() => []),
+      courseService.listAttendanceRecords({ session: undefined }).catch(() => []),
       courseService.getCourseGradesSummary(id).catch(() => null),
       courseService.getCourseTranscript(id).catch(() => null),
     ])
       .then(([courseItem, sessionList, recordList, gradeSummary, courseTranscript]) => {
         setCourse(courseItem);
         setSessions(sessionList);
-        setRecords(recordList);
+        // Keep only records that belong to sessions of this course
+        const sessionIds = new Set((sessionList as any[]).map((s) => s.id));
+        setRecords((recordList as any[]).filter((r) => sessionIds.has(r.session)));
         setSummary(gradeSummary);
         setTranscript(courseTranscript);
       })
@@ -136,6 +138,12 @@ export default function CourseSuivi() {
               <p className="text-sm text-slate-500">
                 Séances, assiduité et notes finales
               </p>
+              {course?.institution_name && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                  <span className="text-xs font-semibold text-blue-600">{course.institution_name}</span>
+                </div>
+              )}
             </div>
             {course?.credits ? (
               <span className="ml-auto px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold">

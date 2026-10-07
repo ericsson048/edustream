@@ -14,8 +14,14 @@ from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .emailing import send_template_email
-from .models import PasswordResetCode
-from .serializers import PublicUserSerializer, RegisterSerializer, UserSerializer
+from .models import Institution, PasswordResetCode
+from .serializers import (
+    CreateManagedUserSerializer,
+    InstitutionSerializer,
+    PublicUserSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
 
 User = get_user_model()
 logger = logging.getLogger("edustream.auth")
@@ -265,6 +271,113 @@ class PublicStatsView(APIView):
         })
 
 
+class MyStatsView(APIView):
+    """Personal stats for the authenticated user (profile dashboard)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        stats = {
+            "courses_enrolled": 0,
+            "courses_completed": 0,
+            "certificates_count": 0,
+            "assignments_submitted": 0,
+            "quiz_attempts": 0,
+            "total_focus_minutes": 0,
+            "streak_days": 0,
+        }
+        try:
+            from apps.learning.models import Enrollment, Assignment, Submission, QuizAttempt
+            enrollments = Enrollment.objects.filter(student=user, is_active=True)
+            stats["courses_enrolled"] = enrollments.count()
+
+            # completed = progression 100%
+            completed = 0
+            for enroll in enrollments:
+                lessons = enroll.course.modules.prefetch_related('lessons').all()
+                total = sum(m.lessons.filter(status='PUBLISHED').count() for m in lessons)
+                if total > 0:
+                    from apps.learning.models import Progress
+                    done = Progress.objects.filter(enrollment=enroll, is_completed=True).count()
+                    if done >= total:
+                        completed += 1
+            stats["courses_completed"] = completed
+        except Exception:
+            pass
+
+        try:
+            from apps.learning.models import Submission
+            stats["assignments_submitted"] = Submission.objects.filter(student=user).count()
+        except Exception:
+            pass
+
+        try:
+            from apps.learning.models import QuizAttempt
+            stats["quiz_attempts"] = QuizAttempt.objects.filter(student=user).count()
+        except Exception:
+            pass
+
+        try:
+            from apps.learning.models import Certificate
+            stats["certificates_count"] = Certificate.objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        try:
+            from apps.learning.models import FocusSession
+            from django.db.models import Sum
+            total = FocusSession.objects.filter(user=user).aggregate(total=Sum('duration_minutes'))['total']
+            stats["total_focus_minutes"] = total or 0
+        except Exception:
+            pass
+
+        try:
+            from apps.learning.models import UserActivity
+            from django.utils import timezone
+            import datetime
+            today = timezone.now().date()
+            streak = 0
+            for i in range(365):
+                day = today - datetime.timedelta(days=i)
+                if UserActivity.objects.filter(user=user, created_at__date=day).exists():
+                    streak += 1
+                else:
+                    break
+            stats["streak_days"] = streak
+        except Exception:
+            pass
+
+        return Response(stats)
+
+
+class MyPreferencesView(APIView):
+    """Get and update notification preferences stored in user.preferences."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    _defaults = {
+        "notif_email": True,
+        "notif_push": True,
+        "notif_new_course": True,
+        "notif_assignments": True,
+        "notif_grades": True,
+        "notif_messages": True,
+        "notif_live": True,
+    }
+
+    def get(self, request):
+        prefs = {**self._defaults, **request.user.preferences.get("notifications", {})}
+        return Response(prefs)
+
+    def patch(self, request):
+        allowed_keys = set(self._defaults.keys())
+        incoming = {k: bool(v) for k, v in request.data.items() if k in allowed_keys}
+        user = request.user
+        notifs = {**user.preferences.get("notifications", {}), **incoming}
+        user.preferences = {**user.preferences, "notifications": notifs}
+        user.save(update_fields=["preferences"])
+        return Response({**self._defaults, **notifs})
+
+
 class AdminWritePermission(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
@@ -303,3 +416,217 @@ class UserListView(generics.ListAPIView):
         if self.request.user.role != "ADMIN":
             return User.objects.filter(id=self.request.user.id)
         return super().get_queryset()
+
+
+# ─── Institution views ───────────────────────────────────────────────────────
+
+class IsAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == "ADMIN"
+
+
+class IsInstitutionAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ("ADMIN", "INSTITUTION_ADMIN")
+
+
+class IsInstructorOrAbove(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ("ADMIN", "INSTITUTION_ADMIN", "INSTRUCTOR")
+
+
+class InstitutionListCreateView(generics.ListCreateAPIView):
+    """ADMIN: list and create institutions."""
+    serializer_class = InstitutionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == "ADMIN":
+            return Institution.objects.all()
+        if user.role == "INSTITUTION_ADMIN" and user.institution:
+            return Institution.objects.filter(pk=user.institution.pk)
+        return Institution.objects.none()
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAdmin()]
+        return [permissions.IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class InstitutionDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """ADMIN: retrieve, update, delete an institution."""
+    serializer_class = InstitutionSerializer
+    permission_classes = [IsAdmin]
+    queryset = Institution.objects.all()
+    lookup_field = "pk"
+
+
+class InstitutionMembersView(APIView):
+    """List members of an institution (ADMIN or INSTITUTION_ADMIN of that institution)."""
+    permission_classes = [IsInstitutionAdmin]
+
+    def _get_institution(self, pk):
+        try:
+            return Institution.objects.get(pk=pk)
+        except Institution.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        institution = self._get_institution(pk)
+        if not institution:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        # INSTITUTION_ADMIN can only see their own institution
+        if request.user.role == "INSTITUTION_ADMIN" and request.user.institution_id != institution.pk:
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        role_filter = request.query_params.get("role")
+        qs = institution.members.filter(is_active=True)
+        if role_filter:
+            qs = qs.filter(role=role_filter)
+        return Response(UserSerializer(qs, many=True).data)
+
+    def post(self, request, pk):
+        """Create a new member (INSTRUCTOR or STUDENT) in the institution."""
+        institution = self._get_institution(pk)
+        if not institution:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if request.user.role == "INSTITUTION_ADMIN" and request.user.institution_id != institution.pk:
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = CreateManagedUserSerializer(
+            data={**request.data, "institution": str(institution.pk)},
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        logger.info("institution_member_created institution=%s new_user=%s by=%s", institution.name, user.email, request.user.email)
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+class InstructorStudentCreateView(APIView):
+    """INSTRUCTOR: create a student account linked to them."""
+    permission_classes = [IsInstructorOrAbove]
+
+    def post(self, request):
+        data = {**request.data, "role": "STUDENT"}
+        serializer = CreateManagedUserSerializer(data=data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        logger.info("instructor_created_student instructor=%s student=%s", request.user.email, user.email)
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+class InstructorStudentListView(generics.ListAPIView):
+    """INSTRUCTOR: list students they created."""
+    serializer_class = UserSerializer
+    permission_classes = [IsInstructorOrAbove]
+
+    def get_queryset(self):
+        return User.objects.filter(
+            created_by=self.request.user,
+            role="STUDENT",
+            is_active=True,
+        ).order_by("-date_joined")
+
+
+class GrantCourseAccessView(APIView):
+    """INSTRUCTOR: grant access to one of their courses to specific students."""
+    permission_classes = [IsInstructorOrAbove]
+
+    def post(self, request, course_id):
+        from apps.courses.models import Course, CourseStudentAccess, Enrollment
+
+        try:
+            course = Course.objects.get(pk=course_id)
+        except Course.DoesNotExist:
+            return Response({"detail": "Course not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only the instructor who owns the course (or admin) can grant access
+        if request.user.role not in ("ADMIN",) and course.instructor_id != request.user.pk:
+            return Response({"detail": "You don't own this course."}, status=status.HTTP_403_FORBIDDEN)
+
+        student_ids = request.data.get("student_ids", [])
+        if not student_ids:
+            return Response({"detail": "student_ids is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        granted = []
+        already_exists = []
+        for sid in student_ids:
+            try:
+                student = User.objects.get(pk=sid, role="STUDENT", is_active=True)
+            except (User.DoesNotExist, Exception):
+                continue
+
+            access, created = CourseStudentAccess.objects.get_or_create(
+                course=course, student=student,
+                defaults={"granted_by": request.user},
+            )
+            if created:
+                # Auto-enroll the student
+                Enrollment.objects.get_or_create(student=student, course=course)
+                granted.append(str(student.pk))
+                logger.info("course_access_granted course=%s student=%s by=%s", course.title, student.email, request.user.email)
+            else:
+                already_exists.append(str(student.pk))
+
+        return Response({
+            "granted": granted,
+            "already_had_access": already_exists,
+        }, status=status.HTTP_200_OK)
+
+
+class RevokeCourseAccessView(APIView):
+    """INSTRUCTOR: revoke course access from a student."""
+    permission_classes = [IsInstructorOrAbove]
+
+    def post(self, request, course_id):
+        from apps.courses.models import Course, CourseStudentAccess, Enrollment
+
+        try:
+            course = Course.objects.get(pk=course_id)
+        except Course.DoesNotExist:
+            return Response({"detail": "Course not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role not in ("ADMIN",) and course.instructor_id != request.user.pk:
+            return Response({"detail": "You don't own this course."}, status=status.HTTP_403_FORBIDDEN)
+
+        student_id = request.data.get("student_id")
+        if not student_id:
+            return Response({"detail": "student_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        CourseStudentAccess.objects.filter(course=course, student_id=student_id).delete()
+        Enrollment.objects.filter(course=course, student_id=student_id).update(is_active=False)
+        return Response({"detail": "Access revoked."})
+
+
+class CourseAccessStudentsView(APIView):
+    """INSTRUCTOR: list students who have been granted access to a course."""
+    permission_classes = [IsInstructorOrAbove]
+
+    def get(self, request, course_id):
+        from apps.courses.models import Course, CourseStudentAccess
+
+        try:
+            course = Course.objects.get(pk=course_id)
+        except Course.DoesNotExist:
+            return Response({"detail": "Course not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role not in ("ADMIN",) and course.instructor_id != request.user.pk:
+            return Response({"detail": "You don't own this course."}, status=status.HTTP_403_FORBIDDEN)
+
+        accesses = CourseStudentAccess.objects.filter(course=course).select_related("student")
+        data = [
+            {
+                "access_id": str(a.pk),
+                "student_id": str(a.student.pk),
+                "student_name": a.student.full_name,
+                "student_email": a.student.email,
+                "avatar_url": a.student.avatar_url,
+                "granted_at": a.created_at.isoformat(),
+            }
+            for a in accesses
+        ]
+        return Response(data)

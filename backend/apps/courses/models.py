@@ -137,6 +137,14 @@ class Course(models.Model):
         on_delete=models.CASCADE,
         related_name="courses_taught",
     )
+    institution = models.ForeignKey(
+        "users.Institution",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="courses",
+        help_text="Institution that owns this course (auto-set from instructor's institution)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -565,6 +573,32 @@ class CourseGrade(models.Model):
 
     def __str__(self):
         return f"{self.enrollment.student.full_name} / session {self.attempt} / {self.get_decision_display()}"
+
+
+class CourseStudentAccess(models.Model):
+    """Explicit access granted by an instructor to a specific student for a course.
+    Used when the instructor creates students manually (not via public enrollment)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="student_accesses")
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="course_accesses",
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="accesses_granted",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("course", "student")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.student.full_name} → {self.course.title}"
 
 
 def generate_invitation_code():

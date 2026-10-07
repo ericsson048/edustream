@@ -124,7 +124,7 @@ class RevenueReportView(APIView):
 
 class SupportTicketListCreateView(generics.ListCreateAPIView):
     permission_classes = [AdminPermission]
-    queryset = SupportTicket.objects.select_related("user").all()
+    queryset = SupportTicket.objects.select_related("user", "replied_by").all()
     serializer_class = SupportTicketSerializer
     filterset_fields = ["status", "priority"]
     search_fields = ["subject", "user__full_name", "user__email"]
@@ -135,9 +135,61 @@ class SupportTicketListCreateView(generics.ListCreateAPIView):
 
 class SupportTicketDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = [AdminPermission]
-    queryset = SupportTicket.objects.select_related("user").all()
+    queryset = SupportTicket.objects.select_related("user", "replied_by").all()
     serializer_class = SupportTicketSerializer
     lookup_field = "pk"
+
+
+class SupportTicketReplyView(APIView):
+    """Admin replies to a ticket — sets admin_reply, replied_by, replied_at, status."""
+    permission_classes = [AdminPermission]
+
+    def post(self, request, pk):
+        ticket = SupportTicket.objects.filter(pk=pk).first()
+        if not ticket:
+            return Response({"detail": "Ticket not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        reply = request.data.get("reply", "").strip()
+        if not reply:
+            return Response({"detail": "reply is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        new_status = request.data.get("status", SupportTicket.Status.IN_PROGRESS)
+        if new_status not in dict(SupportTicket.Status.choices):
+            new_status = SupportTicket.Status.IN_PROGRESS
+
+        ticket.admin_reply = reply
+        ticket.replied_by = request.user
+        ticket.replied_at = timezone.now()
+        ticket.status = new_status
+        ticket.save(update_fields=["admin_reply", "replied_by", "replied_at", "status", "updated_at"])
+        return Response(SupportTicketSerializer(ticket).data)
+
+
+class UserSupportTicketView(APIView):
+    """Any authenticated user can submit and view their own tickets."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        tickets = SupportTicket.objects.filter(user=request.user).order_by("-created_at")
+        return Response(SupportTicketSerializer(tickets, many=True).data)
+
+    def post(self, request):
+        subject = request.data.get("subject", "").strip()
+        message = request.data.get("message", "").strip()
+        priority = request.data.get("priority", SupportTicket.Priority.MEDIUM)
+
+        if not subject or not message:
+            return Response({"detail": "subject and message are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if priority not in dict(SupportTicket.Priority.choices):
+            priority = SupportTicket.Priority.MEDIUM
+
+        ticket = SupportTicket.objects.create(
+            user=request.user,
+            subject=subject,
+            message=message,
+            priority=priority,
+        )
+        return Response(SupportTicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
 
 
 class PlatformSettingListView(generics.ListCreateAPIView):

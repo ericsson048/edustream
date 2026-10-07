@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, FileText, BarChart2, Users, Settings, Compass, MessageSquare, Target, GitMerge, Video, Bell } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileText, BarChart2, Users, Settings, Compass, MessageSquare, Target, GitMerge, Video, Bell, LifeBuoy } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,6 +29,7 @@ export default function Sidebar() {
     { name: t('sidebar.community'), icon: Users, href: '/community' },
     { name: t('sidebar.notifications'), icon: Bell, href: `/${user?.role?.toLowerCase() || 'student'}/notifications`, badge: unreadCount },
     { name: t('sidebar.messages'), icon: MessageSquare, href: '/messages' },
+    { name: 'Support', icon: LifeBuoy, href: '/support' },
   ];
 
   return (

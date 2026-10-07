@@ -1,5 +1,5 @@
-ï»¿# =============================================================================
-#  start-docker.ps1 â€” DÃ©marre Edustream avec Docker Compose
+# =============================================================================
+#  start-docker.ps1 — Démarre Edustream avec Docker Compose
 # -----------------------------------------------------------------------------
 #  Services :
 #    web      Nginx (front Vite construit + proxy /api et /ws vers backend)
@@ -8,13 +8,13 @@
 #    postgres PostgreSQL 16 (avec healthcheck)
 #    redis    Redis 7 (sessions, cache, canaux websocket)
 #
-#  RÃ©sultat : les appareils du Wi-Fi ouvrent directement
+#  Résultat : les appareils du Wi-Fi ouvrent directement
 #  http://IP_DE_LA_MACHINE:3000 (sans ngrok).
 #
 #  Usage :
-#    .\start-docker.ps1               # build + dÃ©marrage
-#    .\start-docker.ps1 -NoBuild      # dÃ©marrage seul (sans reconstruire)
-#    .\start-docker.ps1 -ForceEnv     # rÃ©Ã©crit .env.docker (secrets + IP)
+#    .\start-docker.ps1               # build + démarrage
+#    .\start-docker.ps1 -NoBuild      # démarrage seul (sans reconstruire)
+#    .\start-docker.ps1 -ForceEnv     # réécrit .env.docker (secrets + IP)
 # =============================================================================
 
 [CmdletBinding()]
@@ -51,9 +51,9 @@ function New-RandomString([int]$Length = 50) {
     return $sb.ToString()
 }
 
-# Teste si le daemon Docker rÃ©pond. On relÃ¢che temporairement
+# Teste si le daemon Docker répond. On relâche temporairement
 # $ErrorActionPreference : sous PowerShell 5.1, la sortie stderr d'une commande
-# native dÃ©clenche sinon une erreur bloquante quand le daemon est arrÃªtÃ©.
+# native déclenche sinon une erreur bloquante quand le daemon est arrêté.
 function Test-DockerDaemon {
     $prev = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
@@ -78,16 +78,16 @@ if (-not (Test-Path -LiteralPath $Compose)) {
 }
 
 # -----------------------------------------------------------------------------
-# 0. VÃ©rifier Docker (et lancer Docker Desktop si le daemon est arrÃªtÃ©)
+# 0. Vérifier Docker (et lancer Docker Desktop si le daemon est arrêté)
 # -----------------------------------------------------------------------------
-Write-Step "VÃ©rification de Docker..."
+Write-Step "Vérification de Docker..."
 $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
 if (-not $dockerCmd) {
     throw "docker n'est pas dans le PATH. Installez Docker Desktop puis relancez ce script."
 }
 
 if (-not (Test-DockerDaemon)) {
-    Write-Warn "Le daemon Docker ne rÃ©pond pas."
+    Write-Warn "Le daemon Docker ne répond pas."
     Write-Step "Tentative d'ouverture de Docker Desktop..."
     $candidates = @(
         "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
@@ -96,7 +96,7 @@ if (-not (Test-DockerDaemon)) {
     $dd = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if ($dd) {
         Start-Process -FilePath $dd
-        Write-Ok "Docker Desktop lancÃ© â€” attente du daemon..."
+        Write-Ok "Docker Desktop lancé — attente du daemon..."
     } else {
         Write-Warn "Docker Desktop introuvable au chemin standard. Ouvrez-le manuellement."
     }
@@ -106,34 +106,34 @@ if (-not (Test-DockerDaemon)) {
         Start-Sleep -Seconds 3
         $waited += 3
         if (Test-DockerDaemon) { $ready = $true; break }
-        Write-Host ("    ...daemon pas encore prÃªt ({0}s)" -f $waited)
+        Write-Host ("    ...daemon pas encore prêt ({0}s)" -f $waited)
     } while ($waited -lt 240)
     if (-not $ready) {
-        throw "Docker Desktop ne rÃ©pond toujours pas aprÃ¨s $waited secondes. VÃ©rifiez Docker Desktop puis relancez."
+        throw "Docker Desktop ne répond toujours pas après $waited secondes. Vérifiez Docker Desktop puis relancez."
     }
-    Write-Ok "Docker OK (daemon disponible aprÃ¨s $waited s)"
+    Write-Ok "Docker OK (daemon disponible après $waited s)"
 } else {
     Write-Ok "Docker OK (daemon disponible)"
 }
 
 # -----------------------------------------------------------------------------
-# 1. CrÃ©er .env.docker s'il n'existe pas
+# 1. Créer .env.docker s'il n'existe pas
 # -----------------------------------------------------------------------------
 $isNewFile = $false
 if (-not (Test-Path -LiteralPath $EnvFile)) {
-    Write-Step "CrÃ©ation de .env.docker..."
+    Write-Step "Création de .env.docker..."
     if (-not (Test-Path -LiteralPath $EnvExample)) {
         throw ".env.docker.example introuvable dans $script:Root"
     }
     Copy-Item -LiteralPath $EnvExample -Destination $EnvFile
-    Write-Ok ".env.docker crÃ©Ã© depuis l'exemple"
+    Write-Ok ".env.docker créé depuis l'exemple"
     $isNewFile = $true
 } else {
-    Write-Ok ".env.docker dÃ©jÃ  prÃ©sent"
+    Write-Ok ".env.docker déjà présent"
 }
 
 # -----------------------------------------------------------------------------
-# 2. GÃ©nÃ©rer des secrets si les placeholders sont encore prÃ©sents
+# 2. Générer des secrets si les placeholders sont encore présents
 # -----------------------------------------------------------------------------
 $lines = Get-Content -LiteralPath $EnvFile -Encoding UTF8
 $needSecret = $false
@@ -147,13 +147,13 @@ $outLines = foreach ($line in $lines) {
     }
 }
 if ($needSecret) {
-    Write-Step "GÃ©nÃ©ration de secrets alÃ©atoires (POSTGRES_PASSWORD, DJANGO_SECRET_KEY)..."
+    Write-Step "Génération de secrets aléatoires (POSTGRES_PASSWORD, DJANGO_SECRET_KEY)..."
     Set-Content -LiteralPath $EnvFile -Value $outLines -Encoding UTF8
-    Write-Ok "Secrets gÃ©nÃ©rÃ©s"
+    Write-Ok "Secrets générés"
 }
 
 # -----------------------------------------------------------------------------
-# 3. DÃ©tecter l'IP locale (Wi-Fi) et l'injecter si nÃ©cessaire
+# 3. Détecter l'IP locale (Wi-Fi) et l'injecter si nécessaire
 # -----------------------------------------------------------------------------
 $ip = $null
 try {
@@ -173,42 +173,45 @@ if (-not $ip) { $ip = '192.168.1.50' }
 $out = Get-Content -LiteralPath $EnvFile -Encoding UTF8
 $rewritten = ($isNewFile -or $ForceEnv) -and ($out -match '192\.168\.1\.50')
 if ($rewritten) {
-    Write-Step "IP dÃ©tectÃ©e : $ip â†’ injection dans .env.docker..."
     $out = foreach ($line in $out) {
-        $line -replace '192\.168\.1\.50', $ip
+        $line = $line -replace '192\.168\.\d+\.\d+', $ip
+        if ($line -match '^DJANGO_ALLOWED_HOSTS=') { $line = "DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,$ip" }
+        if ($line -match '^CORS_ALLOWED_ORIGINS=') { $line = "CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://$ip:3000" }
+        if ($line -match '^FRONTEND_BASE_URL=') { $line = "FRONTEND_BASE_URL=http://$ip:3000" }
+        $line
     }
     Set-Content -LiteralPath $EnvFile -Value $out -Encoding UTF8
-    Write-Ok ".env.docker mis Ã  jour (ALLOWED_HOSTS / CORS / FRONTEND_BASE_URL)"
+    Write-Ok ".env.docker mis à jour (ALLOWED_HOSTS / CORS / FRONTEND_BASE_URL)"
 } else {
-    Write-Ok "IP utilisÃ©e telle quelle dans .env.docker"
+    Write-Ok "IP utilisée telle quelle dans .env.docker"
 }
-
+    Write-Ok ".env.docker mis ? jour (ALLOWED_HOSTS / CORS / FRONTEND_BASE_URL)"
 # -----------------------------------------------------------------------------
-# 4. Construire puis dÃ©marrer
+# 4. Construire puis démarrer
 # -----------------------------------------------------------------------------
 $composeArgs = @('compose', '--env-file', $EnvFile, '-f', $Compose)
 if (-not $NoBuild) {
     Write-Step "Construction des images (web, backend)..."
     & docker @($composeArgs + @('build'))
-    if ($LASTEXITCODE -ne 0) { throw "Ã‰chec de la construction des images." }
+    if ($LASTEXITCODE -ne 0) { throw "Échec de la construction des images." }
     Write-Ok "Images construites"
 }
 
-Write-Step "DÃ©marrage des services (web, backend, postgres, redis)..."
+Write-Step "Démarrage des services (web, backend, postgres, redis)..."
 & docker @($composeArgs + @('up', '-d'))
-if ($LASTEXITCODE -ne 0) { throw "Ã‰chec du dÃ©marrage des services." }
-Write-Ok "Services dÃ©marrÃ©s"
+if ($LASTEXITCODE -ne 0) { throw "Échec du démarrage des services." }
+Write-Ok "Services démarrés"
 
 # -----------------------------------------------------------------------------
-# 5. RÃ©capitulatif
+# 5. Récapitulatif
 # -----------------------------------------------------------------------------
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "  Edustream est dÃ©marrÃ© !" -ForegroundColor Green
+Write-Host "  Edustream est démarré !" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host "  Ordinateur  : http://localhost:3000" -ForegroundColor White
 Write-Host "  Wi-Fi       : http://$ip`:3000" -ForegroundColor White
 Write-Host ""
-Write-Host "  IP configurÃ©e dans .env.docker : $ip" -ForegroundColor DarkGray
+Write-Host "  IP configurée dans .env.docker : $ip" -ForegroundColor DarkGray
 Write-Host "  Pour la changer : modifiez DJANGO_ALLOWED_HOSTS, CORS_ALLOWED_ORIGINS" -ForegroundColor DarkGray
 Write-Host "  et FRONTEND_BASE_URL dans le fichier .env.docker." -ForegroundColor DarkGray

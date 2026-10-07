@@ -1,4 +1,5 @@
 import json
+import re
 
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
@@ -6,7 +7,7 @@ from rest_framework.views import APIView
 
 from apps.billing.services import can_use_ai
 
-from .gemini import GeminiGenerationError, generate_module_package
+from .gemini import GeminiGenerationError, generate_lesson_package, generate_module_package
 from .models import AITutorConversation, AITutorMessage
 from .openrouter import OpenRouterError, _post, ask_with_context, continue_with_reasoning
 from .serializers import AITutorConversationSerializer, AITutorMessageSerializer
@@ -224,102 +225,165 @@ class InstructorLessonGenerationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     throttle_scope = "ai"
 
+    # Models to try in order (free tiers with large context)
+    _MODELS = [
+        ("mistralai/mistral-7b-instruct:free", 8192),
+        ("meta-llama/llama-3.2-3b-instruct:free", 8192),
+        ("google/gemma-3-4b-it:free", 8192),
+    ]
+
+    @staticmethod
+    def _extract_json(raw: str) -> dict:
+        """Extract JSON from LLM output even if surrounded by markdown/text."""
+        raw = raw.strip()
+        # Strip ```json ... ``` or ``` ... ```
+        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
+        raw = re.sub(r"\s*```$", "", raw)
+        raw = raw.strip()
+        # Try direct parse first
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+        # Find the first complete JSON object in the text
+        start = raw.find("{")
+        if start == -1:
+            raise json.JSONDecodeError("No JSON object found", raw, 0)
+        depth = 0
+        end = -1
+        in_string = False
+        escape = False
+        for i, ch in enumerate(raw[start:], start):
+            if escape:
+                escape = False
+                continue
+            if ch == "\\" and in_string:
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if not in_string:
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+        if end == -1:
+            raise json.JSONDecodeError("Unterminated JSON object", raw, start)
+        return json.loads(raw[start:end])
+
     def post(self, request):
         if request.user.role not in {"INSTRUCTOR", "ADMIN"}:
             return Response({"detail": "Instructor access required."}, status=status.HTTP_403_FORBIDDEN)
 
         allowed, reason = can_use_ai(request.user)
         if not allowed:
-            status_code = status.HTTP_402_PAYMENT_REQUIRED if reason == "Upgrade to Unlimited." else status.HTTP_403_FORBIDDEN
-            return Response({"detail": reason}, status=status_code)
+            code = status.HTTP_402_PAYMENT_REQUIRED if reason == "Upgrade to Unlimited." else status.HTTP_403_FORBIDDEN
+            return Response({"detail": reason}, status=code)
 
         prompt = request.data.get("prompt", "").strip()
         if not prompt:
             return Response({"detail": "prompt is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         course_title = request.data.get("course_title", "").strip() or "Untitled course"
-        category = request.data.get("category", "").strip() or "General"
-        level = request.data.get("level", "").strip() or "INTERMEDIATE"
+        category     = request.data.get("category", "").strip()     or "General"
+        level        = request.data.get("level", "").strip()        or "INTERMEDIATE"
         module_title = request.data.get("module_title", "").strip() or "Untitled module"
         lesson_title = request.data.get("lesson_title", "").strip()
 
-        system_prompt = (
-            "You are a lesson content generator for an LMS platform called EduStream. "
-            "Return ONLY valid JSON with this exact shape — no markdown, no backticks, no extra text:\n"
-            '{\n'
+        system_msg = (
+            "You are a lesson content generator for EduStream LMS. "
+            "Return ONLY valid JSON — no markdown fences, no commentary, no extra text. "
+            "The JSON must follow this exact schema:\n"
+            "{\n"
             '  "title": "string",\n'
-            '  "content": "string (markdown, at least 500 characters)",\n'
-            '  "lesson_type": "VIDEO|TEXT|QUIZ|ASSIGNMENT|DEVOIR|LIVE|DOWNLOAD",\n'
-            '  "status": "DRAFT|PUBLISHED",\n'
-            '  "video_url": "string (empty string if none)",\n'
-            '  "transcript": "string (empty string if none)",\n'
+            '  "content": "string (rich markdown, at least 600 chars, with ## headings, bullet lists, code blocks if relevant)",\n'
+            '  "lesson_type": "TEXT",\n'
+            '  "status": "DRAFT",\n'
+            '  "video_url": "",\n'
+            '  "transcript": "",\n'
             '  "instructor_notes": "string",\n'
-            '  "duration_seconds": 0,\n'
+            '  "duration_seconds": 900,\n'
             '  "is_preview": false,\n'
             '  "quiz": {\n'
             '    "title": "string",\n'
             '    "passing_score": 70,\n'
             '    "time_limit_minutes": 10,\n'
             '    "questions": [\n'
-            '      {\n'
-            '        "prompt": "string",\n'
-            '        "options": ["string", "string", "string", "string"],\n'
-            '        "correct_index": 0\n'
-            '      }\n'
-            '    ]\n'
-            '  }\n'
-            '}\n'
-            "Constraints:\n"
-            "- Fill every field.\n"
-            "- Status is DRAFT unless the prompt explicitly asks for publish-ready.\n"
-            "- Quiz must include exactly 4 questions with 4 options each.\n"
-            "- Content must be detailed educational markdown (headings, lists, code blocks if applicable).\n"
-            f"Context: course={course_title}, category={category}, level={level}, module={module_title}, lesson={lesson_title}\n"
+            '      {"prompt":"string","options":["A","B","C","D"],"correct_index":0},\n'
+            '      {"prompt":"string","options":["A","B","C","D"],"correct_index":1},\n'
+            '      {"prompt":"string","options":["A","B","C","D"],"correct_index":2},\n'
+            '      {"prompt":"string","options":["A","B","C","D"],"correct_index":3}\n'
+            "    ]\n"
+            "  }\n"
+            "}\n\n"
+            f"Context: course={course_title}, category={category}, level={level}, "
+            f"module={module_title}, lesson_hint={lesson_title or 'N/A'}\n"
             f"Instructor request: {prompt}"
         )
 
+        raw = None
+        last_error: Exception = OpenRouterError("No model available.")
+
+        for model, max_tok in self._MODELS:
+            try:
+                result = _post(
+                    messages=[{"role": "user", "content": system_msg}],
+                    model=model,
+                    max_tokens=max_tok,
+                )
+                raw = result.get("content", "")
+                if raw.strip():
+                    break
+            except OpenRouterError as exc:
+                last_error = exc
+                continue
+
+        if not raw or not raw.strip():
+            return Response({"detail": f"AI generation failed: {last_error}"}, status=status.HTTP_502_BAD_GATEWAY)
+
         try:
-            result = _post(
-                messages=[{"role": "system", "content": system_prompt}],
-                model="cohere/north-mini-code:free",
-                max_tokens=4096,
-            )
-            raw = result.get("content", "")
-            response_data = json.loads(raw)
-        except (OpenRouterError, json.JSONDecodeError) as exc:
+            data = self._extract_json(raw)
+        except (json.JSONDecodeError, ValueError) as exc:
             return Response({"detail": f"AI generation failed: {exc}"}, status=status.HTTP_502_BAD_GATEWAY)
 
-        # Replace literal \n with actual newlines (LLM often double-escapes)
-        def _fix_newlines(val: str) -> str:
-            return val.replace("\\n", "\n")
+        def _s(v) -> str:
+            return str(v or "").replace("\\n", "\n").strip()
 
-        quiz = response_data.get("quiz") or {}
+        quiz = data.get("quiz") or {}
         payload = {
-            "title": _fix_newlines(str(response_data.get("title", "")).strip()) or lesson_title or "AI Generated Lesson",
-            "content": _fix_newlines(str(response_data.get("content", "")).strip()),
-            "lesson_type": str(response_data.get("lesson_type", "TEXT")).strip() or "TEXT",
-            "status": str(response_data.get("status", "DRAFT")).strip() or "DRAFT",
-            "video_url": str(response_data.get("video_url", "")).strip(),
-            "transcript": _fix_newlines(str(response_data.get("transcript", "")).strip()),
-            "instructor_notes": _fix_newlines(str(response_data.get("instructor_notes", "")).strip()),
-            "duration_seconds": max(int(response_data.get("duration_seconds", 0) or 0), 300),
-            "is_preview": bool(response_data.get("is_preview", False)),
+            "title":            _s(data.get("title"))            or lesson_title or "AI Generated Lesson",
+            "content":          _s(data.get("content")),
+            "lesson_type":      _s(data.get("lesson_type"))      or "TEXT",
+            "status":           _s(data.get("status"))           or "DRAFT",
+            "video_url":        _s(data.get("video_url")),
+            "transcript":       _s(data.get("transcript")),
+            "instructor_notes": _s(data.get("instructor_notes")),
+            "duration_seconds": max(int(data.get("duration_seconds") or 900), 300),
+            "is_preview":       bool(data.get("is_preview", False)),
             "quiz": {
-                "title": _fix_newlines(str(quiz.get("title", "")).strip()) or "Lesson Quiz",
-                "passing_score": min(max(int(quiz.get("passing_score", 70) or 70), 1), 100),
-                "time_limit_minutes": max(int(quiz.get("time_limit_minutes", 10) or 10), 1),
+                "title":              _s(quiz.get("title"))                          or "Lesson Quiz",
+                "passing_score":      min(max(int(quiz.get("passing_score") or 70), 1), 100),
+                "time_limit_minutes": max(int(quiz.get("time_limit_minutes") or 10), 1),
                 "questions": [
                     {
-                        "prompt": _fix_newlines(str(q.get("prompt", ""))),
-                        "options": [_fix_newlines(str(o)) for o in (q.get("options", [])[:4])],
-                        "correct_index": min(max(int(q.get("correct_index", 0) or 0), 0), 3),
+                        "prompt":        _s(q.get("prompt")),
+                        "options":       [_s(o) for o in (q.get("options") or [])[:4]],
+                        "correct_index": min(max(int(q.get("correct_index") or 0), 0), 3),
                     }
                     for q in (quiz.get("questions") or [])[:6]
                 ],
             },
         }
 
-        AITutorMessage.objects.create(user=request.user, prompt=prompt, response=f"Generated lesson package for {payload['title']}.")
+        AITutorMessage.objects.create(
+            user=request.user,
+            prompt=prompt,
+            response=f"Generated lesson package for {payload['title']}.",
+        )
         subscription = getattr(request.user, "subscription", None)
         if subscription and not subscription.plan.has_unlimited_ai:
             subscription.ai_prompts_used_this_month += 1
