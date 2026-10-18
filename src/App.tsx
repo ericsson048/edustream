@@ -53,6 +53,7 @@ import UserDetail from "./app/admin/users/[id]/page";
 import AdminInstitutions from "./app/admin/institutions/page";
 import AdminInstitutionDetail from "./app/admin/institutions/_id/page";
 import SupportPage from "./app/support/page";
+import ChangeTemporaryPassword from "./app/change-password/page";
 
 // Instructor Pages
 import InstructorDashboard from "./app/instructor/page";
@@ -142,6 +143,14 @@ export default function App() {
           />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verify-email/:userId/:token" element={<VerifyEmail />} />
+          <Route
+            path="/change-password"
+            element={
+              <ProtectedRoute>
+                <ChangeTemporaryPassword />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/dashboard"
             element={

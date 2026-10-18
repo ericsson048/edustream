@@ -1,63 +1,15 @@
-import json
-from urllib import error, parse, request
-
-from django.conf import settings
+from .openrouter import OpenRouterError, generate_json
 
 
 class GeminiGenerationError(Exception):
     pass
 
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
-
-
 def _request_json(prompt: str):
-    api_key = settings.GEMINI_API_KEY.strip()
-    if not api_key:
-        raise GeminiGenerationError("GEMINI_API_KEY is not configured.")
-
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt,
-                    }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "temperature": 0.6,
-        },
-    }
-    url = f"{GEMINI_URL}?key={parse.quote(api_key)}"
-    data = json.dumps(payload).encode("utf-8")
-    req = request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
     try:
-        with request.urlopen(req, timeout=45) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        raise GeminiGenerationError(detail or "Gemini request failed.") from exc
-    except error.URLError as exc:
-        raise GeminiGenerationError("Gemini is unreachable from the backend.") from exc
-
-    parts = body.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-    text = "".join(part.get("text", "") for part in parts).strip()
-    if not text:
-        raise GeminiGenerationError("Gemini returned an empty response.")
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise GeminiGenerationError("Gemini did not return valid JSON.") from exc
+        return generate_json(prompt)
+    except OpenRouterError as exc:
+        raise GeminiGenerationError(str(exc)) from exc
 
 
 def _clean_question(question):

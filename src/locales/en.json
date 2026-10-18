@@ -176,7 +176,7 @@
     "learner": "Learner",
     "instructor": "Instructor",
     "admin": "Admin",
-    "passwordHint": "Password for all accounts: password123",
+    "passwordHint": "A unique temporary password will be sent when your account is created.",
     "orContinueWith": "Or continue with",
     "signInGoogle": "Sign in with Google",
     "noAccount": "Don't have an account?",

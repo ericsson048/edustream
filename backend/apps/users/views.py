@@ -5,8 +5,10 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
+from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -69,6 +71,21 @@ def _send_welcome_email(user):
         "<p>L'équipe EduStream</p>"
     ) % (user.full_name or user.email, settings.FRONTEND_BASE_URL.rstrip("/"))
     send_template_email(subject, user.email, plain_text, html_text)
+
+
+def _send_managed_user_credentials(user):
+    temporary_password = getattr(user, "_temporary_password", None)
+    if not temporary_password:
+        return
+    send_template_email(
+        "Votre compte EduStream",
+        user.email,
+        f"Bonjour {user.full_name},\n\n"
+        "Votre compte EduStream a été créé. Utilisez ce mot de passe temporaire pour vous connecter :\n"
+        f"{temporary_password}\n\n"
+        "Vous devrez le remplacer dès votre première connexion.",
+        fail_silently=False,
+    )
 
 
 class LoginView(TokenObtainPairView):
@@ -229,7 +246,8 @@ class ResetPasswordView(APIView):
         code.used = True
         code.save(update_fields=["used"])
         user.set_password(new_password)
-        user.save(update_fields=["password"])
+        user.must_change_password = False
+        user.save(update_fields=["password", "must_change_password"])
         code.delete()
         logger.info("password_reset_completed email=%s", user.email)
         return Response({"detail": "Password reset successfully."})
@@ -251,7 +269,8 @@ class ChangePasswordView(APIView):
         except Exception as exc:
             return Response({"detail": str(exc)}, status=400)
         request.user.set_password(new_password)
-        request.user.save(update_fields=["password"])
+        request.user.must_change_password = False
+        request.user.save(update_fields=["password", "must_change_password"])
         logger.info("password_changed user=%s", request.user.email)
         return Response({"detail": "Password updated successfully."})
 
@@ -451,7 +470,7 @@ class InstitutionListCreateView(generics.ListCreateAPIView):
     def get_permissions(self):
         if self.request.method == "POST":
             return [IsAdmin()]
-        return [permissions.IsAuthenticated()]
+        return [IsInstitutionAdmin()]
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -461,8 +480,17 @@ class InstitutionDetailView(generics.RetrieveUpdateDestroyAPIView):
     """ADMIN: retrieve, update, delete an institution."""
     serializer_class = InstitutionSerializer
     permission_classes = [IsAdmin]
-    queryset = Institution.objects.all()
     lookup_field = "pk"
+
+    def get_permissions(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return [IsInstitutionAdmin()]
+        return [IsAdmin()]
+
+    def get_queryset(self):
+        if self.request.user.role == "INSTITUTION_ADMIN":
+            return Institution.objects.filter(pk=self.request.user.institution_id)
+        return Institution.objects.all()
 
 
 class InstitutionMembersView(APIView):
@@ -501,7 +529,9 @@ class InstitutionMembersView(APIView):
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        with transaction.atomic():
+            user = serializer.save()
+            _send_managed_user_credentials(user)
         logger.info("institution_member_created institution=%s new_user=%s by=%s", institution.name, user.email, request.user.email)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
@@ -514,7 +544,9 @@ class InstructorStudentCreateView(APIView):
         data = {**request.data, "role": "STUDENT"}
         serializer = CreateManagedUserSerializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        with transaction.atomic():
+            user = serializer.save()
+            _send_managed_user_credentials(user)
         logger.info("instructor_created_student instructor=%s student=%s", request.user.email, user.email)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
@@ -530,6 +562,10 @@ class InstructorStudentListView(generics.ListAPIView):
             role="STUDENT",
             is_active=True,
         ).order_by("-date_joined")
+
+
+class CourseAccessGrantSerializer(serializers.Serializer):
+    student_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
 
 
 class GrantCourseAccessView(APIView):
@@ -548,18 +584,33 @@ class GrantCourseAccessView(APIView):
         if request.user.role not in ("ADMIN",) and course.instructor_id != request.user.pk:
             return Response({"detail": "You don't own this course."}, status=status.HTTP_403_FORBIDDEN)
 
-        student_ids = request.data.get("student_ids", [])
-        if not student_ids:
-            return Response({"detail": "student_ids is required."}, status=status.HTTP_400_BAD_REQUEST)
+        payload = CourseAccessGrantSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        student_ids = list(dict.fromkeys(payload.validated_data["student_ids"]))
+
+        students_query = User.objects.filter(pk__in=student_ids, role="STUDENT", is_active=True)
+        if request.user.role != "ADMIN":
+            if course.institution_id and course.institution_id != request.user.institution_id:
+                return Response({"detail": "Course does not belong to your institution."}, status=status.HTTP_403_FORBIDDEN)
+            institution_id = course.institution_id or request.user.institution_id
+            if institution_id:
+                students_query = students_query.filter(
+                    Q(institution_id=institution_id)
+                    | Q(created_by=request.user, institution_id__isnull=True)
+                )
+            else:
+                students_query = students_query.filter(created_by=request.user)
+
+        students = {student.pk: student for student in students_query}
+        if len(students) != len(student_ids):
+            return Response(
+                {"detail": "One or more students are not eligible for this course."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         granted = []
         already_exists = []
-        for sid in student_ids:
-            try:
-                student = User.objects.get(pk=sid, role="STUDENT", is_active=True)
-            except (User.DoesNotExist, Exception):
-                continue
-
+        for student in students.values():
             access, created = CourseStudentAccess.objects.get_or_create(
                 course=course, student=student,
                 defaults={"granted_by": request.user},

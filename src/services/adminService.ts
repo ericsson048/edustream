@@ -139,8 +139,8 @@ export const adminService = {
     await apiClient.post('/admin/notifications/broadcast/', payload);
   },
   async listPlans(): Promise<PlanItem[]> {
-    const { data } = await apiClient.get<PlanItem[]>('/billing/admin/plans/');
-    return data;
+    const { data } = await apiClient.get<PlanItem[] | PaginatedResponse<PlanItem>>('/billing/admin/plans/');
+    return Array.isArray(data) ? data : data.results ?? [];
   },
   async createPlan(payload: Partial<PlanItem>): Promise<PlanItem> {
     const { data } = await apiClient.post<PlanItem>('/billing/admin/plans/', payload);

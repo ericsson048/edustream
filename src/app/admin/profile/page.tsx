@@ -78,7 +78,7 @@ export default function AdminProfile() {
       <AdminSidebar />
       <main className="flex-1 ml-64">
         <Header />
-        <div className="p-8 max-w-4xl mx-auto">
+        <div className="p-8 w-full mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Admin Profile</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your administrator account settings.</p>

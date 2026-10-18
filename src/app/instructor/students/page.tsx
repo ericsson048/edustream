@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Users, BookOpen, X, Save, Search, UserCheck, Trash2 } from 'lucide-react';
-import Sidebar from '../../../components/Sidebar';
+import InstructorSidebar from '../../../components/InstructorSidebar';
 import Header from '../../../components/Header';
 import { useToast } from '../../../contexts/ToastContext';
 import { institutionService, type CourseAccessStudent } from '../../../services/institutionService';
@@ -78,7 +78,7 @@ export default function InstructorStudentsPage() {
     setCreating(true);
     try {
       await institutionService.createStudent(createForm);
-      showToast('Étudiant créé — mot de passe : password123', 'success');
+      showToast('Étudiant créé. Le changement de mot de passe sera exigé à la première connexion.', 'success');
       setShowCreateModal(false);
       setCreateForm({ email: '', full_name: '' });
       loadStudents();
@@ -127,10 +127,10 @@ export default function InstructorStudentsPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white">
-      <Sidebar />
+      <InstructorSidebar />
       <main className="flex-1 ml-64">
         <Header />
-        <div className="p-8 max-w-5xl mx-auto">
+        <div className="p-8 w-full mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold tracking-tight">Gestion des étudiants</h1>
             <p className="text-slate-500 mt-1">Créez des étudiants et gérez leur accès à vos cours.</p>
@@ -206,7 +206,7 @@ export default function InstructorStudentsPage() {
                           </td>
                           <td className="px-6 py-4">
                             {(s as any).must_change_password
-                              ? <span className="text-xs text-amber-600 font-semibold">À changer</span>
+                              ? <span className="text-xs text-amber-600 font-semibold">À changer à la première connexion</span>
                               : <span className="text-xs text-emerald-600 font-semibold">Changé ✓</span>
                             }
                           </td>
@@ -309,7 +309,7 @@ export default function InstructorStudentsPage() {
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
               <p className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
-                🔑 Mot de passe par défaut : <code className="font-mono">password123</code>
+                Un mot de passe temporaire unique sera envoyé par e-mail. Son remplacement sera exigé à la première connexion.
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">L'étudiant devra le changer à sa première connexion.</p>
             </div>

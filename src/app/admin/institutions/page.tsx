@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Building2, Users, Globe, Pencil, Trash2, X, Save, Search } from 'lucide-react';
-import Sidebar from '../../../components/Sidebar';
+import AdminSidebar from '../../../components/AdminSidebar';
 import Header from '../../../components/Header';
 import { useToast } from '../../../contexts/ToastContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { institutionService, type Institution } from '../../../services/institutionService';
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -26,6 +27,8 @@ const EMPTY: Partial<Institution> = { name: '', description: '', country: '', we
 
 export default function InstitutionsPage() {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const canManageInstitutions = user?.role === 'ADMIN';
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -89,7 +92,7 @@ export default function InstitutionsPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white">
-      <Sidebar />
+      <AdminSidebar />
       <main className="flex-1 ml-64">
         <Header />
         <div className="p-8 max-w-6xl mx-auto">
@@ -98,10 +101,10 @@ export default function InstitutionsPage() {
               <h1 className="text-3xl font-bold tracking-tight">Institutions</h1>
               <p className="text-slate-500 mt-1">Gérez les universités et organisations partenaires.</p>
             </div>
-            <button onClick={openCreate}
+            {canManageInstitutions && <button onClick={openCreate}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
               <Plus className="w-4 h-4" /> Nouvelle institution
-            </button>
+            </button>}
           </div>
 
           {/* Search */}
@@ -152,14 +155,14 @@ export default function InstitutionsPage() {
                       className="flex-1 text-center py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
                       Gérer les membres
                     </Link>
-                    <button onClick={() => openEdit(inst)}
+                    {canManageInstitutions && <button onClick={() => openEdit(inst)}
                       className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
                       <Pencil className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleDelete(inst.id)} disabled={deleting === inst.id}
+                    </button>}
+                    {canManageInstitutions && <button onClick={() => handleDelete(inst.id)} disabled={deleting === inst.id}
                       className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-40">
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
               ))}

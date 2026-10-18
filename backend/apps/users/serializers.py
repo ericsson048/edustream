@@ -1,3 +1,5 @@
+import secrets
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
@@ -5,9 +7,6 @@ from rest_framework import serializers
 from .models import Institution
 
 User = get_user_model()
-
-DEFAULT_PASSWORD = "password123"
-
 
 class InstitutionSerializer(serializers.ModelSerializer):
     members_count = serializers.SerializerMethodField()
@@ -87,6 +86,11 @@ class CreateManagedUserSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=["STUDENT", "INSTRUCTOR"])
     institution = serializers.UUIDField(required=False, allow_null=True)
 
+    def validate_institution(self, value):
+        if value is not None and not Institution.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Institution not found.")
+        return value
+
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("A user with this email already exists.")
@@ -96,25 +100,25 @@ class CreateManagedUserSerializer(serializers.Serializer):
         institution_id = validated_data.pop("institution", None)
         creator = self.context["request"].user
 
-        # Instructors can only create students
         if creator.role == User.Role.INSTRUCTOR:
             validated_data["role"] = "STUDENT"
+        if creator.role == User.Role.INSTITUTION_ADMIN:
+            institution_id = creator.institution_id
 
+        temporary_password = secrets.token_urlsafe(18)
         user = User.objects.create_user(
             email=validated_data["email"],
             full_name=validated_data["full_name"],
             role=validated_data["role"],
-            password=DEFAULT_PASSWORD,
+            password=temporary_password,
         )
         user.must_change_password = True
         user.email_verified = True
         user.created_by = creator
         if institution_id:
-            try:
-                user.institution_id = institution_id
-            except Exception:
-                pass
+            user.institution_id = institution_id
         elif creator.institution:
             user.institution = creator.institution
         user.save(update_fields=["must_change_password", "email_verified", "created_by", "institution"])
+        user._temporary_password = temporary_password
         return user

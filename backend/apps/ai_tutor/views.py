@@ -1,7 +1,4 @@
-import json
-import re
-
-from rest_framework import permissions, status, viewsets
+﻿from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -9,7 +6,7 @@ from apps.billing.services import can_use_ai
 
 from .gemini import GeminiGenerationError, generate_lesson_package, generate_module_package
 from .models import AITutorConversation, AITutorMessage
-from .openrouter import OpenRouterError, _post, ask_with_context, continue_with_reasoning
+from .openrouter import OpenRouterError, ask_with_context, continue_with_reasoning, generate_json
 from .serializers import AITutorConversationSerializer, AITutorMessageSerializer
 
 
@@ -225,56 +222,6 @@ class InstructorLessonGenerationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     throttle_scope = "ai"
 
-    # Models to try in order (free tiers with large context)
-    _MODELS = [
-        ("mistralai/mistral-7b-instruct:free", 8192),
-        ("meta-llama/llama-3.2-3b-instruct:free", 8192),
-        ("google/gemma-3-4b-it:free", 8192),
-    ]
-
-    @staticmethod
-    def _extract_json(raw: str) -> dict:
-        """Extract JSON from LLM output even if surrounded by markdown/text."""
-        raw = raw.strip()
-        # Strip ```json ... ``` or ``` ... ```
-        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
-        raw = re.sub(r"\s*```$", "", raw)
-        raw = raw.strip()
-        # Try direct parse first
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            pass
-        # Find the first complete JSON object in the text
-        start = raw.find("{")
-        if start == -1:
-            raise json.JSONDecodeError("No JSON object found", raw, 0)
-        depth = 0
-        end = -1
-        in_string = False
-        escape = False
-        for i, ch in enumerate(raw[start:], start):
-            if escape:
-                escape = False
-                continue
-            if ch == "\\" and in_string:
-                escape = True
-                continue
-            if ch == '"':
-                in_string = not in_string
-                continue
-            if not in_string:
-                if ch == "{":
-                    depth += 1
-                elif ch == "}":
-                    depth -= 1
-                    if depth == 0:
-                        end = i + 1
-                        break
-        if end == -1:
-            raise json.JSONDecodeError("Unterminated JSON object", raw, start)
-        return json.loads(raw[start:end])
-
     def post(self, request):
         if request.user.role not in {"INSTRUCTOR", "ADMIN"}:
             return Response({"detail": "Instructor access required."}, status=status.HTTP_403_FORBIDDEN)
@@ -296,7 +243,7 @@ class InstructorLessonGenerationView(APIView):
 
         system_msg = (
             "You are a lesson content generator for EduStream LMS. "
-            "Return ONLY valid JSON — no markdown fences, no commentary, no extra text. "
+            "Return ONLY valid JSON. No markdown fences, no commentary, no extra text. "
             "The JSON must follow this exact schema:\n"
             "{\n"
             '  "title": "string",\n'
@@ -325,29 +272,9 @@ class InstructorLessonGenerationView(APIView):
             f"Instructor request: {prompt}"
         )
 
-        raw = None
-        last_error: Exception = OpenRouterError("No model available.")
-
-        for model, max_tok in self._MODELS:
-            try:
-                result = _post(
-                    messages=[{"role": "user", "content": system_msg}],
-                    model=model,
-                    max_tokens=max_tok,
-                )
-                raw = result.get("content", "")
-                if raw.strip():
-                    break
-            except OpenRouterError as exc:
-                last_error = exc
-                continue
-
-        if not raw or not raw.strip():
-            return Response({"detail": f"AI generation failed: {last_error}"}, status=status.HTTP_502_BAD_GATEWAY)
-
         try:
-            data = self._extract_json(raw)
-        except (json.JSONDecodeError, ValueError) as exc:
+            data = generate_json(system_msg, max_tokens=8192)
+        except (OpenRouterError, ValueError) as exc:
             return Response({"detail": f"AI generation failed: {exc}"}, status=status.HTTP_502_BAD_GATEWAY)
 
         def _s(v) -> str:

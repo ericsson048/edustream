@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Users, UserCheck, Trash2, X, Save, Search, Building2, GraduationCap } from 'lucide-react';
-import Sidebar from '../../../../components/Sidebar';
+import AdminSidebar from '../../../../components/AdminSidebar';
 import Header from '../../../../components/Header';
 import { useToast } from '../../../../contexts/ToastContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { institutionService, type Institution } from '../../../../services/institutionService';
 import type { AuthUser } from '../../../../types/auth';
 
@@ -32,6 +33,7 @@ const ROLE_COLORS: Record<string, string> = {
 export default function InstitutionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [members, setMembers] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,7 @@ export default function InstitutionDetailPage() {
     setSaving(true);
     try {
       await institutionService.createMember(id, form);
-      showToast(`Compte créé — mot de passe par défaut : password123`, 'success');
+      showToast('Compte créé. Le changement de mot de passe sera exigé à la première connexion.', 'success');
       setShowModal(false);
       setForm({ email: '', full_name: '', role: 'INSTRUCTOR' });
       load();
@@ -88,7 +90,7 @@ export default function InstitutionDetailPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white">
-      <Sidebar />
+      <AdminSidebar />
       <main className="flex-1 ml-64">
         <Header />
         <div className="p-8 max-w-5xl mx-auto">
@@ -187,7 +189,7 @@ export default function InstitutionDetailPage() {
                           </td>
                           <td className="px-6 py-4">
                             {(m as any).must_change_password
-                              ? <span className="text-xs text-amber-600 font-semibold">password123 (à changer)</span>
+                              ? <span className="text-xs text-amber-600 font-semibold">À changer à la première connexion</span>
                               : <span className="text-xs text-slate-400">—</span>
                             }
                           </td>
@@ -227,7 +229,7 @@ export default function InstitutionDetailPage() {
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
               <p className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
-                🔑 Mot de passe par défaut : <code className="font-mono">password123</code>
+                Un mot de passe temporaire unique sera envoyé par e-mail. Son remplacement sera exigé à la première connexion.
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">L'utilisateur devra le changer à la première connexion.</p>
             </div>

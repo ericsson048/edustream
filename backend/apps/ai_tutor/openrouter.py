@@ -1,4 +1,5 @@
 import json
+import re
 from urllib import error, request
 
 from django.conf import settings
@@ -11,6 +12,12 @@ class OpenRouterError(Exception):
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "cohere/north-mini-code:free"
 MAX_HISTORY = 6
+
+JSON_MODELS = [
+    ("cohere/north-mini-code:free", 8192),
+    ("nvidia/nemotron-3-super-120b-a12b:free", 8192),
+    ("nvidia/nemotron-3-ultra-550b-a55b:free", 8192),
+]
 
 
 def _post(messages: list[dict], model: str, max_tokens: int) -> dict:
@@ -62,6 +69,65 @@ def _post(messages: list[dict], model: str, max_tokens: int) -> dict:
             "total_tokens": usage.get("total_tokens", 0),
         },
     }
+
+
+def extract_json(raw: str) -> dict:
+    """Extract a JSON object from LLM output even if surrounded by text/fences."""
+    raw = (raw or "").strip()
+    raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"\s*```$", "", raw).strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    start = raw.find("{")
+    if start == -1:
+        raise json.JSONDecodeError("No JSON object found", raw, 0)
+    depth = 0
+    end = -1
+    in_string = False
+    escape = False
+    for i, ch in enumerate(raw[start:], start):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if not in_string:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+    if end == -1:
+        raise json.JSONDecodeError("Unterminated JSON object", raw, start)
+    return json.loads(raw[start:end])
+
+
+def generate_json(prompt: str, max_tokens: int = 8192) -> dict:
+    """Ask the fallback model list to produce a JSON object."""
+    last_error: Exception = OpenRouterError("No model available.")
+    for model, default_max in JSON_MODELS:
+        try:
+            result = _post(
+                messages=[{"role": "user", "content": prompt}],
+                model=model,
+                max_tokens=max_tokens or default_max,
+            )
+            content = (result.get("content") or "").strip()
+            if content:
+                return extract_json(content)
+            last_error = OpenRouterError(f"{model} returned an empty response.")
+        except (OpenRouterError, ValueError) as exc:
+            last_error = exc
+            continue
+    raise OpenRouterError(str(last_error))
 
 
 def _trim_history(history: list[dict] | None) -> list[dict]:

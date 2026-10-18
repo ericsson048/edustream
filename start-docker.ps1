@@ -185,8 +185,6 @@ if ($rewritten) {
 } else {
     Write-Ok "IP utilisée telle quelle dans .env.docker"
 }
-    Write-Ok ".env.docker mis ? jour (ALLOWED_HOSTS / CORS / FRONTEND_BASE_URL)"
-# -----------------------------------------------------------------------------
 # 4. Construire puis démarrer
 # -----------------------------------------------------------------------------
 $composeArgs = @('compose', '--env-file', $EnvFile, '-f', $Compose)

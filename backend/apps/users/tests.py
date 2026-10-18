@@ -5,8 +5,11 @@ from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import PasswordResetCode
+from apps.courses.models import Course
+
+from .models import Institution, PasswordResetCode
 
 User = get_user_model()
 
@@ -50,7 +53,7 @@ class AuthTests(APITestCase):
             "role": "STUDENT",
         }
         response = self.client.post(self.register_url, data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(User.objects.filter(email="newuser@test.com").exists())
 
     def test_login_user(self):
@@ -136,3 +139,120 @@ class AuthTests(APITestCase):
         self.assertIn("total_courses", response.data)
         self.assertIn("total_instructors", response.data)
         self.assertIn("total_students", response.data)
+
+
+@override_settings(REST_FRAMEWORK={"DEFAULT_THROTTLE_CLASSES": []})
+class InstitutionManagementTests(APITestCase):
+    def setUp(self):
+        self.institution = Institution.objects.create(name="North Institute")
+        self.other_institution = Institution.objects.create(name="South Institute")
+        self.institution_admin = User.objects.create_user(
+            email="institution-admin@test.com",
+            full_name="Institution Admin",
+            password="securepassword123",
+            role="INSTITUTION_ADMIN",
+            institution=self.institution,
+        )
+        self.instructor = User.objects.create_user(
+            email="instructor@test.com",
+            full_name="Instructor",
+            password="securepassword123",
+            role="INSTRUCTOR",
+            institution=self.institution,
+        )
+        self.course = Course.objects.create(
+            title="North Course",
+            instructor=self.instructor,
+            institution=self.institution,
+        )
+
+    def test_institution_admin_can_only_view_own_institution(self):
+        self.client.force_authenticate(user=self.institution_admin)
+
+        own_detail = self.client.get(reverse("institution-detail", args=[self.institution.pk]))
+        foreign_detail = self.client.get(reverse("institution-detail", args=[self.other_institution.pk]))
+        update = self.client.patch(
+            reverse("institution-detail", args=[self.institution.pk]),
+            {"name": "Renamed Institute"},
+        )
+
+        self.assertEqual(own_detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(foreign_detail.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(update.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_institution_admin_creates_member_only_in_own_institution(self):
+        self.client.force_authenticate(user=self.institution_admin)
+
+        response = self.client.post(
+            reverse("institution-members", args=[self.institution.pk]),
+            {
+                "email": "new-instructor@test.com",
+                "full_name": "New Instructor",
+                "role": "INSTRUCTOR",
+                "institution": str(self.other_institution.pk),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        created = User.objects.get(email="new-instructor@test.com")
+        self.assertEqual(created.role, User.Role.INSTRUCTOR)
+        self.assertEqual(created.institution_id, self.institution.pk)
+
+    def test_instructor_cannot_grant_course_to_foreign_student(self):
+        foreign_student = User.objects.create_user(
+            email="foreign-student@test.com",
+            full_name="Foreign Student",
+            password="securepassword123",
+            role="STUDENT",
+            institution=self.other_institution,
+        )
+        self.client.force_authenticate(user=self.instructor)
+
+        response = self.client.post(
+            reverse("grant-course-access", args=[self.course.pk]),
+            {"student_ids": [str(foreign_student.pk)]},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("apps.users.views.send_template_email")
+    def test_created_account_has_unique_temporary_password_and_must_change_it(self, send_email):
+        self.client.force_authenticate(user=self.institution_admin)
+        response = self.client.post(
+            reverse("institution-members", args=[self.institution.pk]),
+            {
+                "email": "new-student@test.com",
+                "full_name": "New Student",
+                "role": "STUDENT",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(send_email.called)
+
+        created = User.objects.get(email="new-student@test.com")
+        temporary_password = send_email.call_args.args[2].splitlines()[3]
+        self.assertTrue(created.check_password(temporary_password))
+        self.assertNotEqual(temporary_password, "password123")
+        self.assertTrue(created.must_change_password)
+
+        token = str(RefreshToken.for_user(created).access_token)
+        self.client.force_authenticate(user=None)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        blocked = self.client.get(reverse("users-list"))
+        allowed = self.client.get(reverse("me"))
+        self.assertEqual(blocked.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(allowed.status_code, status.HTTP_200_OK)
+
+        changed = self.client.post(
+            reverse("change-password"),
+            {
+                "current_password": temporary_password,
+                "new_password": "A brand-new secure pass 829!",
+            },
+        )
+        self.assertEqual(changed.status_code, status.HTTP_200_OK)
+        created.refresh_from_db()
+        self.assertFalse(created.must_change_password)
+        self.assertEqual(self.client.get(reverse("users-list")).status_code, status.HTTP_200_OK)
