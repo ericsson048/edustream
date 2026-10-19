@@ -99,6 +99,14 @@ def list_contacts(request):
             for name in names:
                 add(inst, name)
 
+    elif user.role == "INSTITUTION_ADMIN":
+        if user.institution_id:
+            members = User.objects.filter(
+                is_active=True, institution_id=user.institution_id
+            ).order_by("full_name")
+            for member in members:
+                add(member, "")
+
     else:
         all_users = User.objects.filter(is_active=True).order_by("full_name")
         for u in all_users:

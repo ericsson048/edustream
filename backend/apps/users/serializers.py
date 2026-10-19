@@ -2,6 +2,7 @@ import secrets
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import Institution
@@ -21,6 +22,72 @@ class InstitutionSerializer(serializers.ModelSerializer):
 
     def get_members_count(self, obj):
         return obj.members.filter(is_active=True).count()
+
+
+class InstitutionCreateSerializer(serializers.ModelSerializer):
+    admin = serializers.DictField(required=False)
+
+    class Meta:
+        model = Institution
+        fields = [
+            "name",
+            "description",
+            "logo_url",
+            "country",
+            "website",
+            "is_active",
+            "admin",
+        ]
+
+    def validate_admin(self, value):
+        if not value:
+            return value
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("admin must be an object.")
+        email = value.get("email")
+        full_name = value.get("full_name")
+        if not email:
+            raise serializers.ValidationError("admin.email is required.")
+        if not full_name:
+            raise serializers.ValidationError("admin.full_name is required.")
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def create(self, validated_data):
+        admin_data = validated_data.pop("admin", None)
+        creator = self.context["request"].user
+
+        with transaction.atomic():
+            institution = Institution.objects.create(
+                **validated_data,
+                created_by=creator,
+            )
+
+            if admin_data:
+                temporary_password = secrets.token_urlsafe(18)
+                admin_user = User.objects.create_user(
+                    email=admin_data["email"].lower(),
+                    full_name=admin_data["full_name"],
+                    role=User.Role.INSTITUTION_ADMIN,
+                    password=temporary_password,
+                )
+                admin_user.institution = institution
+                admin_user.must_change_password = True
+                admin_user.email_verified = True
+                admin_user.created_by = creator
+                admin_user.save(
+                    update_fields=[
+                        "institution",
+                        "must_change_password",
+                        "email_verified",
+                        "created_by",
+                    ]
+                )
+                admin_user._temporary_password = temporary_password
+                institution._created_admin = admin_user
+
+        return institution
 
 
 class UserSerializer(serializers.ModelSerializer):

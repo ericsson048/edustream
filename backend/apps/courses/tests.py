@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.learning.models import Assignment, Quiz, QuizAttempt, QuizQuestion, Submission
+from apps.users.models import Institution
 
 from .models import (
     AttendanceRecord,
@@ -677,3 +678,71 @@ class UniversityTrackingTests(APITestCase):
         self.client.force_authenticate(user=other)
         response = self.client.get(reverse("course-grades-summary", args=[self.course.id]))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class InstitutionAdminScopingTests(APITestCase):
+    def setUp(self):
+        self.institution = Institution.objects.create(name="North")
+        self.other_institution = Institution.objects.create(name="South")
+        self.institution_admin = User.objects.create_user(
+            email="inst-admin@test.com",
+            full_name="Institution Admin",
+            password="password123",
+            role="INSTITUTION_ADMIN",
+            institution=self.institution,
+        )
+        self.instructor = User.objects.create_user(
+            email="north-prof@test.com",
+            full_name="North Prof",
+            password="password123",
+            role="INSTRUCTOR",
+            institution=self.institution,
+        )
+        self.other_instructor = User.objects.create_user(
+            email="south-prof@test.com",
+            full_name="South Prof",
+            password="password123",
+            role="INSTRUCTOR",
+            institution=self.other_institution,
+        )
+        self.own_course = Course.objects.create(
+            title="North Course",
+            instructor=self.instructor,
+            institution=self.institution,
+            is_published=True,
+        )
+        self.foreign_course = Course.objects.create(
+            title="South Course",
+            instructor=self.other_instructor,
+            institution=self.other_institution,
+            is_published=True,
+        )
+
+    def test_course_list_scoped_to_own_institution(self):
+        self.client.force_authenticate(user=self.institution_admin)
+        response = self.client.get(reverse("course-list"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data.get("results", response.data)
+        titles = {c["title"] for c in results}
+        self.assertIn("North Course", titles)
+        self.assertNotIn("South Course", titles)
+
+    def test_institution_admin_can_manage_own_course(self):
+        self.client.force_authenticate(user=self.institution_admin)
+        response = self.client.patch(
+            reverse("course-detail", args=[self.own_course.id]),
+            {"is_published": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.own_course.refresh_from_db()
+        self.assertFalse(self.own_course.is_published)
+
+    def test_institution_admin_cannot_manage_foreign_course(self):
+        self.client.force_authenticate(user=self.institution_admin)
+        response = self.client.patch(
+            reverse("course-detail", args=[self.foreign_course.id]),
+            {"is_published": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

@@ -382,7 +382,7 @@ export default function App() {
           <Route
             path="/admin/users"
             element={
-              <ProtectedRoute roles={["ADMIN"]}>
+              <ProtectedRoute roles={["ADMIN", "INSTITUTION_ADMIN"]}>
                 <ManageUsers />
               </ProtectedRoute>
             }
@@ -390,7 +390,7 @@ export default function App() {
           <Route
             path="/admin/courses"
             element={
-              <ProtectedRoute roles={["ADMIN"]}>
+              <ProtectedRoute roles={["ADMIN", "INSTITUTION_ADMIN"]}>
                 <AdminCourses />
               </ProtectedRoute>
             }
@@ -422,7 +422,7 @@ export default function App() {
           <Route
             path="/admin/transactions"
             element={
-              <ProtectedRoute roles={["ADMIN"]}>
+              <ProtectedRoute roles={["ADMIN", "INSTITUTION_ADMIN"]}>
                 <AdminTransactions />
               </ProtectedRoute>
             }
@@ -430,7 +430,7 @@ export default function App() {
           <Route
             path="/admin/messages"
             element={
-              <ProtectedRoute roles={["ADMIN"]}>
+              <ProtectedRoute roles={["ADMIN", "INSTITUTION_ADMIN"]}>
                 <AdminMessages />
               </ProtectedRoute>
             }
@@ -438,7 +438,7 @@ export default function App() {
           <Route
             path="/admin/profile"
             element={
-              <ProtectedRoute roles={["ADMIN"]}>
+              <ProtectedRoute roles={["ADMIN", "INSTITUTION_ADMIN"]}>
                 <AdminProfile />
               </ProtectedRoute>
             }
@@ -568,7 +568,7 @@ export default function App() {
           <Route
             path="/admin/users/:id"
             element={
-              <ProtectedRoute roles={["ADMIN"]}>
+              <ProtectedRoute roles={["ADMIN", "INSTITUTION_ADMIN"]}>
                 <UserDetail />
               </ProtectedRoute>
             }

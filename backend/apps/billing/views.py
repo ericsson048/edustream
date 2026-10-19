@@ -300,6 +300,12 @@ class TransactionListView(APIView):
         qs = Transaction.objects.select_related("student", "course", "course__instructor").order_by("-created_at")
         if request.user.role == "ADMIN":
             data = TransactionSerializer(qs[:200], many=True).data
+        elif request.user.role == "INSTITUTION_ADMIN":
+            if request.user.institution_id:
+                scoped = qs.filter(course__institution_id=request.user.institution_id)[:200]
+            else:
+                scoped = qs.none()
+            data = TransactionSerializer(scoped, many=True).data
         elif request.user.role == "INSTRUCTOR":
             data = TransactionSerializer(qs.filter(course__instructor=request.user)[:200], many=True).data
         else:

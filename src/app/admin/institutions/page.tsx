@@ -48,25 +48,35 @@ export default function InstitutionsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setEditing(null); setForm(EMPTY); setShowModal(true); };
-  const openEdit = (i: Institution) => { setEditing(i); setForm(i); setShowModal(true); };
+  const openCreate = () => { setEditing(null); setForm({ ...EMPTY, admin: { full_name: '', email: '' } }); setShowModal(true); };
+  const openEdit = (i: Institution) => { setEditing(i); setForm({ ...i, admin: undefined }); setShowModal(true); };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name?.trim()) return;
+    if (!editing && (!form.admin?.full_name?.trim() || !form.admin?.email?.trim())) {
+      showToast('Les informations de l\'administrateur institutionnel sont requises.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       if (editing) {
-        await institutionService.updateInstitution(editing.id, form);
+        const { admin, ...payload } = form as any;
+        await institutionService.updateInstitution(editing.id, payload);
         showToast('Institution mise à jour.', 'success');
       } else {
         await institutionService.createInstitution(form);
-        showToast('Institution créée.', 'success');
+        showToast('Institution et compte administrateur créés.', 'success');
       }
       setShowModal(false);
       load();
     } catch (err: any) {
-      showToast(err?.response?.data?.name?.[0] || 'Erreur lors de la sauvegarde.', 'error');
+      const msg = err?.response?.data?.detail ||
+        err?.response?.data?.name?.[0] ||
+        err?.response?.data?.admin?.[0] ||
+        err?.response?.data?.non_field_errors?.[0] ||
+        'Erreur lors de la sauvegarde.';
+      showToast(msg, 'error');
     } finally {
       setSaving(false);
     }
@@ -193,6 +203,30 @@ export default function InstitutionsPage() {
               <textarea rows={3} value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none" />
             </div>
+            {!editing && (
+              <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Administrateur institutionnel *</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Ce compte permettra à l'université de se connecter.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nom complet *</label>
+                    <input type="text" required placeholder="Jean Martin"
+                      value={(form.admin as any)?.full_name || ''}
+                      onChange={e => setForm(f => ({ ...f, admin: { ...(f.admin as any), full_name: e.target.value } }))}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Email *</label>
+                    <input type="email" required placeholder="jean.martin@universite.fr"
+                      value={(form.admin as any)?.email || ''}
+                      onChange={e => setForm(f => ({ ...f, admin: { ...(f.admin as any), email: e.target.value } }))}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                  </div>
+                </div>
+              </div>
+            )}
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.is_active ?? true} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded" />
               <span className="text-sm text-slate-700 dark:text-slate-200">Active</span>

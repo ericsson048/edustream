@@ -46,7 +46,9 @@ from .permissions import (
     IsInstructorOrReadOnly,
     IsInstructorOwnerOrAdmin,
     IsOwnerOrReadOnly,
+    can_manage_course,
     is_admin,
+    is_institution_admin,
     owns_learning_object,
 )
 from .serializers import (
@@ -87,6 +89,13 @@ from .university import (
 )
 
 
+def scope_to_institution(qs, user, field="institution"):
+    """Restrict a queryset to the caller's institution (empty when he has none)."""
+    if not getattr(user, "institution_id", None):
+        return qs.none()
+    return qs.filter(**{field: user.institution_id})
+
+
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.filter(is_active=True)
     serializer_class = CategorySerializer
@@ -116,6 +125,8 @@ class CourseViewSet(viewsets.ModelViewSet):
             return qs.none()
         if is_admin(user):
             return qs
+        if is_institution_admin(user):
+            return scope_to_institution(qs, user)
         if user.role == "INSTRUCTOR":
             return (qs.filter(instructor=user) | qs.filter(is_published=True)).distinct()
         return (qs.filter(is_published=True) | qs.filter(enrollments__student=user, enrollments__is_active=True)).distinct()
@@ -235,7 +246,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="students")
     def students(self, request, pk=None):
         course = self.get_object()
-        if not is_admin(request.user) and course.instructor_id != request.user.id:
+        if not can_manage_course(request.user, course):
             return Response(
                 {"detail": "You cannot view this course's students."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -285,7 +296,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     )
     def invitations(self, request, pk=None):
         course = self.get_object()
-        if not is_admin(request.user) and course.instructor_id != request.user.id:
+        if not can_manage_course(request.user, course):
             return Response(
                 {"detail": "You cannot manage this course's invitations."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -321,7 +332,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     )
     def revoke_invitation(self, request, pk=None):
         course = self.get_object()
-        if not is_admin(request.user) and course.instructor_id != request.user.id:
+        if not can_manage_course(request.user, course):
             return Response(
                 {"detail": "You cannot manage this course's invitations."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -348,6 +359,8 @@ class ModuleViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if is_admin(user):
             return qs
+        if is_institution_admin(user):
+            return scope_to_institution(qs, user, "course__institution")
         if user.role == "INSTRUCTOR":
             return (qs.filter(course__instructor=user) | qs.filter(course__is_published=True)).distinct()
         return qs.filter(
@@ -376,6 +389,8 @@ class LessonViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if is_admin(user):
             return qs
+        if is_institution_admin(user):
+            return scope_to_institution(qs, user, "module__course__institution")
         if user.role == "INSTRUCTOR":
             return (qs.filter(module__course__instructor=user) | qs.filter(module__course__is_published=True)).distinct()
         return qs.filter(
@@ -416,6 +431,8 @@ class ResourceViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if is_admin(user):
             return qs
+        if is_institution_admin(user):
+            return scope_to_institution(qs, user, "lesson__module__course__institution")
         if user.role == "INSTRUCTOR":
             return (qs.filter(lesson__module__course__instructor=user) | qs.filter(lesson__module__course__is_published=True)).distinct()
         return qs.filter(
@@ -442,6 +459,8 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         qs = Enrollment.objects.select_related("student", "course")
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            return scope_to_institution(qs, self.request.user, "course__institution")
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(course__instructor=self.request.user)
         return qs.filter(student=self.request.user)
@@ -496,6 +515,8 @@ class ProgressViewSet(viewsets.ModelViewSet):
         qs = Progress.objects.select_related("enrollment", "lesson")
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            return scope_to_institution(qs, self.request.user, "enrollment__course__institution")
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(enrollment__course__instructor=self.request.user)
         return qs.filter(enrollment__student=self.request.user)
@@ -538,9 +559,12 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = Certificate.objects.select_related("course", "user")
-        if self.request.user.role == "ADMIN":
+        user = self.request.user
+        if is_admin(user):
             return qs
-        return qs.filter(user=self.request.user)
+        if is_institution_admin(user):
+            return scope_to_institution(qs, user, "course__institution")
+        return qs.filter(user=user)
 
     @action(detail=False, methods=["post"], url_path="claim")
     def claim(self, request):
@@ -595,6 +619,8 @@ class SectionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if is_admin(user) or user.role == "INSTRUCTOR":
             return qs
+        if is_institution_admin(user):
+            return scope_to_institution(qs, user, "course__institution")
         return qs.filter(course__is_published=True)
 
     def perform_create(self, serializer):
@@ -615,9 +641,14 @@ class ContentBlockViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if is_admin(user) or user.role == "INSTRUCTOR":
             return qs
+        if is_institution_admin(user):
+            return scope_to_institution(qs, user, "lesson__module__course__institution")
         return qs.filter(lesson__status=Lesson.Status.PUBLISHED, lesson__module__is_published=True)
 
     def perform_create(self, serializer):
+        lesson = serializer.validated_data.get("lesson")
+        if lesson is not None and not owns_learning_object(self.request.user, lesson):
+            raise PermissionDenied("You cannot modify this lesson.")
         serializer.save()
 
 
@@ -655,6 +686,8 @@ class CourseVersionViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         if is_admin(user):
             return qs
+        if is_institution_admin(user):
+            return scope_to_institution(qs, user, "course__institution")
         if user.role == "INSTRUCTOR":
             return qs.filter(course__instructor=user)
         return qs.filter(course__is_published=True, is_published=True)
@@ -673,10 +706,15 @@ class CourseStudentsOverviewView(APIView):
 
     def get(self, request):
         user = request.user
-        if user.role not in {"INSTRUCTOR", "ADMIN"}:
+        if user.role not in {"INSTRUCTOR", "ADMIN", "INSTITUTION_ADMIN"}:
             raise PermissionDenied("Instructor access required.")
 
-        courses = Course.objects.all() if is_admin(user) else Course.objects.filter(instructor=user)
+        if is_admin(user):
+            courses = Course.objects.all()
+        elif is_institution_admin(user):
+            courses = scope_to_institution(Course.objects.all(), user)
+        else:
+            courses = Course.objects.filter(instructor=user)
         course_ids = list(courses.values_list("id", flat=True))
         if not course_ids:
             return Response({"count": 0, "results": []})
@@ -723,7 +761,7 @@ class CourseStudentDetailView(APIView):
 
     def get(self, request, pk):
         user = request.user
-        if user.role not in {"INSTRUCTOR", "ADMIN"}:
+        if user.role not in {"INSTRUCTOR", "ADMIN", "INSTITUTION_ADMIN"}:
             raise PermissionDenied("Instructor access required.")
 
         from django.contrib.auth import get_user_model
@@ -739,7 +777,15 @@ class CourseStudentDetailView(APIView):
         except UserModel.DoesNotExist:
             raise PermissionDenied("Student not found.")
 
-        courses = Course.objects.all() if is_admin(user) else Course.objects.filter(instructor=user)
+        if is_institution_admin(user) and student.institution_id != user.institution_id:
+            raise PermissionDenied("Student not found.")
+
+        if is_admin(user):
+            courses = Course.objects.all()
+        elif is_institution_admin(user):
+            courses = scope_to_institution(Course.objects.all(), user)
+        else:
+            courses = Course.objects.filter(instructor=user)
         course_ids = list(courses.values_list("id", flat=True))
         if not course_ids:
             return Response(self._build_payload(student, [], {}, {}))
@@ -1009,12 +1055,14 @@ class UniversitySessionViewSet(viewsets.ModelViewSet):
     filterset_fields = ["course", "session_type"]
 
     def _owns_course(self, course):
-        return is_admin(self.request.user) or course.instructor_id == self.request.user.id
+        return can_manage_course(self.request.user, course)
 
     def get_queryset(self):
         qs = self.queryset
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            return scope_to_institution(qs, self.request.user, "course__institution")
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(course__instructor=self.request.user)
         return qs.filter(course__enrollments__student=self.request.user, course__enrollments__is_active=True).distinct()
@@ -1077,6 +1125,8 @@ class AttendanceRecordViewSet(viewsets.ModelViewSet):
         qs = self.queryset
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            return scope_to_institution(qs, self.request.user, "session__course__institution")
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(session__course__instructor=self.request.user)
         return qs.filter(student=self.request.user)
@@ -1117,7 +1167,7 @@ class AttendanceRecordViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="review")
     def review(self, request, pk=None):
         record = self.get_object()
-        if not is_admin(request.user) and record.session.course.instructor_id != request.user.id:
+        if not can_manage_course(request.user, record.session.course):
             raise PermissionDenied("Réservé à l'enseignant du cours.")
         decision = request.data.get("decision")
         if decision not in {"APPROVE", "REJECT"}:
@@ -1144,12 +1194,14 @@ class EvaluationViewSet(viewsets.ModelViewSet):
     filterset_fields = ["course", "kind"]
 
     def _owns_course(self, course):
-        return is_admin(self.request.user) or course.instructor_id == self.request.user.id
+        return can_manage_course(self.request.user, course)
 
     def get_queryset(self):
         qs = self.queryset
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            return scope_to_institution(qs, self.request.user, "course__institution")
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(course__instructor=self.request.user)
         return qs.filter(course__enrollments__student=self.request.user, course__enrollments__is_active=True).distinct()
@@ -1185,6 +1237,8 @@ class EvaluationGradeViewSet(viewsets.ModelViewSet):
         qs = self.queryset
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            return scope_to_institution(qs, self.request.user, "evaluation__course__institution")
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(evaluation__course__instructor=self.request.user)
         return qs.filter(enrollment__student=self.request.user)
@@ -1193,7 +1247,7 @@ class EvaluationGradeViewSet(viewsets.ModelViewSet):
         evaluation = serializer.validated_data["evaluation"]
         enrollment = serializer.validated_data["enrollment"]
         attempt = serializer.validated_data.get("attempt", 1)
-        if not is_admin(self.request.user) and evaluation.course.instructor_id != self.request.user.id:
+        if not can_manage_course(self.request.user, evaluation.course):
             raise PermissionDenied("Réservé à l'enseignant du cours.")
         if enrollment.course_id != evaluation.course_id:
             raise PermissionDenied("Cette inscription ne correspond pas au cours de l'évaluation.")
@@ -1206,7 +1260,7 @@ class EvaluationGradeViewSet(viewsets.ModelViewSet):
         update_course_grade(enrollment, grade.attempt)
 
     def perform_update(self, serializer):
-        if not is_admin(self.request.user) and serializer.instance.evaluation.course.instructor_id != self.request.user.id:
+        if not can_manage_course(self.request.user, serializer.instance.evaluation.course):
             raise PermissionDenied("Réservé à l'enseignant du cours.")
         serializer.save()
         update_course_grade(serializer.instance.enrollment, serializer.instance.attempt)
@@ -1221,7 +1275,7 @@ class CourseGradeSummaryView(APIView):
         except Course.DoesNotExist:
             return Response({"detail": "Cours introuvable."}, status=status.HTTP_404_NOT_FOUND)
 
-        can_view_all = is_admin(request.user) or course.instructor_id == request.user.id
+        can_view_all = can_manage_course(request.user, course)
         if can_view_all:
             enrollments = (
                 course.enrollments.filter(is_active=True)
@@ -1284,7 +1338,7 @@ class CourseGradeDecideView(APIView):
             course = Course.objects.get(pk=course_id)
         except Course.DoesNotExist:
             return Response({"detail": "Cours introuvable."}, status=status.HTTP_404_NOT_FOUND)
-        if not is_admin(request.user) and course.instructor_id != request.user.id:
+        if not can_manage_course(request.user, course):
             raise PermissionDenied("Réservé à l'enseignant du cours.")
 
         enrollment_id = request.data.get("enrollment_id")
@@ -1342,7 +1396,7 @@ class CourseTranscriptView(APIView):
         except Course.DoesNotExist:
             return Response({"detail": "Cours introuvable."}, status=status.HTTP_404_NOT_FOUND)
 
-        can_view_all = is_admin(request.user) or course.instructor_id == request.user.id
+        can_view_all = can_manage_course(request.user, course)
         filters = {"course": course, "is_active": True}
         if not can_view_all:
             filters["student"] = request.user

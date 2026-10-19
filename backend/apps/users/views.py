@@ -19,6 +19,7 @@ from .emailing import send_template_email
 from .models import Institution, PasswordResetCode
 from .serializers import (
     CreateManagedUserSerializer,
+    InstitutionCreateSerializer,
     InstitutionSerializer,
     PublicUserSerializer,
     RegisterSerializer,
@@ -398,17 +399,28 @@ class MyPreferencesView(APIView):
 
 
 class AdminWritePermission(permissions.BasePermission):
+    def _same_institution(self, user, obj):
+        return (
+            user.is_authenticated
+            and user.role == "INSTITUTION_ADMIN"
+            and user.institution_id is not None
+            and obj.institution_id == user.institution_id
+        )
+
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
-        return request.user.is_authenticated and request.user.role == "ADMIN"
+        return request.user.is_authenticated and request.user.role in ("ADMIN", "INSTITUTION_ADMIN")
 
     def has_object_permission(self, request, view, obj):
-        if request.user.is_authenticated and request.user.role == "ADMIN":
+        user = request.user
+        if user.is_authenticated and user.role == "ADMIN":
             return True
         if request.method in permissions.SAFE_METHODS:
-            return obj.pk == request.user.pk
-        return False
+            return obj.pk == user.pk or self._same_institution(user, obj)
+        if obj.role == "ADMIN":
+            return False
+        return self._same_institution(user, obj)
 
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
@@ -419,8 +431,18 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
     def get_serializer_class(self):
         user = self.request.user
-        if user.is_authenticated and (user.role == "ADMIN" or str(self.kwargs.get("pk")) == str(user.pk)):
+        if user.is_authenticated and user.role == "ADMIN":
             return UserSerializer
+        if str(self.kwargs.get("pk")) == str(user.pk):
+            return UserSerializer
+        if (
+            user.is_authenticated
+            and user.role == "INSTITUTION_ADMIN"
+            and user.institution_id is not None
+        ):
+            target = User.objects.filter(pk=self.kwargs.get("pk")).first()
+            if target and target.institution_id == user.institution_id:
+                return UserSerializer
         return PublicUserSerializer
 
 
@@ -432,9 +454,14 @@ class UserListView(generics.ListAPIView):
     search_fields = ["full_name", "email"]
 
     def get_queryset(self):
-        if self.request.user.role != "ADMIN":
-            return User.objects.filter(id=self.request.user.id)
-        return super().get_queryset()
+        user = self.request.user
+        if user.role == "ADMIN":
+            return super().get_queryset()
+        if user.role == "INSTITUTION_ADMIN":
+            if user.institution_id is None:
+                return User.objects.none()
+            return User.objects.filter(institution_id=user.institution_id).order_by("-date_joined")
+        return User.objects.filter(id=user.id)
 
 
 # ─── Institution views ───────────────────────────────────────────────────────
@@ -456,8 +483,12 @@ class IsInstructorOrAbove(permissions.BasePermission):
 
 class InstitutionListCreateView(generics.ListCreateAPIView):
     """ADMIN: list and create institutions."""
-    serializer_class = InstitutionSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return InstitutionCreateSerializer
+        return InstitutionSerializer
 
     def get_queryset(self):
         user = self.request.user
@@ -473,7 +504,24 @@ class InstitutionListCreateView(generics.ListCreateAPIView):
         return [IsInstitutionAdmin()]
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        serializer.save()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        institution = serializer.save()
+        headers = self.get_success_headers(serializer.data)
+
+        response_data = InstitutionSerializer(institution).data
+        admin_user = getattr(institution, "_created_admin", None)
+        if admin_user:
+            _send_managed_user_credentials(admin_user)
+            response_data["admin"] = {
+                "email": admin_user.email,
+                "full_name": admin_user.full_name,
+                "must_change_password": admin_user.must_change_password,
+            }
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class InstitutionDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -581,7 +629,9 @@ class GrantCourseAccessView(APIView):
             return Response({"detail": "Course not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # Only the instructor who owns the course (or admin) can grant access
-        if request.user.role not in ("ADMIN",) and course.instructor_id != request.user.pk:
+        from apps.courses.permissions import can_manage_course
+
+        if not can_manage_course(request.user, course):
             return Response({"detail": "You don't own this course."}, status=status.HTTP_403_FORBIDDEN)
 
         payload = CourseAccessGrantSerializer(data=request.data)
@@ -641,7 +691,9 @@ class RevokeCourseAccessView(APIView):
         except Course.DoesNotExist:
             return Response({"detail": "Course not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if request.user.role not in ("ADMIN",) and course.instructor_id != request.user.pk:
+        from apps.courses.permissions import can_manage_course
+
+        if not can_manage_course(request.user, course):
             return Response({"detail": "You don't own this course."}, status=status.HTTP_403_FORBIDDEN)
 
         student_id = request.data.get("student_id")
@@ -665,7 +717,9 @@ class CourseAccessStudentsView(APIView):
         except Course.DoesNotExist:
             return Response({"detail": "Course not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if request.user.role not in ("ADMIN",) and course.instructor_id != request.user.pk:
+        from apps.courses.permissions import can_manage_course
+
+        if not can_manage_course(request.user, course):
             return Response({"detail": "You don't own this course."}, status=status.HTTP_403_FORBIDDEN)
 
         accesses = CourseStudentAccess.objects.filter(course=course).select_related("student")

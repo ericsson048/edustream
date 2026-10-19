@@ -216,6 +216,24 @@ class InstitutionManagementTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_institution_admin_lists_only_its_members(self):
+        User.objects.create_user(
+            email="foreign-member@test.com",
+            full_name="Foreign Member",
+            password="securepassword123",
+            role="STUDENT",
+            institution=self.other_institution,
+        )
+        self.client.force_authenticate(user=self.institution_admin)
+
+        response = self.client.get(reverse("users-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data.get("results", response.data)
+        emails = {u["email"] for u in results}
+        self.assertIn(self.instructor.email, emails)
+        self.assertNotIn("foreign-member@test.com", emails)
+
     @patch("apps.users.views.send_template_email")
     def test_created_account_has_unique_temporary_password_and_must_change_it(self, send_email):
         self.client.force_authenticate(user=self.institution_admin)

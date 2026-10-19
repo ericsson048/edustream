@@ -2,7 +2,7 @@
 import Pagination from '../../../components/Pagination';
 import Header from '../../../components/Header';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, UserPlus, Download } from 'lucide-react';
 import { adminService } from '../../../services/adminService';
 import { useToast } from '../../../contexts/ToastContext';
@@ -32,11 +32,12 @@ function Avatar({ user }: { user: AuthUser }) {
 }
 
 export default function ManageUsers() {
+  const [searchParams] = useSearchParams();
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState(searchParams.get('role') || '');
   const [activeFilter, setActiveFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
@@ -57,6 +58,9 @@ export default function ManageUsers() {
   };
 
   useEffect(() => { load(); }, [search, roleFilter, activeFilter]);
+
+  const urlRole = searchParams.get('role') || '';
+  useEffect(() => { setRoleFilter(urlRole); }, [urlRole]);
 
   const totalPages = Math.ceil(users.length / PAGE_SIZE) || 1;
   const paginatedUsers = users.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

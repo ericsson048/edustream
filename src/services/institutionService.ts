@@ -12,6 +12,11 @@ export interface Institution {
   is_active: boolean;
   created_at: string;
   members_count: number;
+  admin?: {
+    email: string;
+    full_name: string;
+    must_change_password?: boolean;
+  };
 }
 
 export interface CourseAccessStudent {
@@ -35,7 +40,9 @@ export const institutionService = {
     return data;
   },
 
-  async createInstitution(payload: Partial<Institution>): Promise<Institution> {
+  async createInstitution(payload: Partial<Institution> & {
+    admin?: { full_name: string; email: string };
+  }): Promise<Institution> {
     const { data } = await apiClient.post<Institution>('/auth/institutions/', payload);
     return data;
   },

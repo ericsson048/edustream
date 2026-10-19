@@ -53,7 +53,19 @@ from .serializers import (
     UserStatsSerializer,
 )
 from apps.courses.models import Course, Enrollment, Progress, CourseReview
-from apps.courses.permissions import is_admin, is_instructor_or_admin, owns_learning_object
+from apps.courses.permissions import (
+    is_admin,
+    is_institution_admin,
+    is_instructor_or_admin,
+    owns_learning_object,
+)
+
+
+def _scope_institution(qs, user, field):
+    """Restrict a queryset to the caller's institution (empty when he has none)."""
+    if not getattr(user, "institution_id", None):
+        return qs.none()
+    return qs.filter(**{field: user.institution_id})
 
 
 def _media_url(request, rel_path):
@@ -91,6 +103,8 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         qs = self.queryset
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            return _scope_institution(qs, self.request.user, "course__institution")
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(course__instructor=self.request.user)
         return qs.filter(course__enrollments__student=self.request.user, course__enrollments__is_active=True).distinct()
@@ -209,6 +223,8 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         qs = Submission.objects.select_related("assignment", "student")
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            return _scope_institution(qs, self.request.user, "assignment__course__institution")
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(assignment__course__instructor=self.request.user)
         return qs.filter(student=self.request.user)
@@ -313,6 +329,13 @@ class QuizViewSet(viewsets.ModelViewSet):
         qs = self.queryset
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            if not self.request.user.institution_id:
+                return qs.none()
+            return qs.filter(
+                Q(module__course__institution_id=self.request.user.institution_id) |
+                Q(lesson__module__course__institution_id=self.request.user.institution_id)
+            ).distinct()
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(
                 Q(module__course__instructor=self.request.user) |
@@ -344,6 +367,13 @@ class QuizQuestionViewSet(viewsets.ModelViewSet):
         qs = self.queryset
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            if not self.request.user.institution_id:
+                return qs.none()
+            return qs.filter(
+                Q(quiz__module__course__institution_id=self.request.user.institution_id) |
+                Q(quiz__lesson__module__course__institution_id=self.request.user.institution_id)
+            ).distinct()
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(
                 Q(quiz__module__course__instructor=self.request.user) |
@@ -370,6 +400,13 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         qs = QuizAttempt.objects.select_related("quiz", "student")
         if is_admin(self.request.user):
             return qs
+        if is_institution_admin(self.request.user):
+            if not self.request.user.institution_id:
+                return qs.none()
+            return qs.filter(
+                Q(quiz__module__course__institution_id=self.request.user.institution_id) |
+                Q(quiz__lesson__module__course__institution_id=self.request.user.institution_id)
+            ).distinct()
         if self.request.user.role == "INSTRUCTOR":
             return qs.filter(
                 Q(quiz__module__course__instructor=self.request.user) |

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy, MessageSquare, User, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, Settings, ShieldAlert, TrendingUp, CreditCard, LifeBuoy, MessageSquare, User, Building2, GraduationCap } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -23,8 +23,17 @@ export default function AdminSidebar() {
     { name: 'Profile', icon: User, href: '/admin/profile' },
     { name: 'Settings', icon: Settings, href: '/admin/settings' },
   ];
-  const links = isInstitutionAdmin ? adminLinks.filter((link) => link.href === '/admin/institutions') : adminLinks;
-  const profileHref = isInstitutionAdmin ? '/admin/institutions' : '/admin/profile';
+  const institutionLinks = [
+    { name: 'My Institution', icon: Building2, href: '/admin/institutions' },
+    { name: 'Instructors', icon: GraduationCap, href: '/admin/users?role=INSTRUCTOR' },
+    { name: 'Students', icon: Users, href: '/admin/users?role=STUDENT' },
+    { name: 'Courses', icon: BookOpen, href: '/admin/courses' },
+    { name: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
+    { name: 'Messages', icon: MessageSquare, href: '/admin/messages' },
+    { name: 'Profile', icon: User, href: '/admin/profile' },
+  ];
+  const links = isInstitutionAdmin ? institutionLinks : adminLinks;
+  const profileHref = '/admin/profile';
 
   return (
     <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col fixed h-full z-20">
@@ -37,7 +46,10 @@ export default function AdminSidebar() {
 
       <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto">
         {links.map((link) => {
-          const isActive = path === link.href || (path.startsWith(link.href) && link.href !== '/admin');
+          const [linkPath, linkQuery] = link.href.split('?');
+          const isActive = linkQuery
+            ? path === linkPath && location.search === `?${linkQuery}`
+            : path === linkPath || (path.startsWith(linkPath) && linkPath !== '/admin');
           return (
             <Link
               key={link.name}

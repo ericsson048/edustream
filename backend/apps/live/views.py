@@ -76,6 +76,10 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == "ADMIN":
             return qs
+        if user.role == "INSTITUTION_ADMIN":
+            if not user.institution_id:
+                return qs.none()
+            return qs.filter(course__institution_id=user.institution_id)
         if user.role == "INSTRUCTOR":
             return qs.filter(instructor=user)
         return qs.filter(
