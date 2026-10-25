@@ -1,6 +1,3 @@
-from urllib.parse import parse_qs
-
-from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -19,15 +16,25 @@ class QueryStringJWTAuthMiddleware:
         self.inner = inner
 
     async def __call__(self, scope, receive, send):
-        query_string = scope.get("query_string", b"").decode()
-        token = parse_qs(query_string).get("token", [None])[0]
+        auth_protocol = next(
+            (protocol for protocol in scope.get("subprotocols", []) if protocol.startswith("edustream.jwt.")),
+            None,
+        )
+        token = auth_protocol.removeprefix("edustream.jwt.") if auth_protocol else None
         scope["user"] = AnonymousUser()
+        scope["edustream_auth_protocol"] = auth_protocol
         if token:
             try:
                 scope["user"] = await get_user_for_token(token)
             except InvalidToken:
                 scope["user"] = AnonymousUser()
-        return await self.inner(scope, receive, send)
+
+        async def send_with_auth_protocol(message):
+            if message["type"] == "websocket.accept" and auth_protocol:
+                message = {**message, "subprotocol": auth_protocol}
+            await send(message)
+
+        return await self.inner(scope, receive, send_with_auth_protocol)
 
 
 def QueryStringJWTAuthMiddlewareStack(inner):

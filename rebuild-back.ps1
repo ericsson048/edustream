@@ -35,4 +35,4 @@ if ($LASTEXITCODE -ne 0) { throw "Echec du demarrage du service backend." }
 Write-Ok "Service backend redémarre"
 
 Write-Host ""
-Write-Host "  Backend mis a jour : http://localhost:8000" -ForegroundColor Green
+Write-Host "  Backend mis a jour : http://localhost:8100" -ForegroundColor Green

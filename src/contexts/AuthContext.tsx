@@ -9,7 +9,7 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
   register: (payload: RegisterPayload) => Promise<AuthUser>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
   updateMe: (payload: Partial<Pick<AuthUser, 'full_name' | 'email' | 'title' | 'bio' | 'location' | 'website' | 'avatar_url'>>) => Promise<AuthUser>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
@@ -56,8 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return me;
       },
       logout: () => {
-        authService.logout();
         setUser(null);
+        return authService.logout();
       },
       refreshMe,
       updateMe: async (payload) => {

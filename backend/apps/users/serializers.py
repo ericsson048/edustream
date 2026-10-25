@@ -112,6 +112,32 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.institution.name if obj.institution else None
 
 
+class UserProfileSerializer(UserSerializer):
+    """Profile fields users may update on their own account."""
+
+    class Meta(UserSerializer.Meta):
+        read_only_fields = UserSerializer.Meta.read_only_fields + [
+            "role",
+            "is_active",
+            "email_verified",
+            "must_change_password",
+            "institution",
+            "created_by",
+        ]
+
+
+class InstitutionManagedUserSerializer(UserSerializer):
+    role = serializers.ChoiceField(choices=[("STUDENT", "Student"), ("INSTRUCTOR", "Instructor")])
+
+    class Meta(UserSerializer.Meta):
+        read_only_fields = UserSerializer.Meta.read_only_fields + [
+            "email_verified",
+            "must_change_password",
+            "institution",
+            "created_by",
+        ]
+
+
 class PublicUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

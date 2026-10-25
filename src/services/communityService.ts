@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient';
 import type { PaginatedResponse } from './common';
-import { buildWebSocketUrl } from './realtime';
+import { createAuthenticatedWebSocket } from './realtime';
 
 export interface DiscussionItem {
   id: string;
@@ -70,9 +70,9 @@ export const communityService = {
     return data;
   },
   createCommunitySocket(): WebSocket {
-    return new WebSocket(buildWebSocketUrl('/ws/community/'));
+    return createAuthenticatedWebSocket('/ws/community/');
   },
   createStudyGroupSocket(groupId: string): WebSocket {
-    return new WebSocket(buildWebSocketUrl(`/ws/community/groups/${groupId}/`));
+    return createAuthenticatedWebSocket(`/ws/community/groups/${groupId}/`);
   },
 };

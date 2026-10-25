@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient';
 import type { PaginatedResponse } from './common';
-import { buildWebSocketUrl } from './realtime';
+import { createAuthenticatedWebSocket } from './realtime';
 
 export interface LiveSessionItem {
   id: string;
@@ -108,7 +108,7 @@ export const liveService = {
     return data.results ?? [];
   },
   createSessionSocket(sessionId: string): WebSocket {
-    return new WebSocket(buildWebSocketUrl(`/ws/live/${sessionId}/`));
+    return createAuthenticatedWebSocket(`/ws/live/${sessionId}/`);
   },
   async listChatMessages(sessionId: string): Promise<LiveChatMessage[]> {
     const { data } = await apiClient.get<PaginatedResponse<LiveChatMessage>>(

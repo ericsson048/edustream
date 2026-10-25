@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient';
 import type { PaginatedResponse } from './common';
-import { buildWebSocketUrl } from './realtime';
+import { createAuthenticatedWebSocket } from './realtime';
 
 export interface ConversationItem {
   id: string;
@@ -60,6 +60,6 @@ export const messagingService = {
     return data;
   },
   createConversationSocket(conversationId: string): WebSocket {
-    return new WebSocket(buildWebSocketUrl(`/ws/messages/${conversationId}/`));
+    return createAuthenticatedWebSocket(`/ws/messages/${conversationId}/`);
   },
 };

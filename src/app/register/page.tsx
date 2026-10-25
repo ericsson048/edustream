@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { UserRole } from '../../types/auth';
 import { getDefaultRoute } from '../../components/guards/ProtectedRoute';
 import { useToast } from '../../contexts/ToastContext';
+import { billingService } from '../../services/billingService';
 
 export default function Register() {
   const { t } = useTranslation();
@@ -32,6 +33,14 @@ export default function Register() {
         password,
       });
       showToast(t('auth.registerSuccess'), 'success');
+      const selectedPlanId = searchParams.get('plan');
+      if (selectedPlanId) {
+        try {
+          await billingService.subscribe(selectedPlanId);
+        } catch {
+          showToast(t('pricing.subscribeFailed'), 'error');
+        }
+      }
       navigate(getDefaultRoute(user.role), { replace: true });
     } catch {
       showToast(t('auth.registerFailed'), 'error');

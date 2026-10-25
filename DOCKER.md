@@ -24,10 +24,10 @@ http://ADRESSE_IP_DE_LA_MACHINE:3000
 L'API reste aussi disponible pour le mobile ici :
 
 ```text
-http://ADRESSE_IP_DE_LA_MACHINE:8000/api/v1
+http://ADRESSE_IP_DE_LA_MACHINE:8100/api/v1
 ```
 
-Pour l'application mobile, renseignez `EXPO_PUBLIC_API_URL` avec cette derniere adresse. L'adresse ne reste stable sur votre reseau Wi-Fi que si le routeur lui attribue une reservation DHCP.
+Dans l'application mobile, ouvrez **Configurer l’adresse du serveur** depuis l'écran de connexion (ou **Paramètres** une fois connecté) et saisissez cette adresse. Elle est enregistrée sur le téléphone : vous pourrez la modifier quand l'adresse IP change, sans générer un nouvel APK. Le téléphone et l'ordinateur doivent être sur le même réseau Wi-Fi. Une réservation DHCP ou un nom DNS reste préférable pour éviter que l'adresse change.
 
 ## Commandes utiles
 

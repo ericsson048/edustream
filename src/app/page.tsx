@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
-  Sparkles,
   Video,
-  Code2,
+  ClipboardCheck,
   BrainCircuit,
   GraduationCap,
   Users,
   BookOpen,
-  DollarSign,
   Route,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -64,26 +62,18 @@ function CountUp({
 
 export default function Welcome() {
   const { t } = useTranslation();
-  const [stats, setStats] = useState({
-    total_courses: 0,
-    total_instructors: 0,
-    total_students: 0,
-    total_payouts: 0,
-  });
+  const [stats, setStats] = useState<{
+    total_courses: number;
+    total_instructors: number;
+    total_students: number;
+  } | null>(null);
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
 
   useEffect(() => {
     authService
       .getPublicStats()
       .then(setStats)
-      .catch(() =>
-        setStats({
-          total_courses: 48,
-          total_instructors: 24,
-          total_students: 12400,
-          total_payouts: 86000,
-        }),
-      );
+      .catch(() => setStats(null));
     courseService
       .listLearningPaths({ is_active: true })
       .then(setLearningPaths)
@@ -155,11 +145,12 @@ export default function Welcome() {
             </Link>
           </motion.div>
 
+          {stats && stats.total_courses + stats.total_instructors + stats.total_students > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.85, duration: 0.8 }}
-            className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto"
+            className="mt-16 grid grid-cols-2 md:grid-cols-3 gap-6 max-w-3xl mx-auto"
           >
             {[
               {
@@ -183,15 +174,6 @@ export default function Welcome() {
                 suffix: "+",
                 label: t('welcome.instructors'),
               },
-              {
-                icon: DollarSign,
-                color: "text-amber-500",
-                value: stats.total_payouts / 1000,
-                suffix: "K+",
-                decimals: 1,
-                label: t('welcome.paidToInstructors'),
-                prefix: "$",
-              },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
@@ -204,18 +186,14 @@ export default function Welcome() {
                 >
                   <Icon className={`w-6 h-6 ${item.color} mx-auto mb-2`} />
                   <p className="text-2xl font-bold">
-                    {item.prefix}
-                    <CountUp
-                      value={item.value as number}
-                      suffix={item.suffix}
-                      decimals={item.decimals as number | undefined}
-                    />
+                    <CountUp value={item.value} suffix={item.suffix} />
                   </p>
                   <p className="text-xs text-slate-500">{item.label}</p>
                 </motion.div>
               );
             })}
           </motion.div>
+          )}
         </motion.div>
       </section>
 
@@ -261,10 +239,10 @@ export default function Welcome() {
                 desc: t('welcome.featureLiveStreamsDesc'),
               },
               {
-                icon: Code2,
+                icon: ClipboardCheck,
                 color: "emerald",
-                title: t('welcome.featureIde'),
-                desc: t('welcome.featureIdeDesc'),
+                title: t('welcome.featurePractice'),
+                desc: t('welcome.featurePracticeDesc'),
               },
             ].map((feature) => {
               const Icon = feature.icon;

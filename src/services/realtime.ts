@@ -7,14 +7,16 @@ function getApiOrigin() {
   return new URL(baseURL, window.location.origin).origin;
 }
 
-export function buildWebSocketUrl(path: string) {
+function buildWebSocketUrl(path: string) {
   const origin = getApiOrigin();
   const wsProtocol = origin.startsWith('https://') ? 'wss://' : 'ws://';
-  const token = tokenStorage.getAccessToken();
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = new URL(`${wsProtocol}${origin.replace(/^https?:\/\//, '')}${normalizedPath}`);
-  if (token) {
-    url.searchParams.set('token', token);
-  }
   return url.toString();
+}
+
+export function createAuthenticatedWebSocket(path: string) {
+  const token = tokenStorage.getAccessToken();
+  const protocols = token ? [`edustream.jwt.${token}`] : [];
+  return new WebSocket(buildWebSocketUrl(path), protocols);
 }

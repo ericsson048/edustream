@@ -199,10 +199,10 @@ EMAIL_BACKEND = os.getenv(
 )
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "edulms048@gmail.com")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "ifgq wumr wapv ltmj")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "EduStream <edulms048@gmail.com>")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "EduStream <noreply@example.com>")
 PASSWORD_RESET_TIMEOUT = int(os.getenv("PASSWORD_RESET_TIMEOUT", "259200"))
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0").strip()
@@ -250,10 +250,15 @@ else:
         }
     }
 
-# CORS_ALLOWED_ORIGINS = [o for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o]
-# CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin.strip()
+]
+CORS_ALLOW_ALL_ORIGINS = DEBUG and env_bool("CORS_ALLOW_ALL_ORIGINS", False)
 CORS_ALLOW_CREDENTIALS = True
 
 SPECTACULAR_SETTINGS = {
@@ -264,8 +269,7 @@ SPECTACULAR_SETTINGS = {
 
 WEBRTC_STUN_URLS = [u.strip() for u in os.getenv("WEBRTC_STUN_URLS", "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302").split(",") if u.strip()]
 WEBRTC_TURN_URLS = [u.strip() for u in os.getenv("WEBRTC_TURN_URLS", "").split(",") if u.strip()]
-WEBRTC_TURN_USERNAME = os.getenv("WEBRTC_TURN_USERNAME", "")
-WEBRTC_TURN_CREDENTIAL = os.getenv("WEBRTC_TURN_CREDENTIAL", "")
+WEBRTC_TURN_SHARED_SECRET = os.getenv("WEBRTC_TURN_SHARED_SECRET", "")
 
 # --- Security hardening -----------------------------------------------------
 SECURE_ENABLED = env_bool("DJANGO_SECURE", not DEBUG)

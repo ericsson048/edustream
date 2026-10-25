@@ -2,7 +2,8 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from apps.billing.models import SubscriptionPlan, Transaction, UserSubscription
@@ -19,6 +20,8 @@ class Command(BaseCommand):
     help = "Seed demo accounts and realistic demo data for EduStream."
 
     def handle(self, *args, **options):
+        if not settings.DEBUG:
+            raise CommandError("Demo accounts can only be seeded when DEBUG=True.")
         now = timezone.now()
 
         admin_user, _ = User.objects.update_or_create(

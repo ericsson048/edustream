@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient';
 import type { PaginatedResponse } from './common';
-import { buildWebSocketUrl } from './realtime';
+import { createAuthenticatedWebSocket } from './realtime';
 
 export interface GeneratedCourseOutline {
   title: string;
@@ -157,6 +157,6 @@ export const aiService = {
     return data;
   },
   createTutorSocket(): WebSocket {
-    return new WebSocket(buildWebSocketUrl('/ws/ai/tutor/'));
+    return createAuthenticatedWebSocket('/ws/ai/tutor/');
   },
 };

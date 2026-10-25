@@ -1,5 +1,9 @@
+import base64
+import hashlib
+import hmac
 import os
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -57,11 +61,15 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
     def ice_config(self, request):
         stun_urls = getattr(settings, "WEBRTC_STUN_URLS", ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"])
         turn_urls = getattr(settings, "WEBRTC_TURN_URLS", [])
-        turn_username = getattr(settings, "WEBRTC_TURN_USERNAME", "")
-        turn_credential = getattr(settings, "WEBRTC_TURN_CREDENTIAL", "")
         ice_servers = [{"urls": stun_urls}]
-        if turn_urls:
-            ice_servers.append({"urls": turn_urls, "username": turn_username, "credential": turn_credential})
+        shared_secret = getattr(settings, "WEBRTC_TURN_SHARED_SECRET", "")
+        if turn_urls and shared_secret:
+            expires_at = int((timezone.now() + timedelta(hours=1)).timestamp())
+            username = f"{expires_at}:{request.user.pk}"
+            credential = base64.b64encode(
+                hmac.new(shared_secret.encode("utf-8"), username.encode("utf-8"), hashlib.sha1).digest()
+            ).decode("ascii")
+            ice_servers.append({"urls": turn_urls, "username": username, "credential": credential})
         return Response({"iceServers": ice_servers})
 
     def list(self, request, *args, **kwargs):

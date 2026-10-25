@@ -81,7 +81,14 @@ export const authService = {
     return data;
   },
 
-  logout(): void {
+  async logout(): Promise<void> {
+    const refresh = tokenStorage.getRefreshToken();
     tokenStorage.clearTokens();
+    if (!refresh) return;
+    try {
+      await apiClient.post('/auth/logout/', { refresh });
+    } catch {
+      // Local logout still succeeds if the backend is unreachable.
+    }
   },
 };

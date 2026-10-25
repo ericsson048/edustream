@@ -19,10 +19,12 @@ from .emailing import send_template_email
 from .models import Institution, PasswordResetCode
 from .serializers import (
     CreateManagedUserSerializer,
+    InstitutionManagedUserSerializer,
     InstitutionCreateSerializer,
     InstitutionSerializer,
     PublicUserSerializer,
     RegisterSerializer,
+    UserProfileSerializer,
     UserSerializer,
 )
 
@@ -163,7 +165,7 @@ class MeView(APIView):
         return Response(UserSerializer(request.user).data)
 
     def patch(self, request):
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        serializer = UserProfileSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
@@ -433,8 +435,6 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
         user = self.request.user
         if user.is_authenticated and user.role == "ADMIN":
             return UserSerializer
-        if str(self.kwargs.get("pk")) == str(user.pk):
-            return UserSerializer
         if (
             user.is_authenticated
             and user.role == "INSTITUTION_ADMIN"
@@ -442,7 +442,9 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
         ):
             target = User.objects.filter(pk=self.kwargs.get("pk")).first()
             if target and target.institution_id == user.institution_id:
-                return UserSerializer
+                return InstitutionManagedUserSerializer
+        if user.is_authenticated and str(self.kwargs.get("pk")) == str(user.pk):
+            return UserProfileSerializer
         return PublicUserSerializer
 
 

@@ -390,7 +390,7 @@ Le backend repose fortement sur des variables d'environnement. Les principales f
 - IA : `GEMINI_API_KEY`, `OPENROUTER_API_KEY` ;
 - cache et channels : `REDIS_URL`, `DJANGO_CACHE_URL`, `USE_REDIS_CHANNELS`, `USE_REDIS_CACHE` ;
 - CORS et frontend : `FRONTEND_BASE_URL`, `CORS_ALLOWED_ORIGINS` ;
-- WebRTC : `WEBRTC_STUN_URLS`, `WEBRTC_TURN_URLS`, `WEBRTC_TURN_USERNAME`, `WEBRTC_TURN_CREDENTIAL` ;
+- WebRTC : `WEBRTC_STUN_URLS`, `WEBRTC_TURN_URLS`, `WEBRTC_TURN_SHARED_SECRET` (identifiants temporaires TURN générés par le backend) ;
 - email : `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`.
 
 ## 12. Donnees et persistance

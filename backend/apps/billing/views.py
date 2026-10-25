@@ -1,9 +1,10 @@
-import json
 import uuid
 from datetime import timedelta
+from decimal import Decimal
 
 import stripe
 from django.conf import settings
+from django.db import transaction as db_transaction
 from django.db.models import Sum
 from django.utils import timezone
 from rest_framework import generics, permissions, status
@@ -230,45 +231,99 @@ class StripeWebhookView(APIView):
     def post(self, request):
         payload = request.body
         sig_header = request.headers.get("Stripe-Signature", "")
-        if settings.STRIPE_WEBHOOK_SECRET:
-            try:
-                event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
-            except ValueError:
-                return Response({"detail": "Invalid payload."}, status=status.HTTP_400_BAD_REQUEST)
-            except stripe.error.SignatureVerificationError:
-                return Response({"detail": "Invalid signature."}, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            if not settings.ENABLE_MOCK_PAYMENTS:
-                return Response(
-                    {"detail": "Stripe webhook is not configured."},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-            try:
-                event = json.loads(payload)
-            except (json.JSONDecodeError, TypeError):
-                return Response({"detail": "Invalid payload."}, status=status.HTTP_400_BAD_REQUEST)
-        if isinstance(event, dict):
-            event_data = event
-        else:
-            event_data = event.to_dict_recursive()
-
-        event_type = event_data.get("type")
-        user_id = event_data.get("user_id")
-        if not event_type or not user_id:
-            return Response({"detail": "type and user_id are required"}, status=status.HTTP_400_BAD_REQUEST)
-
+        if not settings.STRIPE_WEBHOOK_SECRET:
+            return Response(
+                {"detail": "Stripe webhook is not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         try:
-            sub = UserSubscription.objects.get(user_id=user_id)
-        except UserSubscription.DoesNotExist:
-            return Response({"detail": "Subscription not found."}, status=status.HTTP_404_NOT_FOUND)
+            event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
+        except ValueError:
+            return Response({"detail": "Invalid payload."}, status=status.HTTP_400_BAD_REQUEST)
+        except stripe.error.SignatureVerificationError:
+            return Response({"detail": "Invalid signature."}, status=status.HTTP_400_BAD_REQUEST)
 
+        event_data = event.to_dict_recursive()
+        event_type = event_data.get("type")
+        event_object = (event_data.get("data") or {}).get("object") or {}
+        metadata = event_object.get("metadata") or {}
+
+        if event_type == "checkout.session.completed":
+            if metadata.get("type") != "course_checkout" or event_object.get("payment_status") != "paid":
+                return Response({"ok": True, "ignored": True})
+            user_id = metadata.get("user_id") or event_object.get("client_reference_id")
+            course_id = metadata.get("course_id")
+            if not user_id or not course_id:
+                return Response({"detail": "Checkout metadata is incomplete."}, status=status.HTTP_400_BAD_REQUEST)
+            course = Course.objects.filter(id=course_id, is_published=True).first()
+            if not course:
+                return Response({"detail": "Course not found."}, status=status.HTTP_404_NOT_FOUND)
+            from django.contrib.auth import get_user_model
+
+            user = get_user_model().objects.filter(pk=user_id, is_active=True).first()
+            if not user:
+                return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            payment_intent = event_object.get("payment_intent") or ""
+            amount_paid = Decimal(event_object.get("amount_total") or 0) / Decimal("100")
+            if amount_paid <= 0:
+                return Response({"detail": "Checkout has no paid amount."}, status=status.HTTP_400_BAD_REQUEST)
+            with db_transaction.atomic():
+                enrollment, created = Enrollment.objects.get_or_create(student=user, course=course)
+                if created:
+                    fee, instructor_earning = compute_split(amount_paid, course.platform_fee_percentage)
+                    Transaction.objects.get_or_create(
+                        student=user,
+                        course=course,
+                        stripe_payment_intent_id=payment_intent,
+                        defaults={
+                            "amount_paid": amount_paid,
+                            "platform_fee": fee,
+                            "instructor_earning": instructor_earning,
+                            "status": Transaction.Status.COMPLETED,
+                        },
+                    )
+            return Response({"ok": True})
+
+        if event_type not in {
+            "invoice.payment_failed",
+            "invoice.paid",
+            "customer.subscription.deleted",
+            "customer.subscription.updated",
+        }:
+            return Response({"ok": True, "ignored": True})
+
+        user_id = metadata.get("user_id")
+        customer_id = event_object.get("customer")
+        subscription_query = UserSubscription.objects.all()
+        if user_id:
+            subscription_query = subscription_query.filter(user_id=user_id)
+        elif customer_id:
+            from django.contrib.auth import get_user_model
+
+            user = get_user_model().objects.filter(stripe_customer_id=customer_id).first()
+            if not user:
+                return Response({"ok": True, "ignored": True})
+            subscription_query = subscription_query.filter(user=user)
+        else:
+            return Response({"ok": True, "ignored": True})
+
+        sub = subscription_query.first()
+        if not sub:
+            return Response({"ok": True, "ignored": True})
         if event_type == "invoice.payment_failed":
             sub.status = UserSubscription.Status.PAST_DUE
-        elif event_type in {"customer.subscription.deleted", "customer.subscription.canceled"}:
+        elif event_type == "customer.subscription.deleted":
             sub.status = UserSubscription.Status.CANCELED
-        elif event_type in {"invoice.paid", "customer.subscription.updated"}:
+        else:
             sub.status = UserSubscription.Status.ACTIVE
-            sub.current_period_end = timezone.now() + timedelta(days=30)
+            period_end = event_object.get("current_period_end")
+            if not period_end:
+                lines = (event_object.get("lines") or {}).get("data") or []
+                period_end = (lines[0].get("period") or {}).get("end") if lines else None
+            if period_end:
+                from datetime import datetime, timezone as datetime_timezone
+
+                sub.current_period_end = datetime.fromtimestamp(period_end, tz=datetime_timezone.utc)
         sub.save(update_fields=["status", "current_period_end", "updated_at"])
         return Response({"ok": True})
 

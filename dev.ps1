@@ -91,7 +91,7 @@ switch ($Action) {
 
         & docker @($base + @('up', '-d', '--no-deps', 'backend'))
         if ($LASTEXITCODE -ne 0) { throw "Echec du demarrage backend." }
-        Write-Ok "Backend redémarre sur http://localhost:8000"
+        Write-Ok "Backend redémarre sur http://localhost:8100"
     }
 
     'all' {
@@ -104,7 +104,7 @@ switch ($Action) {
         if ($LASTEXITCODE -ne 0) { throw "Echec du demarrage." }
         Write-Ok "Tous les services demarres"
         Write-Info "Frontend : http://localhost:3000"
-        Write-Info "Backend  : http://localhost:8000"
+        Write-Info "Backend  : http://localhost:8100"
     }
 
     'stop' {
