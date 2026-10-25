@@ -29,6 +29,19 @@ export interface CourseAccessStudent {
 }
 
 export const institutionService = {
+  async uploadLogo(file: File, onProgress?: (percent: number) => void): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await apiClient.post<{ url: string }>('/upload-image/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: event => {
+        if (event.total) onProgress?.(Math.round((event.loaded / event.total) * 100));
+      },
+    });
+    const uploadedUrl = new URL(data.url, window.location.origin);
+    return `${uploadedUrl.pathname}${uploadedUrl.search}${uploadedUrl.hash}`;
+  },
+
   // ── Institutions (admin) ──────────────────────────────────────────────────
   async listInstitutions(): Promise<Institution[]> {
     const { data } = await apiClient.get<Institution[]>('/auth/institutions/');
@@ -63,8 +76,8 @@ export const institutionService = {
     return Array.isArray(data) ? data : (data as any).results ?? [];
   },
 
-  async createMember(institutionId: string, payload: { email: string; full_name: string; role: 'INSTRUCTOR' | 'STUDENT' }): Promise<AuthUser> {
-    const { data } = await apiClient.post<AuthUser>(`/auth/institutions/${institutionId}/members/`, payload);
+  async createMember(institutionId: string, payload: { email: string; full_name: string; role: 'INSTRUCTOR' | 'STUDENT' }): Promise<AuthUser & { credentials_email_sent: boolean }> {
+    const { data } = await apiClient.post<AuthUser & { credentials_email_sent: boolean }>(`/auth/institutions/${institutionId}/members/`, payload);
     return data;
   },
 

@@ -11,7 +11,9 @@ import {
   X,
   AlertTriangle,
   BookOpen,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Check,
   ImageIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -56,6 +58,13 @@ const emptyForm: CourseForm = {
   start_date: "",
   end_date: "",
 };
+
+const courseFormSteps = [
+  { title: "Informations", subtitle: "Présentez votre cours" },
+  { title: "Paramètres", subtitle: "Organisation et tarif" },
+  { title: "Présentation", subtitle: "Image et publication" },
+  { title: "Pédagogie", subtitle: "Objectifs et public" },
+];
 
 const levelLabels: Record<CourseForm["level"], string> = {
   BEGINNER: "Débutant",
@@ -103,6 +112,8 @@ export default function InstructorCourses() {
   const [dialogVisible, setDialogVisible] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [form, setForm] = useState<CourseForm>(emptyForm);
+  const [activeStep, setActiveStep] = useState(0);
+  const [stepError, setStepError] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbPreview, setThumbPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -162,6 +173,8 @@ export default function InstructorCourses() {
     setEditingCourse(null);
     setForm(emptyForm);
     setThumbnailFile(null);
+    setActiveStep(0);
+    setStepError("");
     setDialogVisible(true);
   };
 
@@ -185,10 +198,30 @@ export default function InstructorCourses() {
       end_date: course.end_date || "",
     });
     setThumbnailFile(null);
+    setActiveStep(0);
+    setStepError("");
     setDialogVisible(true);
   };
 
+  const isMarginal = form.course_type === "MARGINAL";
+  const dateError =
+    isMarginal &&
+    form.start_date &&
+    form.end_date &&
+    form.end_date < form.start_date
+      ? "La fin de la période doit être après le début."
+      : null;
+
   const save = async () => {
+    if (!form.title.trim()) {
+      setActiveStep(0);
+      setStepError("Le titre du cours est obligatoire.");
+      return;
+    }
+    if (dateError) {
+      setActiveStep(1);
+      return;
+    }
     setSaving(true);
     try {
       const splitCsv = (s: string) =>
@@ -265,20 +298,49 @@ export default function InstructorCourses() {
   };
 
   const footer = (
-    <div className="flex gap-3 justify-end">
-      <button
-        onClick={() => setDialogVisible(false)}
-        className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-      >
-        Annuler
-      </button>
-      <button
-        onClick={save}
-        disabled={saving || !form.title.trim()}
-        className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-sm shadow-indigo-600/20"
-      >
-        {saving ? "Enregistrement..." : editingCourse ? "Modifier" : "Créer"}
-      </button>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex gap-2">
+        <button
+          onClick={() => setDialogVisible(false)}
+          className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          Annuler
+        </button>
+        {activeStep > 0 && (
+          <button
+            type="button"
+            onClick={() => { setActiveStep((step) => step - 1); setStepError(""); }}
+            className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <ChevronLeft size={16} /> Précédent
+          </button>
+        )}
+      </div>
+      {activeStep < courseFormSteps.length - 1 ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (activeStep === 0 && !form.title.trim()) {
+              setStepError("Le titre du cours est obligatoire.");
+              document.getElementById("course-title")?.focus();
+              return;
+            }
+            setStepError("");
+            setActiveStep((step) => step + 1);
+          }}
+          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors cursor-pointer shadow-sm shadow-indigo-600/20"
+        >
+          Continuer <ChevronRight size={16} />
+        </button>
+      ) : (
+        <button
+          onClick={save}
+          disabled={saving || !form.title.trim()}
+          className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-sm shadow-indigo-600/20"
+        >
+          {saving ? "Enregistrement..." : editingCourse ? "Modifier" : "Créer"}
+        </button>
+      )}
     </div>
   );
 
@@ -334,15 +396,6 @@ export default function InstructorCourses() {
       document.body.style.overflow = previous;
     };
   }, [dialogVisible, setDialogVisible]);
-
-  const isMarginal = form.course_type === "MARGINAL";
-  const dateError =
-    isMarginal &&
-    form.start_date &&
-    form.end_date &&
-    form.end_date < form.start_date
-      ? "La fin de la période doit être après le début."
-      : null;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -561,8 +614,69 @@ export default function InstructorCourses() {
               </button>
             </div>
 
+            <nav
+              aria-label="Étapes du formulaire de cours"
+              className="border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:px-6"
+            >
+              <ol className="flex items-start">
+                {courseFormSteps.map((step, index) => {
+                  const isComplete = index < activeStep;
+                  const isCurrent = index === activeStep;
+                  return (
+                    <li key={step.title} className="flex min-w-0 flex-1 items-start last:flex-none">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (index < activeStep) {
+                            setActiveStep(index);
+                            setStepError("");
+                          }
+                        }}
+                        disabled={index > activeStep}
+                        aria-current={isCurrent ? "step" : undefined}
+                        className={`group flex min-w-0 items-start gap-2 text-left disabled:cursor-default sm:gap-3 ${focusRing}`}
+                      >
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                            isCurrent
+                              ? "border-indigo-600 bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
+                              : isComplete
+                                ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+                                : "border-slate-300 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-500"
+                          }`}
+                        >
+                          {isComplete ? <Check size={15} aria-hidden /> : index + 1}
+                        </span>
+                        <span className="hidden min-w-0 pt-0.5 sm:block">
+                          <span className={`block truncate text-xs font-semibold sm:text-sm ${isCurrent ? "text-indigo-700 dark:text-indigo-300" : isComplete ? "text-slate-800 dark:text-slate-200" : "text-slate-500"}`}>
+                            {step.title}
+                          </span>
+                          <span className="mt-0.5 hidden truncate text-xs text-slate-400 md:block">
+                            {step.subtitle}
+                          </span>
+                        </span>
+                      </button>
+                      {index < courseFormSteps.length - 1 && (
+                        <span
+                          aria-hidden
+                          className={`mx-2 mt-4 h-px min-w-3 flex-1 sm:mx-3 ${isComplete ? "bg-indigo-300 dark:bg-indigo-800" : "bg-slate-200 dark:bg-slate-700"}`}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+
             {/* Contenu */}
             <div className="space-y-8 overflow-y-auto px-6 py-6">
+              {stepError && (
+                <p id="course-step-error" role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+                  {stepError}
+                </p>
+              )}
+              {activeStep === 0 && (
+                <div className="space-y-8">
               <Section title="Informations">
                 <div>
                   <label htmlFor="course-title" className={labelCls}>
@@ -572,10 +686,13 @@ export default function InstructorCourses() {
                     id="course-title"
                     autoFocus
                     aria-required="true"
+                    aria-invalid={!!stepError}
+                    aria-describedby={stepError ? "course-step-error" : undefined}
                     value={form.title}
-                    onChange={(e) =>
-                      setForm({ ...form, title: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setForm({ ...form, title: e.target.value });
+                      setStepError("");
+                    }}
                     className={fieldCls}
                     placeholder="Ex : Introduction à React"
                   />
@@ -608,7 +725,11 @@ export default function InstructorCourses() {
                   />
                 </div>
               </Section>
+                </div>
+              )}
 
+              {activeStep === 1 && (
+                <div className="space-y-8">
               <Section title="Classement">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
@@ -814,6 +935,11 @@ export default function InstructorCourses() {
                 )}
               </Section>
 
+                </div>
+              )}
+
+              {activeStep === 2 && (
+                <div className="space-y-8">
               <Section title="Miniature">
                 <div className="flex items-center gap-4">
                   <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
@@ -860,25 +986,31 @@ export default function InstructorCourses() {
                 </div>
               </Section>
 
-              {/* Champs optionnels repliés pour raccourcir le formulaire */}
-              <details
-                className="group rounded-lg border border-slate-200 dark:border-slate-800"
-                open={!!editingCourse}
-              >
-                <summary
-                  className={`flex cursor-pointer list-none items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white ${focusRing}`}
-                >
-                  Détails pédagogiques
-                  <span className="flex items-center gap-2 text-xs font-normal text-slate-500 dark:text-slate-400">
-                    Facultatif
-                    <ChevronDown
-                      size={16}
-                      className="transition-transform group-open:rotate-180"
-                      aria-hidden
-                    />
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                <input
+                  type="checkbox"
+                  checked={form.is_published}
+                  onChange={(e) =>
+                    setForm({ ...form, is_published: e.target.checked })
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-slate-900 dark:text-white">
+                    Publier immédiatement
                   </span>
-                </summary>
-                <div className="space-y-4 border-t border-slate-100 px-4 py-4 dark:border-slate-800">
+                  <span className="block text-xs text-slate-500 dark:text-slate-400">
+                    Sinon, le cours reste en brouillon jusqu'à sa publication.
+                  </span>
+                </span>
+              </label>
+                </div>
+              )}
+
+              {activeStep === 3 && (
+                <div className="space-y-8">
+              <Section title="Détails pédagogiques">
+                <div className="space-y-4">
                   <div>
                     <label htmlFor="course-objectives" className={labelCls}>
                       Objectifs pédagogiques
@@ -928,26 +1060,47 @@ export default function InstructorCourses() {
                     <p className={hintCls}>Séparés par des virgules.</p>
                   </div>
                 </div>
-              </details>
+              </Section>
 
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-                <input
-                  type="checkbox"
-                  checked={form.is_published}
-                  onChange={(e) =>
-                    setForm({ ...form, is_published: e.target.checked })
-                  }
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-slate-900 dark:text-white">
-                    Publier immédiatement
-                  </span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400">
-                    Sinon, le cours reste en brouillon jusqu'à sa publication.
-                  </span>
-                </span>
-              </label>
+
+              <section className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-5 dark:border-indigo-900/70 dark:bg-indigo-950/30">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Récapitulatif du cours</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Vérifiez les informations avant l’enregistrement.</p>
+                  </div>
+                  <BookOpen size={18} className="shrink-0 text-indigo-600 dark:text-indigo-400" aria-hidden />
+                </div>
+                <div className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Titre</p>
+                    <p className="mt-0.5 font-medium text-slate-900 dark:text-white">{form.title.trim() || "À renseigner"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Catégorie</p>
+                    <p className="mt-0.5 font-medium text-slate-900 dark:text-white">{categories.find((category) => category.id === form.category_id)?.name || "Non définie"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Niveau et langue</p>
+                    <p className="mt-0.5 font-medium text-slate-900 dark:text-white">{levelLabels[form.level]} · {form.language.toUpperCase()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Prix et durée</p>
+                    <p className="mt-0.5 font-medium text-slate-900 dark:text-white">{Number(form.price) > 0 ? `${form.price} €` : "Gratuit"} · {form.estimated_hours || 0} h</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Type</p>
+                    <p className="mt-0.5 font-medium text-slate-900 dark:text-white">{isMarginal ? "Cours marginal" : "Cours du programme"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">État après création</p>
+                    <p className="mt-0.5 font-medium text-slate-900 dark:text-white">{form.is_published ? "Publié" : "Brouillon"}</p>
+                  </div>
+                </div>
+              </section>
+                </div>
+              )}
+
             </div>
 
             {/* Pied : les boutons de `footer` restent à droite */}

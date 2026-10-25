@@ -16,9 +16,13 @@ def send_template_email(subject, to_email, plain_text, html_text=None, fail_sile
             html_message=html_text,
             fail_silently=fail_silently,
         )
+        if not sent_count:
+            logger.warning("Email was not delivered to %s", to_email)
         if not sent_count and not fail_silently:
             raise RuntimeError("Email backend did not deliver the message.")
+        return bool(sent_count)
     except Exception:
         logger.exception("Failed to send email to %s", to_email)
         if not fail_silently:
             raise
+        return False

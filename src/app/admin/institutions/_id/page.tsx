@@ -67,8 +67,13 @@ export default function InstitutionDetailPage() {
     if (!id) return;
     setSaving(true);
     try {
-      await institutionService.createMember(id, form);
-      showToast('Compte créé. Le changement de mot de passe sera exigé à la première connexion.', 'success');
+      const created = await institutionService.createMember(id, form);
+      showToast(
+        created.credentials_email_sent
+          ? 'Compte créé. Le changement de mot de passe sera exigé à la première connexion.'
+          : 'Compte créé, mais le courriel n’a pas pu être envoyé. Mot de passe temporaire : password123. Il devra être changé à la première connexion.',
+        created.credentials_email_sent ? 'success' : 'info',
+      );
       setShowModal(false);
       setForm({ email: '', full_name: '', role: 'INSTRUCTOR' });
       load();

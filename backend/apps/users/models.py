@@ -18,7 +18,7 @@ class Institution(models.Model):
     name = models.CharField(max_length=255, unique=True)
     slug = models.SlugField(max_length=280, unique=True, blank=True)
     description = models.TextField(blank=True, default="")
-    logo_url = models.URLField(blank=True, default="")
+    logo_url = models.CharField(max_length=500, blank=True, default="")
     country = models.CharField(max_length=100, blank=True, default="")
     website = models.URLField(blank=True, default="")
     is_active = models.BooleanField(default=True)

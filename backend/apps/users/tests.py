@@ -235,7 +235,7 @@ class InstitutionManagementTests(APITestCase):
         self.assertNotIn("foreign-member@test.com", emails)
 
     @patch("apps.users.views.send_template_email")
-    def test_created_account_has_unique_temporary_password_and_must_change_it(self, send_email):
+    def test_created_account_uses_default_temporary_password_and_must_change_it(self, send_email):
         self.client.force_authenticate(user=self.institution_admin)
         response = self.client.post(
             reverse("institution-members", args=[self.institution.pk]),
@@ -252,7 +252,7 @@ class InstitutionManagementTests(APITestCase):
         created = User.objects.get(email="new-student@test.com")
         temporary_password = send_email.call_args.args[2].splitlines()[3]
         self.assertTrue(created.check_password(temporary_password))
-        self.assertNotEqual(temporary_password, "password123")
+        self.assertEqual(temporary_password, "password123")
         self.assertTrue(created.must_change_password)
 
         token = str(RefreshToken.for_user(created).access_token)

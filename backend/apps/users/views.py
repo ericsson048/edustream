@@ -80,14 +80,14 @@ def _send_managed_user_credentials(user):
     temporary_password = getattr(user, "_temporary_password", None)
     if not temporary_password:
         return
-    send_template_email(
+    return send_template_email(
         "Votre compte EduStream",
         user.email,
         f"Bonjour {user.full_name},\n\n"
         "Votre compte EduStream a été créé. Utilisez ce mot de passe temporaire pour vous connecter :\n"
         f"{temporary_password}\n\n"
         "Vous devrez le remplacer dès votre première connexion.",
-        fail_silently=False,
+        fail_silently=True,
     )
 
 
@@ -517,11 +517,12 @@ class InstitutionListCreateView(generics.ListCreateAPIView):
         response_data = InstitutionSerializer(institution).data
         admin_user = getattr(institution, "_created_admin", None)
         if admin_user:
-            _send_managed_user_credentials(admin_user)
+            email_sent = _send_managed_user_credentials(admin_user)
             response_data["admin"] = {
                 "email": admin_user.email,
                 "full_name": admin_user.full_name,
                 "must_change_password": admin_user.must_change_password,
+                "credentials_email_sent": email_sent,
             }
         return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
@@ -581,9 +582,11 @@ class InstitutionMembersView(APIView):
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             user = serializer.save()
-            _send_managed_user_credentials(user)
+        email_sent = _send_managed_user_credentials(user)
         logger.info("institution_member_created institution=%s new_user=%s by=%s", institution.name, user.email, request.user.email)
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        response_data = UserSerializer(user).data
+        response_data["credentials_email_sent"] = email_sent
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class InstructorStudentCreateView(APIView):
@@ -596,9 +599,11 @@ class InstructorStudentCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             user = serializer.save()
-            _send_managed_user_credentials(user)
+        email_sent = _send_managed_user_credentials(user)
         logger.info("instructor_created_student instructor=%s student=%s", request.user.email, user.email)
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        response_data = UserSerializer(user).data
+        response_data["credentials_email_sent"] = email_sent
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class InstructorStudentListView(generics.ListAPIView):

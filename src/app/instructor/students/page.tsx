@@ -3,6 +3,7 @@ import { Plus, Users, BookOpen, X, Save, Search, UserCheck, Trash2 } from 'lucid
 import InstructorSidebar from '../../../components/InstructorSidebar';
 import Header from '../../../components/Header';
 import { useToast } from '../../../contexts/ToastContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { institutionService, type CourseAccessStudent } from '../../../services/institutionService';
 import { courseService } from '../../../services/courseService';
 import type { AuthUser } from '../../../types/auth';
@@ -26,6 +27,7 @@ type Tab = 'students' | 'access';
 
 export default function InstructorStudentsPage() {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('students');
 
   // Students
@@ -38,6 +40,7 @@ export default function InstructorStudentsPage() {
 
   // Courses & access
   const [courses, setCourses] = useState<Course[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [accessStudents, setAccessStudents] = useState<CourseAccessStudent[]>([]);
   const [loadingAccess, setLoadingAccess] = useState(false);
@@ -53,20 +56,45 @@ export default function InstructorStudentsPage() {
       .finally(() => setLoadingStudents(false));
   };
 
-  const loadCourses = () => {
-    courseService.listCourses()
-      .then(cs => { setCourses(cs); if (cs.length > 0) setSelectedCourse(cs[0].id); })
-      .catch(() => {});
-  };
-
   useEffect(() => {
     loadStudents();
-    loadCourses();
   }, []);
 
   useEffect(() => {
-    if (!selectedCourse) return;
+    let active = true;
+    if (!user?.id) {
+      setCourses([]);
+      setSelectedCourse('');
+      setLoadingCourses(false);
+      return;
+    }
+
+    setLoadingCourses(true);
+    courseService.listCourses({ instructor: user.id })
+      .then(cs => {
+        if (!active) return;
+        setCourses(cs);
+        setSelectedCourse('');
+      })
+      .catch(() => {
+        if (!active) return;
+        setCourses([]);
+        setSelectedCourse('');
+        showToast('Erreur de chargement de vos cours.', 'error');
+      })
+      .finally(() => { if (active) setLoadingCourses(false); });
+
+    return () => { active = false; };
+  }, [user?.id, showToast]);
+
+  useEffect(() => {
+    if (!selectedCourse) {
+      setAccessStudents([]);
+      setLoadingAccess(false);
+      return;
+    }
     setLoadingAccess(true);
+    setAccessStudents([]);
     institutionService.listCourseAccessStudents(selectedCourse)
       .then(setAccessStudents)
       .catch(() => {})
@@ -226,14 +254,14 @@ export default function InstructorStudentsPage() {
           {tab === 'access' && (
             <>
               <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                <select value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)}
+                <select value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)} disabled={loadingCourses || courses.length === 0}
                   className="flex-1 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  {courses.length === 0
-                    ? <option value="">Aucun cours disponible</option>
-                    : courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)
-                  }
+                  <option value="" disabled>
+                    {loadingCourses ? 'Chargement de vos cours…' : courses.length === 0 ? 'Aucun cours créé' : 'Sélectionnez un cours'}
+                  </option>
+                  {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
                 </select>
-                <button onClick={() => setShowGrantModal(true)} disabled={!selectedCourse || students.length === 0}
+                <button onClick={() => setShowGrantModal(true)} disabled={loadingCourses || !selectedCourse || students.length === 0}
                   className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-40 whitespace-nowrap">
                   <UserCheck className="w-4 h-4" /> Attribuer l'accès
                 </button>
@@ -330,6 +358,9 @@ export default function InstructorStudentsPage() {
       {showGrantModal && (
         <Modal title="Attribuer l'accès au cours" onClose={() => { setShowGrantModal(false); setSelectedStudentIds([]); }}>
           <div className="space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Cours sélectionné : <span className="font-semibold text-slate-900 dark:text-white">{courses.find(course => course.id === selectedCourse)?.title}</span>
+            </p>
             {studentsWithoutAccess.length === 0 ? (
               <p className="text-sm text-slate-500 text-center py-4">Tous vos étudiants ont déjà accès à ce cours.</p>
             ) : (

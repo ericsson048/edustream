@@ -1,4 +1,4 @@
-import secrets
+from urllib.parse import urlsplit
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -8,9 +8,24 @@ from rest_framework import serializers
 from .models import Institution
 
 User = get_user_model()
+DEFAULT_MANAGED_USER_PASSWORD = "password123"
+
+
+def validate_institution_logo_url(value):
+    if not value:
+        return value
+    if value.startswith("/media/") and not value.startswith("//"):
+        return value
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or any(char.isspace() for char in value):
+        raise serializers.ValidationError("Enter a valid HTTPS URL or a local media path.")
+    return value
 
 class InstitutionSerializer(serializers.ModelSerializer):
     members_count = serializers.SerializerMethodField()
+
+    def validate_logo_url(self, value):
+        return validate_institution_logo_url(value)
 
     class Meta:
         model = Institution
@@ -26,6 +41,9 @@ class InstitutionSerializer(serializers.ModelSerializer):
 
 class InstitutionCreateSerializer(serializers.ModelSerializer):
     admin = serializers.DictField(required=False)
+
+    def validate_logo_url(self, value):
+        return validate_institution_logo_url(value)
 
     class Meta:
         model = Institution
@@ -65,7 +83,7 @@ class InstitutionCreateSerializer(serializers.ModelSerializer):
             )
 
             if admin_data:
-                temporary_password = secrets.token_urlsafe(18)
+                temporary_password = DEFAULT_MANAGED_USER_PASSWORD
                 admin_user = User.objects.create_user(
                     email=admin_data["email"].lower(),
                     full_name=admin_data["full_name"],
@@ -198,7 +216,7 @@ class CreateManagedUserSerializer(serializers.Serializer):
         if creator.role == User.Role.INSTITUTION_ADMIN:
             institution_id = creator.institution_id
 
-        temporary_password = secrets.token_urlsafe(18)
+        temporary_password = DEFAULT_MANAGED_USER_PASSWORD
         user = User.objects.create_user(
             email=validated_data["email"],
             full_name=validated_data["full_name"],
